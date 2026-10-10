@@ -348,6 +348,11 @@ class LiveEngine:
         return np.column_stack([cells % self._size, cells // self._size, age]).astype(np.float64)
 
     def _colors(self, s: float, act: Array) -> npt.NDArray[np.uint8]:
+        lch = self.colors_lch(s, act)
+        return linear_to_srgb8(oklab_to_linear_srgb(oklch_to_oklab(lch)))
+
+    def colors_lch(self, s: float, act: Array) -> Array:
+        """Live cell colors as gamut-mapped OKLCH ``(K, 3)`` float64 (before 8-bit quantization)."""
         lv, cc = self.config.live, self.config.color
         color_n = self._lerp(self.stream.color, s) / _BYTE_MAX
         live_h = cc.hue.from_deg + (cc.hue.to_deg - cc.hue.from_deg) * color_n[0]
@@ -372,4 +377,4 @@ class LiveEngine:
             ],
             axis=-1,
         )
-        return linear_to_srgb8(oklab_to_linear_srgb(oklch_to_oklab(gamut_map(lch))))
+        return gamut_map(lch)

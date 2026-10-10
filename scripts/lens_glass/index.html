@@ -1,0 +1,425 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>glass lens prototype</title>
+<style>
+  html,body{margin:0;background:#000;color:#bbb;font:12px/1.4 ui-monospace,Consolas,monospace}
+  canvas{display:block;background:#000}
+  #log{position:fixed;right:6px;bottom:4px;opacity:.55;white-space:pre;pointer-events:none}
+</style>
+<canvas id="c"></canvas>
+<div id="log"></div>
+<script>
+"use strict";
+// 32 x 32 glass lenses over a 64 x 64 colour field (D-027). One lens pass into an RGBA16F target,
+// restrained bloom, filmic shoulder, dither, sRGB / Display P3 encode. Parameters: /params.json.
+const $ = (id) => document.getElementById(id);
+const logEl = $('log');
+const log = (s) => { logEl.textContent = s; };
+const cv = $('c');
+const gl = cv.getContext('webgl2', {antialias: false, alpha: false, preserveDrawingBuffer: false,
+                                    powerPreference: 'high-performance'});
+if (!gl) throw new Error('WebGL2 unavailable');
+const extF = gl.getExtension('EXT_color_buffer_float');
+gl.getExtension('OES_texture_float_linear');
+
+const VS = `#version 300 es
+in vec2 p; out vec2 vUv; void main(){ vUv = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }`;
+
+// ------------------------------------------------------------------------------------------
+const FS_LENS = `#version 300 es
+precision highp float;
+precision highp int;
+in vec2 vUv; out vec4 o;
+
+uniform sampler2D uLab;    // 64x64 RGB32F: OKLab of every analysis cell
+uniform sampler2D uFlow;   // 64x64 RGB32F: d/dx, d/dy, value of the smooth response field
+uniform float uSide;       // frame side in pixels
+uniform float uLenses;     // lenses per side (32)
+uniform float uCells;      // analysis cells per side (64)
+uniform float uMargin;     // frame margin in lens pitches
+uniform float uRadius, uHeight, uPower, uIor, uDisp, uDepth, uAbsorb, uGlow;
+uniform float uSwirl, uSwirlPow;
+uniform vec3  uLight;
+uniform float uKey, uRimL, uEnv, uF0, uBevel, uBevelW, uCaus, uCausOff, uGap, uBody, uEdgeDark, uEdgeRef;
+uniform float uFlat;       // 1 = flat lenses (fallback)
+uniform float uLive;       // 0 = static, 1 = live
+uniform float uTime, uLoud, uSwirlFlow, uSwirlLoud, uDriftHz, uNormFlow, uLightDrift;
+
+const float PI = 3.14159265;
+
+vec3 labToLin(vec3 c){
+  float l_ = c.x + 0.3963377774*c.y + 0.2158037573*c.z;
+  float m_ = c.x - 0.1055613458*c.y - 0.0638541728*c.z;
+  float s_ = c.x - 0.0894841775*c.y - 1.2914855480*c.z;
+  float l = l_*l_*l_, m = m_*m_*m_, s = s_*s_*s_;
+  return vec3( 4.0767416621*l - 3.3077115913*m + 0.2309699292*s,
+              -1.2684380046*l + 2.6097574011*m - 0.3413193965*s,
+              -0.0041960863*l - 0.7034186147*m + 1.7076147010*s);
+}
+vec4 crW(float t){
+  float t2 = t*t, t3 = t2*t;
+  return vec4(-0.5*t3 + t2 - 0.5*t, 1.5*t3 - 2.5*t2 + 1.0, -1.5*t3 + 2.0*t2 + 0.5*t, 0.5*t3 - 0.5*t2);
+}
+vec3 labAt(ivec2 c){ c = clamp(c, ivec2(0), ivec2(int(uCells)-1)); return texelFetch(uLab, c, 0).rgb; }
+// Catmull-Rom field in OKLab at analysis-cell coordinates (cell centre of (i,j) at (j+.5,i+.5))
+vec3 field(vec2 pc){
+  vec2 g = pc - 0.5; vec2 i0 = floor(g); vec2 t = g - i0;
+  vec4 wx = crW(t.x), wy = crW(t.y);
+  vec3 acc = vec3(0.0);
+  ivec2 b = ivec2(i0) - ivec2(1);
+  for (int dy = 0; dy < 4; dy++)
+    for (int dx = 0; dx < 4; dx++)
+      acc += wx[dx]*wy[dy]*labAt(b + ivec2(dx, dy));
+  return acc;
+}
+vec2 swirlWarp(vec2 q, float angle0, float R){
+  float r = length(q);
+  float s = clamp(r/R, 0.0, 1.0);
+  float a = angle0 * pow(1.0 - s, uSwirlPow);
+  float c = cos(a), sn = sin(a);
+  return vec2(q.x*c - q.y*sn, q.x*sn + q.y*c);
+}
+float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x+p3.y)*p3.z); }
+
+vec3 environment(vec3 R, vec3 L){
+  // procedural studio: dark gradient room, a large soft key box, a smaller fill box, a rim strip
+  float up = clamp(-R.y*0.5 + 0.5, 0.0, 1.0);
+  vec3 env = mix(vec3(0.010,0.011,0.013), vec3(0.060,0.065,0.075), smoothstep(0.0, 1.0, up));
+  float key = smoothstep(cos(0.50), cos(0.16), dot(R, L));
+  vec3 Lf = normalize(vec3(-L.x, L.y*0.9, L.z));
+  float fill = smoothstep(cos(0.42), cos(0.14), dot(R, Lf));
+  vec3 Lr = normalize(vec3(0.78, 0.12, 0.30));
+  float rim = pow(max(dot(R, Lr), 0.0), 7.0);
+  return env + vec3(3.4)*key*uKey + vec3(0.9)*fill + vec3(1.6)*rim*uRimL;
+}
+
+void main(){
+  vec2 frag = vec2(vUv.x, 1.0 - vUv.y) * uSide;
+  float P = uSide / (uLenses + 2.0*uMargin);
+  vec2 l = frag / P - uMargin;
+  vec2 idx = clamp(floor(l), 0.0, uLenses - 1.0);
+  vec2 f = l - idx - 0.5;                 // offset from the lens centre, lens-pitch units
+  float R = uRadius;
+  float r = length(f);
+  float u = r / R;
+  float d = r - R;                        // signed distance to the lens edge
+  float aa = max(fwidth(d)*0.75, 1e-5);
+  float cover = 1.0 - smoothstep(-aa, aa, d);
+  vec2 fdir = f / max(r, 1e-5);
+  bool inLens = idx.x >= 0.0 && idx.x < uLenses;
+
+  float block = uCells / uLenses;         // analysis cells per lens side (2)
+  vec2 centreCells = (idx + 0.5) * block;
+  // flow at the lens centre: mean of the lens's cells
+  vec3 flow = vec3(0.0);
+  for (int j = 0; j < 2; j++) for (int i = 0; i < 2; i++)
+    flow += texelFetch(uFlow, clamp(ivec2(centreCells) - ivec2(1) + ivec2(i, j), ivec2(0), ivec2(int(uCells)-1)), 0).rgb;
+  flow *= 0.25;
+
+  float ang = radians(uSwirl);
+  if (uLive > 0.5) {
+    float ph = sin(6.2831853*uDriftHz*uTime + 6.2831853*hash12(idx))*0.25*flow.z;
+    ang += uSwirlFlow*flow.z + uSwirlLoud*uLoud + ph;
+  }
+  vec3 L = normalize(uLight);
+  if (uLive > 0.5) L = normalize(L + uLightDrift*vec3(flow.x, flow.y, 0.0)*2.0);
+
+  vec3 outc = vec3(0.0);
+  vec3 lensAvg = labToLin(field(centreCells));   // colour of the lens centre for ground effects
+
+  if (uFlat > 0.5) {
+    vec2 w = swirlWarp(f, ang, R);
+    vec3 c = labToLin(field(centreCells + w*block));
+    outc = max(c, 0.0) * cover * (0.80 + 0.20*(1.0 - u*u));
+  } else {
+    // ---- thick lens: rounded-top height field and its normal --------------------------------
+    float uc = min(u, 0.999);
+    float q = uPower;
+    float uq = pow(uc, q);
+    float base = max(1.0 - uq, 1e-4);
+    float Hh = uHeight * R;
+    float h = Hh * pow(base, 1.0/q);                          // height above the base plane
+    float dhdr = -(Hh/R) * pow(uc, q - 1.0) * pow(base, 1.0/q - 1.0);
+    dhdr = clamp(dhdr, -7.0, 0.0);
+    vec3 n = normalize(vec3(-dhdr*fdir, 1.0));
+    if (uLive > 0.5) {
+      n.xy -= uNormFlow*3.0*flow.xy*(h/Hh);
+      n = normalize(n);
+    }
+    // ---- refraction with chromatic dispersion; field plane sits below the lens base ----------
+    vec3 I = vec3(0.0, 0.0, -1.0);
+    float depth = h + uDepth*R;
+    vec3 tr = refract(I, n, 1.0/(uIor - uDisp));
+    vec3 tg = refract(I, n, 1.0/uIor);
+    vec3 tb = refract(I, n, 1.0/(uIor + uDisp));
+    // rim: the sample position runs past the lens edge so the rim shows the neighbours (per-channel
+    // stretch gives chromatic fringes); inside, the refracted ray alone decides the position
+    float rimK = uEdgeRef * smoothstep(0.55, 1.0, u);
+    vec2 pr = f + tr.xy/max(-tr.z, 0.25)*depth + f*rimK*(1.0 + 3.0*uDisp);
+    vec2 pg = f + tg.xy/max(-tg.z, 0.25)*depth + f*rimK;
+    vec2 pb = f + tb.xy/max(-tb.z, 0.25)*depth + f*rimK*(1.0 - 3.0*uDisp);
+    vec3 cr = labToLin(field(centreCells + swirlWarp(pr, ang, R)*block));
+    vec3 cg = labToLin(field(centreCells + swirlWarp(pg, ang, R)*block));
+    vec3 cb = labToLin(field(centreCells + swirlWarp(pb, ang, R)*block));
+    vec3 col = max(vec3(cr.r, cg.g, cb.b), 0.0);
+    // ---- Beer-Lambert absorption tinted by the data colour; subtle internal glow --------------
+    float path = depth / max(-tg.z, 0.25);
+    vec3 sigma = uAbsorb * (1.0 - clamp(col, 0.0, 1.0)) * 0.9;
+    col *= exp(-sigma * path * 0.55);
+    col *= 1.0 + uGlow * (h/Hh - 0.45);
+    // volume: lit side brighter, far side darker; thick rim darkens (inner shadow)
+    float ndl = dot(n, L);
+    col *= clamp(1.0 + uBody*(ndl - L.z)*1.6, 0.35, 1.7);
+    float far = clamp(0.5 - 0.5*dot(fdir, normalize(L.xy)), 0.0, 1.0);   // side away from the key
+    float cres = smoothstep(0.50, 0.86, u) * (1.0 - smoothstep(0.90, 1.0, u)) * pow(far, 2.2);
+    col += col * (0.70 * uGlow) * cres + vec3(0.05) * cres * uGlow;       // focused light, data tinted
+    col *= 1.0 - uEdgeDark*smoothstep(0.55, 1.0, u)*(0.55 + 0.45*clamp(0.5 - 0.5*dot(fdir, normalize(L.xy)), 0.0, 1.0));
+    // ---- Fresnel (Schlick), studio-environment reflection, bevel, key specular ---------------
+    float f0 = pow((uIor - 1.0)/(uIor + 1.0), 2.0) * uF0;
+    float ndv = clamp(n.z, 0.0, 1.0);
+    float F = f0 + (1.0 - f0)*pow(1.0 - ndv, 5.0);
+    vec3 Rv = vec3(2.0*n.z*n.x, 2.0*n.z*n.y, 2.0*n.z*n.z - 1.0);
+    vec3 refl = environment(Rv, L) * uEnv * F;
+    float facing = clamp(0.5 + 0.5*dot(fdir, normalize(L.xy)), 0.0, 1.0);
+    float lit = 0.05 + 0.95*pow(facing, 4.0);
+    float bevel = smoothstep(1.0 - 2.4*uBevelW, 1.0 - 0.6*uBevelW, u) * (1.0 - smoothstep(1.0 - 0.35*uBevelW, 1.0, u));
+    vec3 Hh3 = normalize(L + vec3(0.0, 0.0, 1.0));
+    float spec = pow(max(dot(n, Hh3), 0.0), 120.0) * 0.9 * uKey;
+    vec3 white = vec3(bevel*uBevel*lit + spec);
+    outc = (col*(1.0 - F) + refl + white) * cover;
+    // ---- ground: faint neutral highlight in the gaps (the caustic spill is a composite pass) --
+    float gap = uGap * exp(-max(d, 0.0)/0.055) * (0.4 + 0.6*clamp(dot(fdir, normalize(L.xy)), 0.0, 1.0));
+    outc += vec3(gap) * (1.0 - cover);
+  }
+  o = vec4(max(outc, 0.0), cover);
+}`;
+
+const FS_BLOOM_DOWN = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o; uniform sampler2D uT; uniform vec2 uTexel; uniform vec2 uDir; uniform float uThreshold; uniform float uFirst;
+void main(){
+  float w[5] = float[](0.2270270270, 0.1945945946, 0.1216216216, 0.0540540541, 0.0162162162);
+  vec3 c = vec3(0.0);
+  for (int i = -4; i <= 4; i++) {
+    vec3 s = texture(uT, vUv + uDir*uTexel*float(i)).rgb;
+    if (uFirst > 0.5) s = max(s - uThreshold, 0.0);
+    c += s * w[abs(i)];
+  }
+  o = vec4(c, 1.0);
+}`;
+
+const FS_COMPOSITE = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o;
+uniform sampler2D uHdr, uBloom;
+uniform float uBloomK, uExposure, uDither, uP3, uSide, uCaus;
+uniform vec2 uCausVec;
+float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x+p3.y)*p3.z); }
+vec3 shoulder(vec3 x){  // filmic highlight shoulder: identity below the knee, soft roll-off above
+  const float k = 0.62;
+  vec3 t = (x - k) / (1.0 - k);
+  return mix(x, k + (1.0 - k)*(1.0 - exp(-max(t, 0.0))), step(k, x));
+}
+vec3 oetf(vec3 c){ return mix(c*12.92, 1.055*pow(max(c,0.0), vec3(1.0/2.4)) - 0.055, step(0.0031308, c)); }
+void main(){
+  vec4 h = texture(uHdr, vUv);
+  vec3 c = h.rgb + texture(uBloom, vUv).rgb * uBloomK;
+  c += texture(uBloom, vUv + uCausVec).rgb * uCaus * (1.0 - h.a);   // data-coloured caustic on the ground
+  c = shoulder(c * uExposure);
+  if (uP3 > 0.5) {  // linear sRGB -> linear Display P3
+    c = mat3(0.8224621, 0.0331941, 0.0170827,
+             0.1775380, 0.9668058, 0.0723974,
+             0.0000000, 0.0000000, 0.9105199) * c;
+  }
+  vec3 e = oetf(clamp(c, 0.0, 1.0));
+  vec2 fc = vec2(vUv.x, 1.0 - vUv.y) * uSide;
+  float n = hash12(fc) + hash12(fc + 17.3) - 1.0;       // triangular noise, +-1 LSB
+  e += n * uDither / 255.0;
+  o = vec4(e, 1.0);
+}`;
+
+// ------------------------------------------------------------------------------------------
+function program(fs) {
+  const mk = (type, src) => {
+    const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  };
+  const p = gl.createProgram();
+  gl.attachShader(p, mk(gl.VERTEX_SHADER, VS)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs));
+  gl.bindAttribLocation(p, 0, 'p'); gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  return p;
+}
+const pLens = program(FS_LENS), pBloom = program(FS_BLOOM_DOWN), pComp = program(FS_COMPOSITE);
+const vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+function floatTex(data, size) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB32F, size, size, 0, gl.RGB, gl.FLOAT, data);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+function target(w, h) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+  return {t, f, w, h};
+}
+
+const S = {params: null, index: null, side: 0, hdr: null, b1: null, b2: null,
+           labTex: null, flowTex: null, song: null, live: null, flat: false, frameLab: null, frameFlow: null};
+const base = '';
+
+async function fetchF32(name) {
+  const r = await fetch('/data/' + name); return new Float32Array(await r.arrayBuffer());
+}
+async function init() {
+  S.params = await (await fetch('/params.json')).json();
+  S.index = await (await fetch('/data/index.json')).json();
+  S.songs = {};
+  for (const [name, e] of Object.entries(S.index)) {
+    S.songs[name] = {static: await fetchF32(e.static), meta: e.live || null};
+    if (e.live) {
+      S.songs[name].liveLab = await fetchF32(e.live.lab);
+      S.songs[name].liveFlow = await fetchF32(e.live.flow);
+    }
+  }
+  S.flowZero = new Float32Array(64 * 64 * 3);
+  S.labTex = floatTex(S.songs.electronic.static, 64);
+  S.flowTex = floatTex(S.flowZero, 64);
+  return Object.keys(S.songs);
+}
+function resize(side) {
+  if (S.side === side) return;
+  S.side = side; cv.width = side; cv.height = side;
+  cv.style.width = side + 'px'; cv.style.height = side + 'px';
+  S.hdr = target(side, side);
+  const q = Math.max(64, side >> 2);
+  S.b1 = target(q, q); S.b2 = target(q, q);
+}
+function setTex(unit, tex) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, tex); }
+function uni(p, n) { return gl.getUniformLocation(p, n); }
+
+// simplified lens for small displays (lens < ~14 px): no dispersion, half the studio
+// reflection, a wider bevel so it survives, no caustic, less rim refraction
+function simplified(g) {
+  return Object.assign({}, g, {dispersion: 0, env_strength: g.env_strength * 0.5,
+    bevel_width: g.bevel_width * 1.7, caustic_strength: 0, edge_refraction: g.edge_refraction * 0.4,
+    bloom_strength: g.bloom_strength * 0.6});
+}
+function draw(opts) {
+  const g = opts.simple ? simplified(S.params.render) : S.params.render, lg = S.params.live;
+  const side = S.side;
+  gl.useProgram(pLens);
+  setTex(0, S.labTex); setTex(1, S.flowTex);
+  gl.uniform1i(uni(pLens, 'uLab'), 0); gl.uniform1i(uni(pLens, 'uFlow'), 1);
+  const f = (n, v) => gl.uniform1f(uni(pLens, n), v);
+  f('uSide', side); f('uLenses', 64 / g.display_block); f('uCells', 64); f('uMargin', 0.6);
+  f('uRadius', g.lens_radius); f('uHeight', g.lens_height); f('uPower', g.profile_power);
+  f('uIor', g.ior); f('uDisp', g.dispersion); f('uDepth', g.refraction_depth);
+  f('uAbsorb', g.absorption); f('uGlow', g.inner_glow);
+  f('uSwirl', g.swirl_angle_deg); f('uSwirlPow', g.swirl_falloff_power);
+  gl.uniform3f(uni(pLens, 'uLight'), g.light_dir[0], g.light_dir[1], g.light_dir[2]);
+  f('uKey', g.key_strength); f('uRimL', g.rim_light_strength); f('uEnv', g.env_strength);
+  f('uF0', g.fresnel_f0_boost); f('uBevel', g.bevel_strength); f('uBevelW', g.bevel_width);
+  f('uCaus', g.caustic_strength); f('uCausOff', g.caustic_offset); f('uGap', g.gap_highlight);
+  f('uBody', g.body_shading); f('uEdgeDark', g.edge_darkening); f('uEdgeRef', g.edge_refraction);
+  f('uFlat', opts.flat ? 1 : 0); f('uLive', opts.live ? 1 : 0);
+  f('uTime', opts.time || 0); f('uLoud', opts.loud || 0);
+  f('uSwirlFlow', opts.static_hi ? 0 : lg.swirl_flow_gain); f('uSwirlLoud', opts.static_hi ? 0 : lg.swirl_loud_gain);
+  f('uDriftHz', lg.swirl_drift_hz); f('uNormFlow', opts.static_hi ? 0 : lg.normal_from_response);
+  f('uLightDrift', opts.static_hi ? 0 : lg.light_drift);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, S.hdr.f); gl.viewport(0, 0, side, side);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  // restrained bloom: bright-pass + separable blur at quarter resolution
+  gl.useProgram(pBloom);
+  const sigmaPx = g.bloom_sigma * side / (64 / g.display_block + 1.2);
+  const step = Math.max(sigmaPx / 4 / (S.b1.w), 0.0);
+  gl.uniform1i(uni(pBloom, 'uT'), 0);
+  setTex(0, S.hdr.t);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, S.b1.f); gl.viewport(0, 0, S.b1.w, S.b1.h);
+  gl.uniform2f(uni(pBloom, 'uTexel'), 1 / S.b1.w, 1 / S.b1.h);
+  gl.uniform2f(uni(pBloom, 'uDir'), Math.max(sigmaPx / 4, 1), 0);
+  gl.uniform1f(uni(pBloom, 'uThreshold'), 0.45); gl.uniform1f(uni(pBloom, 'uFirst'), 1);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  setTex(0, S.b1.t);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, S.b2.f);
+  gl.uniform2f(uni(pBloom, 'uDir'), 0, Math.max(sigmaPx / 4, 1));
+  gl.uniform1f(uni(pBloom, 'uFirst'), 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  gl.useProgram(pComp);
+  setTex(0, S.hdr.t); setTex(1, S.b2.t);
+  gl.uniform1i(uni(pComp, 'uHdr'), 0); gl.uniform1i(uni(pComp, 'uBloom'), 1);
+  gl.uniform1f(uni(pComp, 'uBloomK'), g.bloom_strength); gl.uniform1f(uni(pComp, 'uExposure'), g.exposure);
+  gl.uniform1f(uni(pComp, 'uDither'), g.dither); gl.uniform1f(uni(pComp, 'uP3'), g.color_space === 'display-p3' ? 1 : 0);
+  gl.uniform1f(uni(pComp, 'uSide'), side);
+  gl.uniform1f(uni(pComp, 'uCaus'), g.caustic_strength);
+  { const lx = g.light_dir[0], ly = g.light_dir[1], ll = Math.hypot(lx, ly) || 1;
+    const off = g.caustic_offset * g.lens_radius / (64 / g.display_block + 1.2);
+    gl.uniform2f(uni(pComp, 'uCausVec'), lx / ll * off, -ly / ll * off); }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, side, side);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+function useStatic(song) {
+  S.labTex = floatTex(S.songs[song].static, 64);
+  S.flowTex = floatTex(S.flowZero, 64);
+}
+function useLive(song, k) {
+  const m = S.songs[song].meta, n = 64 * 64 * 3;
+  S.labTex = floatTex(S.songs[song].liveLab.subarray(k * n, (k + 1) * n), 64);
+  S.flowTex = floatTex(S.songs[song].liveFlow.subarray(k * n, (k + 1) * n), 64);
+  return {time: k / m.fps, loud: m.loud[k]};
+}
+async function save(name) {
+  const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
+  const r = await fetch('/save?name=' + encodeURIComponent(name), {method: 'POST', body: blob});
+  return r.ok;
+}
+const px = new Uint8Array(4);
+function sync() { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); }
+
+window.LENS = {
+  init,
+  async reloadParams() { S.params = await (await fetch('/params.json')).json(); },
+  async still(song, side, name, o = {}) {
+    resize(side); useStatic(song);
+    draw({flat: !!o.flat, live: false, static_hi: true, simple: !!o.simple});
+    sync(); return save(name);
+  },
+  async liveFrame(song, side, k, name, o = {}) {
+    resize(side); const t = useLive(song, k);
+    draw({flat: !!o.flat, live: !o.static, time: t.time, loud: t.loud, static_hi: !!o.static, simple: !!o.simple});
+    sync(); return name ? save(name) : true;
+  },
+  async liveClip(song, side, from, to, prefix, o = {}) {
+    for (let k = from; k < to; k++) await this.liveFrame(song, side, k, `${prefix}_${String(k).padStart(4, '0')}.png`, o);
+    return to - from;
+  },
+  bench(song, side, frames = 90, o = {}) {
+    resize(side); useStatic(song);
+    const opt = {flat: !!o.flat, live: !!o.live, static_hi: !o.live, simple: !!o.simple, time: 1.0, loud: 0.5};
+    for (let i = 0; i < 8; i++) draw(opt);
+    sync(); const t0 = performance.now();
+    for (let i = 0; i < frames; i++) draw(opt);
+    sync(); return (performance.now() - t0) / frames;
+  },
+  info() {
+    const d = gl.getExtension('WEBGL_debug_renderer_info');
+    return {renderer: d ? gl.getParameter(d.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER), floatRT: !!extF};
+  },
+};
+</script>

@@ -275,40 +275,51 @@ class Caption(_Section):
     font: str
 
 
-class GlassSheet(_Section):
-    warp_amp: float
-    warp_wavelength_cells: float
-    frost: float
-    sweep_strength: float
-    sweep_pos: float
-    sweep_width: float
-    edge_strength: float
-    edge_width: float
-
-
 class RenderGlass(_Section):
-    variant: Literal["none", "beads", "sheet", "combo"]
-    strength: float
-    light_dir: tuple[float, float, float]
-    shade_strength: float
+    mode: Literal["flat", "lens"]
+    display_block: int
+    lens_radius: float
+    lens_height: float
+    profile_power: float
+    ior: float
+    dispersion: float
+    refraction_depth: float
+    absorption: float
+    body_shading: float
+    edge_darkening: float
     inner_glow: float
-    spec_strength: float
-    spec_power: float
-    rim_strength: float
-    rim_width: float
-    refraction: float
-    refraction_mix: float
+    swirl_angle_deg: float
+    swirl_falloff_power: float
+    light_dir: tuple[float, float, float]
+    key_strength: float
+    rim_light_strength: float
+    env_strength: float
+    fresnel_f0_boost: float
+    bevel_strength: float
+    bevel_width: float
     caustic_strength: float
     caustic_offset: float
-    caustic_sigma: float
-    sheet: GlassSheet
-    combo_scale: float
+    gap_highlight: float
+    edge_refraction: float
+    bridge_strength: float
+    exposure: float
+    bloom_strength: float
+    bloom_sigma: float
+    dither: float
+    color_space: Literal["srgb", "display-p3"]
+    chroma_ceiling: float
+    chroma_ceiling_p3: float
+    flat_fallback: bool
 
 
 class LiveGlass(_Section):
+    swirl_flow_gain: float
+    swirl_loud_gain: float
+    swirl_drift_hz: float
     normal_from_response: float
     ripple_bend: float
-    flow_light_drift: float
+    light_drift: float
+    bridge_activity_gain: float
     reduced_motion: Literal["static", "flat"]
 
 

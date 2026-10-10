@@ -165,11 +165,15 @@ live:
     ripples: false
     diffusion: false
     release_ms: 500
-  glass:                        # live behavior of the glass look (used when render.glass.variant != none)
-    normal_from_response: 0.60  # how much the smooth response field A tilts the surface normal
-    ripple_bend: 0.50           # how much beat ripples bend the highlights
-    flow_light_drift: 0.04      # light direction drift (fraction of a radian) following the response
-    reduced_motion: static      # static | flat: highlights fixed (or removed) under reduced motion
+  glass:                        # live behavior of the lens look (render.glass.mode: lens)
+    swirl_flow_gain: 0.90       # extra swirl angle (radians) per unit of the smooth response field
+    swirl_loud_gain: 0.35       # extra swirl angle (radians) per unit of normalized loudness
+    swirl_drift_hz: 0.18        # slow rotation of the swirl phase, scaled by the response
+    normal_from_response: 0.60  # how much the response-field gradient tilts the lens surface
+    ripple_bend: 0.50           # how much beat ripples bend the refracted light
+    light_drift: 0.05           # key light drift following the response (radians)
+    bridge_activity_gain: 1.0   # meniscus bridge growth with neighbor activity (needs bridge_strength)
+    reduced_motion: static      # static | flat: highlights fixed (or flat lenses) under reduced motion
 
 render:
   export_px: [2048, 4096, 8192]
@@ -180,31 +184,41 @@ render:
   glow_opacity: 0.30            # D-026 (D-018 had 0.45, D-017 0.35, spec 0.60)
   background: "#000000"
   caption: {enabled: false, font: system}
-  glass:                        # "liquid glass" look (look development; decoration only, not data)
-    variant: none               # none | beads | sheet | combo
-    strength: 1.0               # global multiplier on every decoration term below
-    light_dir: [-0.5, -0.6, 0.62]   # fixed soft light from the top-left (x right, y down, z toward viewer)
-    shade_strength: 0.30        # relative bead shading, centered so the mean lightness stays the data's
-    inner_glow: 0.30            # center of the bead glows a little more than its edge
-    spec_strength: 0.40         # neutral white specular, constant (never tinted by data)
-    spec_power: 28.0
-    rim_strength: 0.28          # thin Fresnel rim, neutral white
-    rim_width: 0.07             # in cell units
-    refraction: 0.22            # bead lens offset in cells at the rim
-    refraction_mix: 0.18        # weight of the refracted neighbor color (rim only)
-    caustic_strength: 0.20      # data-colored light under the bead, opposite the light
-    caustic_offset: 0.07        # cells
-    caustic_sigma: 0.15         # cells
-    sheet:
-      warp_amp: 0.05            # cells; slow distortion of the dots under the pane
-      warp_wavelength_cells: 9.0
-      frost: 0.15               # mix toward a blurred copy of the dots
-      sweep_strength: 0.10      # broad specular sweep, neutral white
-      sweep_pos: 0.32           # position along the top-left to bottom-right diagonal (0..1)
-      sweep_width: 0.13
-      edge_strength: 0.16       # thin edge highlight of the pane
-      edge_width: 0.005         # fraction of the frame side
-    combo_scale: 0.60           # variant combo = beads x scale + sheet sweep/edge x scale
+  glass:                        # display layer: 32 x 32 glass lenses over the 64 x 64 analysis (D-027)
+    mode: flat                  # flat | lens   (flat = the 64 x 64 dots; lens = glass lenses)
+    display_block: 2            # analysis cells per lens side (2 -> 32 x 32 lenses)
+    lens_radius: 0.455          # lens radius in lens-pitch units
+    lens_height: 0.55           # lens thickness in lens-radius units (rounded dome)
+    profile_power: 2.6          # superellipse exponent of the dome (higher = flatter top)
+    ior: 1.50                   # index of refraction of the glass
+    dispersion: 0.055           # per-channel IOR spread (chromatic dispersion)
+    refraction_depth: 1.10      # distance from the lens base to the colour field, in lens radii
+    absorption: 1.60            # Beer-Lambert strength, tinted by the cell color
+    body_shading: 0.45          # volume shading of the dome (lit side brighter, far side darker)
+    edge_darkening: 0.40        # darkening toward the thick rim (inner shadow)
+    inner_glow: 0.45            # emissive glow of the data color inside the glass
+    swirl_angle_deg: 35.0       # peak rotation of the colour field at the lens center (static)
+    swirl_falloff_power: 2.0    # angle(s) = peak * (1 - s)^power, s = r / lens radius
+    light_dir: [-0.45, -0.60, 0.66]   # key light, from the top-left (x right, y down, z to viewer)
+    key_strength: 1.00          # soft-box key reflection
+    rim_light_strength: 0.35    # weak rim light from the back right
+    env_strength: 1.60          # procedural studio environment reflection
+    fresnel_f0_boost: 1.0       # multiplier on the Schlick F0 derived from the IOR
+    bevel_strength: 0.60        # bevel highlight at the lens edge (lit side only)
+    bevel_width: 0.055          # in lens-radius units
+    caustic_strength: 0.40      # data-colored caustic spill on the ground (post-process)
+    caustic_offset: 0.55        # in lens radii, opposite the light
+    gap_highlight: 0.012        # faint neutral highlight in the gaps between lenses
+    edge_refraction: 0.45       # the rim samples colour from beyond the lens (shows the neighbors)
+    bridge_strength: 0.0        # meniscus bridge between neighbors (stretch goal; 0 = off)
+    exposure: 1.00              # linear-light exposure before the filmic tone map
+    bloom_strength: 0.14        # restrained bloom
+    bloom_sigma: 0.55           # in lens pitches
+    dither: 1.0                 # 0..1 amplitude of the dither (1 = +-0.5 LSB)
+    color_space: srgb           # srgb | display-p3 (P3 canvas, sRGB fallback)
+    chroma_ceiling: 0.24        # OKLCH chroma ceiling for sRGB output
+    chroma_ceiling_p3: 0.30     # ceiling when color_space is display-p3
+    flat_fallback: true         # weak GPU / reduced transparency -> flat lenses
 
 preview:
   fps: 30
