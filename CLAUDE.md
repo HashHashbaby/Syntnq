@@ -8,8 +8,8 @@ This file is loaded every session. It holds the rules and the map of the project
 
 ## Current status
 
-- **Current milestone:** M2 (render, calibrate, grid-size check), in progress. M0 gate passed 2026-10-10 (CI green on ubuntu, macos, windows). M1 gate passed 2026-10-10 (sound maps for fixtures and 3 real tracks, topographic error 0.027-0.037, 4-minute analysis 19.3 s, determinism across fresh processes). Update this line when a milestone's gate passes.
-- **Next action:** `docs/MILESTONES.md` -> M2: finish render (SVG), show the prototype_30 list, ask before downloading, calibrate, contact sheets, metrics, grid-size check.
+- **Current milestone:** M3 (live reference preview), in progress. M0 gate passed 2026-10-10 (CI green on ubuntu, macos, windows). M1 gate passed 2026-10-10 (3 real tracks, topographic error 0.027-0.037, 4-minute analysis 19.3 s, determinism). M2 gate passed 2026-10-10 with two recorded exceptions: near-duplicate cross-genre pair (D-022) and thin ambient_classical group (D-023); calibration frozen through M5 (D-020); 64 x 64 confirmed (D-021). Update this line when a milestone's gate passes.
+- **Next action:** `docs/MILESTONES.md` -> M3: live.py (live stream, response field per `docs/LIVE.md`), preview.py + `syn preview` (MP4, 30 fps, 1080 px), 3 contrasting 20 s previews plus a reduced-motion one, click-track sync check.
 
 ## Doc map: read before you work
 
