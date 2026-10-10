@@ -121,9 +121,9 @@ def extract_features(y: Array, config: Config) -> FrameFeatures:
     noisiness_raw = np.log10(flatness + _ENERGY_EPS)
 
     h = config.features.harmonicity
-    harm, perc = librosa.decompose.hpss(mag, kernel_size=h.kernel_size, margin=h.margin)
-    h2, p2 = (harm**2).sum(axis=0), (perc**2).sum(axis=0)
-    harmonicity_raw = h2 / (h2 + p2 + _ENERGY_EPS)
+    harm, _ = librosa.decompose.hpss(mag, kernel_size=h.kernel_size, margin=h.margin)
+    # Residual energy (neither harmonic nor percussive) counts as non-harmonic: D-016.
+    harmonicity_raw = (harm**2).sum(axis=0) / (energy + _ENERGY_EPS)
 
     onset = librosa.onset.onset_strength(
         y=y, sr=sr, hop_length=fr.hop, n_fft=fr.n_fft, aggregate=np.median

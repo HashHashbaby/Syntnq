@@ -36,7 +36,7 @@ features:
   centroid: {log: true}         # log10 Hz
   loudness: {unit: rms_dbfs}
   noisiness: {measure: spectral_flatness, log: true}
-  harmonicity: {method: hpss, margin: 1.0, kernel_size: 31}   # H/(H+P) per frame
+  harmonicity: {method: hpss, margin: 2.0, kernel_size: 31}   # H^2 / total energy per frame (D-016)
   change:
     window_s: 0.5               # compare mean vector of previous vs next 0.5 s
   onset: {aggregate: median}

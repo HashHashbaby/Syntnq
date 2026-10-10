@@ -19,6 +19,7 @@ Newest last. Each entry: ID, date, decision, reason, status (`locked`, `assumed 
 | D-013 | 2026-10-10 | Prototype corpus = 30 MTG-Jamendo tracks (5 genre groups × 6); DEAM and PMEmo for emotion only. | Full-length, varied, Creative Commons; DEAM clips are short. | assumed — confirm the list in M2 |
 | D-014 | 2026-10-10 | Commercial-success research deferred and exploratory only. | Heavily confounded; HSP data has features, not audio. | locked |
 | D-015 | 2026-10-10 | Stack: Python 3.11 (uv) analysis + FastAPI; React + TypeScript + Vite + raw WebGL2 web app; Lucide icons. | Mature audio tooling in Python; small custom renderer gives full control of the liquid grid. | locked |
+| D-016 | 2026-10-10 | Harmonicity = harmonic share of total frame energy with HPSS `margin = 2.0` (was `H²/(H²+P²)` with margin 1.0). | The original formula gives 0.50 for white noise (H and P split evenly), contradicting the §15 test (noise < 0.2). Measured medians with the new definition: white noise 0.05, pink 0.25, chord 0.99, A/B/A 0.96. Owner chose this option during M1. | locked |
 
 ## Pending entries to add during the build
 

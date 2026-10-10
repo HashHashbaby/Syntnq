@@ -8,8 +8,8 @@ This file is loaded every session. It holds the rules and the map of the project
 
 ## Current status
 
-- **Current milestone:** M0 (scaffold). Update this line when a milestone's gate passes.
-- **Next action:** follow `docs/MILESTONES.md` → M0 tasks.
+- **Current milestone:** M1 (analysis core), in progress. M0 gate passed 2026-10-10 (CI green on ubuntu, macos, windows). Update this line when a milestone's gate passes.
+- **Next action:** finish the `docs/MILESTONES.md` → M1 gate: sound maps for 3 real tracks, real-track topographic error < 0.15, 4-minute profile on a real track.
 
 ## Doc map: read before you work
 

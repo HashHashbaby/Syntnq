@@ -38,7 +38,7 @@ Per frame `t` compute (all float64):
 | `brightness` | `log10(spectral_centroid_hz)`; centroid of the magnitude spectrum; silent frames (energy < 1e-10) take the song's median | 1 |
 | `loudness` | `20 * log10(rms + 1e-10)` in dBFS from the frame's time-domain RMS | 1 |
 | `noisiness` | `log10(spectral_flatness + 1e-10)` | 1 |
-| `harmonicity` | HPSS (`kernel_size = 31`, `margin = 1.0`) on the magnitude STFT; `H² / (H² + P² + 1e-10)` summed over bins | 1 |
+| `harmonicity` | HPSS (`kernel_size = 31`, `margin = 2.0`) on the magnitude STFT; `Σ_bins H² / (Σ_bins S² + 1e-10)`, the harmonic share of the frame's total energy (residual counts as non-harmonic; D-016) | 1 |
 | `change` | novelty: Euclidean distance between the mean standardized feature vector over the previous `change.window_s` and the next `window_s` (frames clipped at edges), using the per-song z-scored `mfcc, brightness, loudness, noisiness` (16 dims) | 1 |
 | `onset` | `librosa.onset.onset_strength` (median aggregate), normalized to `[0,1]` by the song's 99th percentile, clipped | 1 (live only) |
 | `chroma` | `chroma_stft`, 12 bins, for structure/harmony maps | 12 (maps only) |
