@@ -7,7 +7,7 @@ Gates (central zone = within ``render.glass.central_radius`` of the lens radius,
 - rim: peak luminance <= rim_max_ratio * lens luminance + floor; no clipped white outside the glint
 - at 50% downscale the lens colour reads before any ring does (ring / interior contrast reported)
 
-Usage: ``python scripts/lens_gates.py <prefix> [<prefix> ...]`` for shots ``<prefix>_<song>_1440.png``.
+Usage: ``python scripts/lens_gates.py <prefix> ...`` for shots ``<prefix>_<song>_1440.png``.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def measure(prefix: str, song: str, cfg) -> dict[str, float]:
     yy, xx = np.mgrid[0:SIDE, 0:SIDE]
     half = int(np.ceil(rad)) + 2
 
-    de, dl, dh, ratio, over, clipped = [], [], [], [], [], 0
+    de, dh, ratio, over, clipped = [], [], [], [], 0
     data_l, rend_l, data_c = [], [], []
     ring_contrast = []
     for i in range(lenses * lenses):
@@ -103,8 +103,10 @@ def main() -> int:
     gates = {"dE p95": 0.02, "L corr": 0.99, "hue mean": 3.0, "dim dL": 0.02}
     for prefix in prefixes:
         sys.stdout.write(f"\n=== {prefix} ===\n")
-        keys = ["dE mean", "dE p95", "dE max", "L corr", "hue mean", "hue p95", "dim dL", "mean dL",
-                "rim/lens p95", "rim/lens max", "rim cap viol", "ring/centre mean", "clipped px"]  # fmt: skip
+        keys = [
+            "dE mean", "dE p95", "dE max", "L corr", "hue mean", "hue p95", "dim dL", "mean dL",
+            "rim/lens p95", "rim/lens max", "rim cap viol", "ring/centre mean", "clipped px",
+        ]  # fmt: skip
         sys.stdout.write(f"{'':18}" + "".join(f"{s:>13}" for s in SONGS) + "\n")
         res = {s: measure(prefix, s, cfg) for s in SONGS}
         for k in keys:

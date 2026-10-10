@@ -8,10 +8,11 @@ Work strictly in order. Each milestone lists tasks, deliverables and a **gate**.
 | M1 | Analysis core | `syn analyze` → deterministic static signature arrays |
 | M2 | Render, calibrate, grid-size check | Contact sheets, frozen color ranges, distinctiveness metrics |
 | M3 | Live reference preview | MP4 liquid-grid previews with audio |
+| M3b | Product preview shell | Static React app with real components and the glass grid; look-and-feel approval |
 | M4 | Companion maps | Structure, rhythm, dynamics, feature grids |
 | M5 | Blind test | Evidence that signatures are recognizable |
 | M6 | API | FastAPI service, jobs, binary formats |
-| M7 | Web app MVP | Apple-style app with live liquid grid |
+| M7 | Web app on the API | Shell wired to the API: upload, analysis progress, persistence, export |
 | M8 | Export | Poster-grade PNG/SVG, share |
 | M9 | Collection and comparison | Library, compare view, ratings |
 | M10 | Emotion model | DEAM-trained valence/arousal, emotion map |
@@ -82,6 +83,23 @@ Work strictly in order. Each milestone lists tasks, deliverables and a **gate**.
 
 ---
 
+## M3b Product preview shell
+
+Purpose: the user approves the look and feel of the real product UI **before** any backend work. A static, backend-free web app with the real components, loading pre-exported data.
+
+**Tasks**
+1. Vite + React + TypeScript (strict) + Zustand under `web/`; tokens from `docs/UI.md §2`; Lucide icons through `icons.ts`. No backend, no upload, no network calls beyond the local static files.
+2. Data: Python writers for `static.bin`, `live.bin` and `proto.bin` per `docs/API.md §3` (and `maps.bin` for the parts that exist now: beat times and the dynamics envelope/histogram if available; the full writer comes in M4), run over the 30 corpus songs into `web/public/data/` (git-ignored). TypeScript loaders with round-trip tests against Python-generated fixtures.
+3. Audio: short clips (about 30 s, from the middle) of the 30 corpus tracks, served locally from `web/public/audio/` (git-ignored; never committed). Working Web Audio player, clock with latency compensation, seek, keyboard shortcuts.
+4. Real components per `docs/UI.md §6`: tokens, library list, signature view with the glass grid renderer (WebGL2, `docs/LIVE.md §2.9`, static and liquid live mode, with the live engine ported to TS/GPU), player bar with working audio sync, map switcher, bottom sheet / split view, inspector, settings (appearance, reduced motion, reduced transparency).
+5. Maps that do not exist yet (structure, rhythm, dynamics until M4) are shown as clearly labelled placeholders; M4 must add the real maps to the shell.
+6. Accessibility and fallbacks: reduced motion (static highlights, no swirl flow), reduced transparency and weak GPU (flat lenses), simplified lens below the small-size threshold.
+7. Tests: vitest (loaders, OKLab GLSL vs JS parity, clock math); Playwright screenshots at 390x844, 820x1180 and 1440x900, light and dark (supplementary evidence only).
+
+**Gate:** the user reviews the shell in the browser at 390, 820 and 1440 px, light and dark, and approves or redirects the look and feel. Playwright screenshots are supplementary and do not substitute for this review. Figma mock-ups are optional.
+
+---
+
 ## M4 Companion maps
 
 **Tasks**
@@ -118,19 +136,20 @@ Work strictly in order. Each milestone lists tasks, deliverables and a **gate**.
 
 ---
 
-## M7 Web app MVP
+## M7 Web app on the API
+
+The look and feel was approved in M3b; M7 wires the approved shell to the backend.
 
 **Tasks**
-1. Vite + React + TypeScript (strict) + Zustand; tokens from `docs/UI.md §2`; Lucide icons through `icons.ts`.
-2. Screens per `docs/UI.md §6`: empty library, add song (picker + drag-drop), analyzing with stages, error, signature view, map views with captions, inspector, settings. Library stored in IndexedDB (song IDs, titles, local audio blobs if the user allows).
-3. Audio: Web Audio player, clock with latency compensation, seek, keyboard shortcuts.
-4. WebGL2 renderer per `docs/LIVE.md §4` (static mode + live mode), Canvas2D fallback in a worker, reduced motion.
-5. Bundled samples: 3 Creative Commons tracks with attribution (from the manifest) for "Try a sample".
-6. PWA manifest and service worker.
-7. Tests: vitest (loaders, OKLab GLSL vs JS parity via a readback test, clock math); Playwright screenshots per `docs/UI.md §13`; FPS measurement script; 5-minute drift test.
-8. WebGL vs Python preview comparison at 5 timestamps (`docs/LIVE.md §6`).
+1. Replace the static data loaders with the API client (`docs/API.md`): signature, static/maps/live/proto binaries, fingerprint.
+2. Screens that need the backend: add song (picker + drag-drop, upload), analyzing with stages and progress, error states, library persistence (IndexedDB for song IDs, titles, local audio blobs if the user allows).
+3. Export entry points: export sheet calling the server export endpoint, Web Share with download fallback (the poster-grade renderer and caption layout are M8).
+4. Bundled samples: 3 Creative Commons tracks with attribution (from the manifest) for "Try a sample".
+5. PWA manifest and service worker.
+6. Tests: vitest for the API client; Playwright screenshots per `docs/UI.md §13` for the new states; FPS measurement script; 5-minute drift test.
+7. WebGL vs Python preview comparison at 5 timestamps (`docs/LIVE.md §6`).
 
-**Gate:** UI checklist passes on screenshots at all three sizes, light and dark, reduced motion and transparency; 60 fps on M1 Air and iPhone 13 (or the closest devices the user has); drift ≤ 1 analysis frame over 5 minutes; WebGL matches the reference within tolerance.
+**Gate:** UI checklist passes on screenshots at all three sizes, light and dark, reduced motion and transparency; 60 fps on M1 Air and iPhone 13 (or the closest devices the user has); drift ≤ 1 analysis frame over 5 minutes; WebGL matches the reference within tolerance; upload to signature works end to end.
 
 ---
 

@@ -189,7 +189,7 @@ Never bundle SF Symbols. Use **Lucide** (ISC license, similar line weight), stro
 
 ## 13. Workflow and review
 
-1. Mock each key screen (Library, Signature, Sheet, Export, Compare) in Figma with the iOS and iPadOS 27 and macOS 27 UI kits before building it; save links in `docs/DECISIONS.md`.
+1. Figma mock-ups are optional (the M3b preview shell is the review artifact; see `docs/MILESTONES.md`). If used, save links in `docs/DECISIONS.md`.
 2. Build with tokens only (no raw colors or sizes in components).
 3. Playwright screenshots at 390×844, 820×1180 and 1440×900, light and dark, reduced motion and reduced transparency on and off.
 4. Review against this checklist:
