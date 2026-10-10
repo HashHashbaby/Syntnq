@@ -134,7 +134,11 @@ fingerprint:
 
 live:
   fps: 43.066                   # = sample_rate / hop
-  tau_scale: 1.0                # tau = tau_scale * median BMU distance of the song
+  tau_target_share: 0.04        # tau so that, at the median frame, this share of cells has r >= 0.5 (D-024)
+  tau_sample_frames: 1024       # frames sampled (deterministic stride) to estimate tau
+  tau_scale: 1.0                # multiplier on that tau (spec: tau = tau_scale * median BMU distance)
+  beat_latency_s: 0.020         # onset-envelope peaks trail sharp clicks by ~20 ms (measured, M3)
+  blur_renormalize: true        # rescale the loudness blur so its peak stays 1 (D-024; spec: off)
   attack_ms: 40
   release_ms: 250
   diffusion_rate: 0.20
@@ -169,9 +173,11 @@ render:
 
 preview:
   fps: 30
+  px: 1080                      # output side in pixels (docs/LIVE.md section 6)
   default_seconds: 20
   codec: h264
   crf: 18
+  audio_kbps: 192
 
 api:
   storage_dir: storage

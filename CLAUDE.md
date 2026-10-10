@@ -151,7 +151,8 @@ make test           # pytest (unit + integration + golden)
 make test-determinism
 make analyze SONG=path/to/file.mp3      # → out/<song_id>/
 make render SONG_ID=<id>
-make preview SONG_ID=<id> SECONDS=20    # liquid-grid MP4 with audio
+make preview SONG=file.mp3 SECONDS=20   # liquid-grid MP4 with audio (or SONG_ID=<id> AUDIO=file)
+make sync-check                         # click-track flash vs click timing on a finished MP4
 make calibrate                          # M2: writes config/calibration.yaml
 make compare-sizes                      # M2: 32/40/64/100 contact sheets
 make api-dev                            # FastAPI on :8000

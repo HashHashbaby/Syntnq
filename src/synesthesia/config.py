@@ -247,7 +247,11 @@ class ReducedMotion(_Section):
 
 class Live(_Section):
     fps: float
+    tau_target_share: float
+    tau_sample_frames: int
     tau_scale: float
+    beat_latency_s: float
+    blur_renormalize: bool
     attack_ms: float
     release_ms: float
     diffusion_rate: float
@@ -278,9 +282,11 @@ class Render(_Section):
 
 class Preview(_Section):
     fps: int
+    px: int
     default_seconds: float
     codec: str
     crf: int
+    audio_kbps: int
 
 
 class Api(_Section):

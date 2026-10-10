@@ -9,15 +9,20 @@ from __future__ import annotations
 import io
 import json
 import platform
+import struct
 import sys
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import numpy.typing as npt
 
+from synesthesia.config import Config
 from synesthesia.pipeline import SongResult
+
+if TYPE_CHECKING:
+    from synesthesia.live import LiveStream
 
 SCHEMA_VERSION = 1
 _ZIP_DATE = (1980, 1, 1, 0, 0, 0)  # earliest zip timestamp: no wall-clock in the bytes
@@ -104,16 +109,23 @@ def _lib_versions() -> dict[str, str]:
     }
 
 
-def write_result(result: SongResult, out_dir: Path, grid_size: int) -> Path:
+def write_result(result: SongResult, out_dir: Path, config: Config) -> Path:
     """Write ``signature.json``, ``arrays.npz`` and ``log.json`` into ``out_dir/<song_id>/``.
 
     Returns:
         The song directory.
     """
+    grid_size = config.grid.size
     song_dir = out_dir / result.song_id
     song_dir.mkdir(parents=True, exist_ok=True)
     write_npz_deterministic(song_dir / "arrays.npz", result_arrays(result))
+    from synesthesia.live import build_live_stream
+
+    stream = build_live_stream(result, config)
+    (song_dir / "live.bin").write_bytes(encode_live_bin(stream, grid_size))
+    (song_dir / "proto.bin").write_bytes(encode_proto_bin(result.prototypes, grid_size))
     sig = signature_dict(result, grid_size)
+    sig["live"] = {"tau": stream.tau, "audio_offset_s": stream.audio_offset_s}
     (song_dir / "signature.json").write_text(
         json.dumps(sig, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -150,3 +162,79 @@ def read_arrays(path: Path) -> dict[str, npt.NDArray[Any]]:
     """Read ``arrays.npz`` into a dict."""
     with np.load(path, allow_pickle=False) as npz:
         return {k: npz[k] for k in npz.files}
+
+
+# -- binary formats (docs/API.md section 3) ---------------------------------------------------
+_BIN_VERSION = 1
+_HEADER = struct.Struct("<4sHHII")  # magic, version, grid size, count, reserved
+
+
+def _header(magic: bytes, grid_size: int, count: int) -> bytes:
+    return _HEADER.pack(magic, _BIN_VERSION, grid_size, count, 0)
+
+
+def _check_header(buf: bytes, magic: bytes) -> tuple[int, int]:
+    m, version, grid_size, count, _ = _HEADER.unpack_from(buf, 0)
+    if m != magic or version != _BIN_VERSION:
+        raise ValueError(f"bad header: {m!r} v{version}, expected {magic!r} v{_BIN_VERSION}")
+    return grid_size, count
+
+
+def encode_live_bin(stream: LiveStream, grid_size: int) -> bytes:
+    """Serialize a live stream as ``live.bin`` (``SYNL``)."""
+    t, d = stream.x.shape
+    out = io.BytesIO()
+    out.write(_header(b"SYNL", grid_size, t))
+    out.write(struct.pack("<ffHH", stream.fps, stream.tau, d, 0))
+    out.write(np.ascontiguousarray(stream.x, dtype="<f2").tobytes())
+    out.write(np.ascontiguousarray(stream.bmu, dtype="<u2").tobytes())
+    out.write(np.ascontiguousarray(stream.loud, dtype=np.uint8).tobytes())
+    out.write(np.ascontiguousarray(stream.onset, dtype=np.uint8).tobytes())
+    out.write(np.ascontiguousarray(stream.color, dtype=np.uint8).tobytes())
+    out.write(struct.pack("<I", stream.beat_times.size))
+    out.write(np.ascontiguousarray(stream.beat_times, dtype="<f4").tobytes())
+    return out.getvalue()
+
+
+def decode_live_bin(buf: bytes) -> tuple[LiveStream, int]:
+    """Parse ``live.bin``; returns the stream (``audio_offset_s`` is 0) and the grid size."""
+    from synesthesia.live import LiveStream
+
+    grid_size, t = _check_header(buf, b"SYNL")
+    pos = _HEADER.size
+    fps, tau, d, _ = struct.unpack_from("<ffHH", buf, pos)
+    pos += 12
+
+    def take(dtype: str, shape: tuple[int, ...]) -> npt.NDArray[Any]:
+        nonlocal pos
+        n = int(np.prod(shape))
+        arr = np.frombuffer(buf, dtype=dtype, count=n, offset=pos).reshape(shape)
+        pos += arr.nbytes
+        return arr
+
+    x = take("<f2", (t, d))
+    bmu = take("<u2", (t,))
+    loud = take("u1", (t,))
+    onset = take("u1", (t,))
+    color = take("u1", (t, 5))
+    (n_beats,) = struct.unpack_from("<I", buf, pos)
+    pos += 4
+    beats = take("<f4", (n_beats,))
+    return LiveStream(float(fps), float(tau), x, bmu, loud, onset, color, beats), grid_size
+
+
+def encode_proto_bin(prototypes: npt.NDArray[np.float64], grid_size: int) -> bytes:
+    """Serialize oriented prototypes as ``proto.bin`` (``SYNP``)."""
+    k, d = prototypes.shape
+    return (
+        _header(b"SYNP", grid_size, k)
+        + struct.pack("<HH", d, 0)
+        + np.ascontiguousarray(prototypes, dtype="<f2").tobytes()
+    )
+
+
+def decode_proto_bin(buf: bytes) -> npt.NDArray[np.float16]:
+    """Parse ``proto.bin`` into a ``(K, D)`` float16 array."""
+    _, k = _check_header(buf, b"SYNP")
+    d, _ = struct.unpack_from("<HH", buf, _HEADER.size)
+    return np.frombuffer(buf, dtype="<f2", count=k * d, offset=_HEADER.size + 4).reshape(k, d)

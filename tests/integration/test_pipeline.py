@@ -19,7 +19,7 @@ def test_arrays_match_the_spec(
     results: dict[str, SongResult], config: Config, tmp_path: Path
 ) -> None:
     r = results["aba_song"]
-    song_dir = write_result(r, tmp_path, config.grid.size)
+    song_dir = write_result(r, tmp_path, config)
     a = read_arrays(song_dir / "arrays.npz")
     k, d = config.n_cells, config.layout_dim
     expect = {
@@ -85,7 +85,13 @@ def test_analyze_is_byte_identical_across_fresh_processes(
                 song_dir.name,
                 *(
                     hashlib.sha256((song_dir / rel).read_bytes()).hexdigest()
-                    for rel in ("arrays.npz", "signature.json", "renders/sound_map.png")
+                    for rel in (
+                        "arrays.npz",
+                        "signature.json",
+                        "renders/sound_map.png",
+                        "live.bin",
+                        "proto.bin",
+                    )
                 ),
             )
         )
