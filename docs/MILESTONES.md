@@ -93,6 +93,8 @@ Work strictly in order. Each milestone lists tasks, deliverables and a **gate**.
 
 **Gate:** all maps render for the 30 tracks (shown as a per-song panel); tests pass; ablation table shown, and each block either improves retrieval or is explicitly kept for interpretability.
 
+**Evidence (2026-10-10):** `out/m4/panels/` (30 panels), `out/m4/ablation.md`, D-031; `scripts/m4_report.py`.
+
 ---
 
 ## M5 Blind test

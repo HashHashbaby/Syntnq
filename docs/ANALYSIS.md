@@ -130,7 +130,7 @@ All maps have fixed shapes regardless of song length.
 For each of `brightness, loudness, noisiness, harmonicity, change`: the normalized per-cell value (§7 normalization) as a `(64, 64) float32` grid, in the oriented layout. Rendered with a fixed sequential ramp (dark → light, single hue per feature) and the same dot style as the hero.
 
 ### Structure map (`structure.py`)
-1. Pool `[chroma(12), mfcc(13)]` (unsmoothed mfcc) into blocks of `block_s = 0.5` s (mean).
+1. Z-score each of the `[chroma(12), mfcc(13)]` columns (unsmoothed mfcc) per song (D-031), then pool into blocks of `block_s = 0.5` s (mean).
 2. L2-normalize each block vector; cosine self-similarity `S = B Bᵀ`.
 3. Resize to `256 × 256` with area averaging when there are more than 256 blocks, nearest-neighbor when fewer.
 4. Store `structure: (256, 256) float16` in `[−1, 1]`; render with a fixed sequential ramp, values below 0 clipped to 0 for display.
@@ -140,7 +140,7 @@ For each of `brightness, loudness, noisiness, harmonicity, change`: the normaliz
 2. Convert lag bins to BPM; resample to 128 log-spaced BPM bins over 40-240 BPM (linear interpolation in log-BPM).
 3. Resample time to 256 columns (area average).
 4. Normalize each column to max 1.
-5. Global tempo: `librosa.beat.beat_track(start_bpm=120)` → `tempo_bpm`, `beat_times_s`.
+5. Global tempo: `librosa.beat.beat_track(start_bpm=120)` → `tempo_bpm`, `beat_times_s`; `tempo_bpm` is refined with the mean inter-beat interval of beats within ±15% of the estimated period (D-031).
 6. `pulse_clarity` = max of the time-averaged normalized tempogram.
 7. Store `tempogram: (128, 256) float16`, tempo, beat times (float32 seconds), pulse clarity.
 
@@ -148,7 +148,7 @@ For each of `brightness, loudness, noisiness, harmonicity, change`: the normaliz
 1. `envelope`: frame loudness (dBFS, unsmoothed) averaged into 1024 equal time segments → `(1024,) float32`.
 2. `hist`: histogram of frame loudness over 40 bins in −60..0 dBFS, normalized to sum 1.
 3. Short-term loudness: mean power over 3 s windows (hop 1 s) in dB; `lra_db` = 95th − 10th percentile.
-4. `mean_loudness_db`, `peak_loudness_db` (99th percentile of frame loudness).
+4. `mean_loudness_db` (level of the mean frame power, D-031), `peak_loudness_db` (99th percentile of frame loudness).
 
 ### Harmony (later, `harmony.py`)
 `chroma_cqt` pooled to 256 columns; key and mode via Krumhansl-Schmuckler profiles. Not computed in v1.

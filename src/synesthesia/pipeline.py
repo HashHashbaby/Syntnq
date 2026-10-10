@@ -14,8 +14,10 @@ from synesthesia.color import SignatureColors, map_colors
 from synesthesia.config import Config
 from synesthesia.determinism import single_thread
 from synesthesia.features import FrameFeatures, extract_features
-from synesthesia.fingerprint import compute_fingerprint
+from synesthesia.fingerprint import compute_fingerprint, fingerprint_scalars
 from synesthesia.ingest import DecodedAudio, IngestInfo, decode_file, normalize, song_id
+from synesthesia.maps import CompanionMaps, compute_companion_maps
+from synesthesia.maps.feature_grids import feature_grids
 from synesthesia.occupancy import CellStats, cell_statistics
 from synesthesia.orient import orient
 from synesthesia.som import SomResult, train_som
@@ -26,7 +28,7 @@ Array = npt.NDArray[np.float64]
 
 @dataclass(frozen=True)
 class SongResult:
-    """Everything M1 produces for one song (arrays in oriented unit order)."""
+    """Everything the analysis produces for one song (arrays in oriented unit order)."""
 
     song_id: str
     source_name: str
@@ -44,6 +46,7 @@ class SongResult:
     stats: CellStats
     colors: SignatureColors
     feature_grids: npt.NDArray[np.float32]  # (5, size, size)
+    maps: CompanionMaps  # structure, rhythm, dynamics
     fingerprint: npt.NDArray[np.float32]
     fingerprint_complete: bool
     features: FrameFeatures
@@ -137,11 +140,20 @@ def analyze_features(
         lap("occupancy")
 
         colors = map_colors(stats.cell_features, stats.occ_norm, stats.empty, config)
-        size = config.grid.size
-        grids = colors.normalized.reshape(-1, size, size).astype(np.float32)
+        grids = feature_grids(colors.normalized, config)
         lap("color")
 
-        fingerprint = compute_fingerprint(f_color, stats.hits, colors, config)
+        maps = compute_companion_maps(feats, config)
+        lap("maps")
+
+        scalars = fingerprint_scalars(
+            maps.rhythm.tempo_bpm,
+            maps.rhythm.pulse_clarity,
+            maps.dynamics.lra_db,
+            maps.dynamics.mean_loudness_db,
+            info.duration_s,
+        )
+        fingerprint = compute_fingerprint(f_color, stats.hits, colors, config, scalars)
         lap("fingerprint")
 
     return SongResult(
@@ -161,8 +173,9 @@ def analyze_features(
         stats=stats,
         colors=colors,
         feature_grids=grids,
+        maps=maps,
         fingerprint=fingerprint,
-        fingerprint_complete=False,
+        fingerprint_complete=True,
         features=feats,
         timings=timings,
     )

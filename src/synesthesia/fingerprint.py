@@ -1,7 +1,7 @@
 """Fixed 133-value fingerprint and distance (docs/ANALYSIS.md section 9).
 
-Until M4 provides tempo and LRA, the 5 scalar entries are 0 and callers must record
-``fingerprint_complete = False``.
+The 5 scalar entries come from the companion maps (tempo, pulse clarity, LRA, mean loudness,
+duration); ``compute_fingerprint`` without ``scalars`` zero-fills them (incomplete).
 """
 
 from __future__ import annotations
@@ -18,6 +18,36 @@ _HUE_RANGE = (30.0, 265.0)  # degrees covered by the hue mapping
 _N_HIST_BLOCKS = 6  # 5 feature histograms + hue x lightness
 _JS_WEIGHT = 0.8
 _SCALAR_WEIGHT = 0.2
+_REF_TEMPO_BPM = 120.0  # scalar offsets below are fixed by the spec (section 9)
+_LRA_SCALE_DB = 30.0
+_LOUDNESS_FLOOR_DB = 60.0
+_REF_DURATION_S = 180.0
+_MIN_TEMPO_BPM = 1.0  # guard for songs without a detected pulse
+
+
+def fingerprint_scalars(
+    tempo_bpm: float,
+    pulse_clarity: float,
+    lra_db: float,
+    mean_loudness_db: float,
+    duration_s: float,
+) -> Array:
+    """The 5 scalar fingerprint entries (docs/ANALYSIS.md section 9).
+
+    Returns:
+        ``(5,)`` float64: ``log2(tempo/120)``, pulse clarity, ``lra/30``,
+        ``(mean_loudness + 60)/60``, ``log2(duration/180)``.
+    """
+    return np.array(
+        [
+            np.log2(max(tempo_bpm, _MIN_TEMPO_BPM) / _REF_TEMPO_BPM),
+            pulse_clarity,
+            lra_db / _LRA_SCALE_DB,
+            (mean_loudness_db + _LOUDNESS_FLOOR_DB) / _LOUDNESS_FLOOR_DB,
+            np.log2(duration_s / _REF_DURATION_S),
+        ],
+        dtype=np.float64,
+    )
 
 
 def compute_fingerprint(
@@ -34,8 +64,7 @@ def compute_fingerprint(
         hits: ``(K,)`` frames per cell (oriented order).
         colors: per-cell colors (for hue and lightness).
         config: resolved configuration.
-        scalars: optional ``(5,)`` tempo, pulse clarity, LRA, mean loudness, duration terms;
-            zeros when ``None`` (before M4).
+        scalars: optional ``(5,)`` from :func:`fingerprint_scalars`; zeros when ``None``.
 
     Returns:
         ``(133,)`` float32 with the default config.
@@ -75,6 +104,44 @@ def _js_divergence(p: Array, q: Array) -> float:
         return float(np.sum(a[mask] * np.log2(a[mask] / b[mask])))
 
     return 0.5 * kl(p, m) + 0.5 * kl(q, m)
+
+
+def block_names(config: Config) -> list[str]:
+    """Names of the fingerprint blocks in storage order, scalars last."""
+    return [*config.maps.feature_grids, "hue_lightness", "scalars"]
+
+
+def distance_blocks(
+    a: npt.ArrayLike,
+    b: npt.ArrayLike,
+    config: Config,
+    blocks: set[str],
+    *,
+    scalar_norm: float = 1.0,
+) -> float:
+    """Distance using only the named fingerprint blocks (for ablation).
+
+    With every block this equals :func:`distance`. Without the scalars the value is the mean
+    Jensen-Shannon divergence of the included histograms; without histograms, the scalar term.
+    """
+    fa, fb = np.asarray(a, dtype=np.float64), np.asarray(b, dtype=np.float64)
+    fp = config.fingerprint
+    n_scalar = fp.n_scalars
+    sizes = [fp.hist_bins] * 5 + [fp.hue_bins * fp.lightness_bins]
+    edges = np.cumsum([0, *sizes])
+    names = block_names(config)
+    js_terms = [
+        _js_divergence(fa[edges[i] : edges[i + 1]], fb[edges[i] : edges[i + 1]])
+        for i, name in enumerate(names[:-1])
+        if name in blocks
+    ]
+    scalar = min(1.0, float(np.linalg.norm(fa[-n_scalar:] - fb[-n_scalar:])) / scalar_norm)
+    use_scalar = "scalars" in blocks
+    if js_terms and use_scalar:
+        return float(_JS_WEIGHT * np.mean(js_terms) + _SCALAR_WEIGHT * scalar)
+    if js_terms:
+        return float(np.mean(js_terms))
+    return scalar if use_scalar else 0.0
 
 
 def distance(

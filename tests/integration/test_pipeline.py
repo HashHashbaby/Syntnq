@@ -33,15 +33,22 @@ def test_arrays_match_the_spec(
         "color_oklch": ((k, 3), np.float32),
         "color_srgb": ((k, 3), np.uint8),
         "feature_grids": ((5, 64, 64), np.float32),
+        "structure": ((256, 256), np.float16),
+        "tempogram": ((128, 256), np.float16),
+        "dyn_envelope": ((1024,), np.float32),
+        "dyn_hist": ((40,), np.float32),
         "fingerprint": ((133,), np.float32),
     }
-    assert set(a) == set(expect)
+    assert set(a) - {"beat_times"} == set(expect)
+    assert a["beat_times"].dtype == np.float32 and a["beat_times"].ndim == 1
     for name, (shape, dtype) in expect.items():
         assert a[name].shape == shape and a[name].dtype == dtype, name
     assert int(a["hits"].sum()) == r.n_frames
     sig = read_signature(song_dir / "signature.json")
     assert sig["song"]["id"] == r.song_id and sig["grid"]["frames"] == r.n_frames
-    assert sig["fingerprint_complete"] is False
+    assert sig["fingerprint_complete"] is True
+    assert set(sig["rhythm"]) == {"tempo_bpm", "pulse_clarity"}
+    assert set(sig["dynamics"]) == {"lra_db", "mean_loudness_db", "peak_loudness_db"}
     assert sig["config_hash"] == f"sha256:{config.hash()}"
     assert (song_dir / "log.json").is_file()
 

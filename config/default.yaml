@@ -33,6 +33,7 @@ features:
   mfcc:
     n_mfcc: 14                  # compute c0..c13
     use: [1, 13]                # keep c1..c13 (13 dims); drop c0 (loudness lives elsewhere)
+  chroma: {n_chroma: 12}        # pitch classes (structure map only)
   centroid: {log: true}         # log10 Hz
   loudness: {unit: rms_dbfs}
   noisiness: {measure: spectral_flatness, log: true}
@@ -106,6 +107,13 @@ color:
 
 maps:
   feature_grids: [brightness, loudness, noisiness, harmonicity, change]
+  ramp_hues:                    # one hue per feature grid, fixed dark -> light ramp (D-031)
+    brightness: {hue_deg: 60}
+    loudness: {hue_deg: 330}
+    noisiness: {hue_deg: 200}
+    harmonicity: {hue_deg: 150}
+    change: {hue_deg: 20}
+  ramp: {lightness: [0.18, 0.86], chroma: 0.13}
   structure:
     block_s: 0.5
     features: [chroma, mfcc]
@@ -118,6 +126,8 @@ maps:
     bpm_bins: 128               # log-spaced
     time_cols: 256
     start_bpm: 120
+    tempo_refine_tolerance: 0.15  # beats within +-15% of the estimated period refine the tempo (D-031)
+    tempo_refine_min_beats: 4
   dynamics:
     envelope_points: 1024
     hist_bins: 40

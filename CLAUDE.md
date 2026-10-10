@@ -8,9 +8,9 @@ This file is loaded every session. It holds the rules and the map of the project
 
 ## Current status
 
-- **Current milestone:** M3 (live reference preview): evidence delivered 2026-10-10, awaiting owner sign-off. M0, M1 and M2 gates passed (M2 with exceptions D-022, D-023; calibration frozen through M5, D-020). Display is 32 x 32 flat glowing dots over the 64 x 64 analysis (D-030, owner-approved); node looks are swappable via `NodeStyle`. Update this line when a milestone's gate passes.
-- **M3 evidence:** `out/m3/` (3 contrasting 20 s previews + reduced-motion), `out/m3/m3_gate_frames.png`, click-track sync check PASS (20/20 flashes, 0.000 s). Glass look work is parked on branch `m3-glass-look`.
-- **Next action:** owner confirms M3, then `docs/MILESTONES.md` -> M4 (scalar fingerprint features, compare). At every gate: clean temporary files before reporting.
+- **Current milestone:** M4 (companion maps): evidence delivered 2026-10-10, awaiting owner sign-off. Gates passed: M0, M1, M2 (exceptions D-022, D-023; calibration frozen through M5, D-020), M3 (2026-10-10: 32 x 32 flat dots, click-track sync 20/20). Display is 32 x 32 flat glowing dots over the 64 x 64 analysis (D-030); node looks are swappable via `NodeStyle`. Update this line when a milestone's gate passes.
+- **M4 evidence:** `out/m4/panels/` (30 per-song panels), `out/m4/ablation.md`, D-031, 102 tests. Glass look work is parked on branch `m3-glass-look`.
+- **Next action:** owner confirms M4, then `docs/MILESTONES.md` -> M5 (blind test page + protocol; the owner recruits participants). At every gate: clean temporary files before reporting.
 
 ## Doc map: read before you work
 

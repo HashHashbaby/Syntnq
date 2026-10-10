@@ -57,21 +57,11 @@ def _write(line: str) -> None:
 def _cmd_analyze(args: argparse.Namespace, config: Config) -> int:
     from synesthesia.io import write_result
     from synesthesia.pipeline import analyze
-    from synesthesia.render import render_sound_map, save_png
 
     result = analyze(args.file, config, calibration_hash=calibration_hash(args.config))
     song_dir = write_result(result, args.out, config)
     if not args.no_render:
-        img = render_sound_map(result.colors.srgb, config)
-        save_png(
-            img,
-            song_dir / "renders" / "sound_map.png",
-            {
-                "song_id": result.song_id,
-                "pipeline_version": result.pipeline_version,
-                "config_hash": result.config_hash,
-            },
-        )
+        _render_song(song_dir, config, config.render.preview_px)
     som = result.som
     _write(f"song_id            {result.song_id}")
     _write(f"duration_s         {result.ingest.duration_s:.1f}  frames {result.n_frames}")
@@ -89,25 +79,32 @@ def _cmd_analyze(args: argparse.Namespace, config: Config) -> int:
     return 0
 
 
-def _cmd_render(args: argparse.Namespace, config: Config) -> int:
+def _render_song(song_dir: Path, config: Config, px: int) -> list[Path]:
+    """Write ``renders/``: the sound map and every companion map, from the stored arrays."""
     from synesthesia.io import read_arrays, read_signature
+    from synesthesia.maps.render_maps import render_all
     from synesthesia.render import render_sound_map, save_png
 
-    song_dir = args.out / args.song_id
     sig = read_signature(song_dir / "signature.json")
     arrays = read_arrays(song_dir / "arrays.npz")
-    img = render_sound_map(arrays["color_srgb"], config, args.px)
-    target = song_dir / "renders" / "sound_map.png"
-    save_png(
-        img,
-        target,
-        {
-            "song_id": sig["song"]["id"],
-            "pipeline_version": sig["pipeline_version"],
-            "config_hash": sig["config_hash"].removeprefix("sha256:"),
-        },
-    )
-    _write(str(target))
+    meta = {
+        "song_id": sig["song"]["id"],
+        "pipeline_version": sig["pipeline_version"],
+        "config_hash": sig["config_hash"].removeprefix("sha256:"),
+    }
+    images = {"sound_map": render_sound_map(arrays["color_srgb"], config, px)}
+    images.update(render_all(arrays, sig, config, px))
+    paths = []
+    for stem in sorted(images):
+        target = song_dir / "renders" / f"{stem}.png"
+        save_png(images[stem], target, meta)
+        paths.append(target)
+    return paths
+
+
+def _cmd_render(args: argparse.Namespace, config: Config) -> int:
+    for path in _render_song(args.out / args.song_id, config, args.px or config.render.preview_px):
+        _write(str(path))
     return 0
 
 

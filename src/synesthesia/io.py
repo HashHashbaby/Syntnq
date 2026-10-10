@@ -45,7 +45,8 @@ def write_npz_deterministic(path: Path, arrays: dict[str, npt.NDArray[Any]]) -> 
 
 
 def result_arrays(result: SongResult) -> dict[str, npt.NDArray[Any]]:
-    """Arrays stored in ``arrays.npz`` (M1 subset of the spec's keys)."""
+    """Arrays stored in ``arrays.npz`` (docs/ANALYSIS.md section 11)."""
+    maps = result.maps
     return {
         "prototypes": result.prototypes.astype(np.float32),
         "std_mean": result.space.mean.astype(np.float64),
@@ -57,6 +58,11 @@ def result_arrays(result: SongResult) -> dict[str, npt.NDArray[Any]]:
         "color_oklch": result.colors.oklch.astype(np.float32),
         "color_srgb": result.colors.srgb,
         "feature_grids": result.feature_grids,
+        "structure": maps.structure,
+        "tempogram": maps.rhythm.tempogram,
+        "beat_times": maps.rhythm.beat_times_s,
+        "dyn_envelope": maps.dynamics.envelope,
+        "dyn_hist": maps.dynamics.hist,
         "fingerprint": result.fingerprint,
     }
 
@@ -90,6 +96,15 @@ def signature_dict(result: SongResult, config_grid_size: int) -> dict[str, Any]:
             "quantization_error": result.som.quantization_error,
             "topographic_error": result.som.topographic_error,
             "empty_units": result.som.empty_units,
+        },
+        "rhythm": {
+            "tempo_bpm": result.maps.rhythm.tempo_bpm,
+            "pulse_clarity": result.maps.rhythm.pulse_clarity,
+        },
+        "dynamics": {
+            "lra_db": result.maps.dynamics.lra_db,
+            "mean_loudness_db": result.maps.dynamics.mean_loudness_db,
+            "peak_loudness_db": result.maps.dynamics.peak_loudness_db,
         },
         "fingerprint_complete": result.fingerprint_complete,
         "license": {"name": "unknown", "attribution": ""},

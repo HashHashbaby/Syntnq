@@ -11,7 +11,7 @@ import numpy as np
 import numpy.typing as npt
 
 from synesthesia.config import Config
-from synesthesia.fingerprint import distance
+from synesthesia.fingerprint import distance, distance_blocks
 
 Array = npt.NDArray[np.float64]
 
@@ -49,6 +49,30 @@ def distance_matrix(
                 fingerprints[i], fingerprints[j], config, scalar_norm=scalar_norm
             )
     return d
+
+
+def block_distance_matrix(
+    fingerprints: npt.NDArray[np.float32],
+    config: Config,
+    blocks: set[str],
+    scalar_norm: float = 1.0,
+) -> Array:
+    """Like :func:`distance_matrix` but using only the named fingerprint blocks."""
+    n = fingerprints.shape[0]
+    d = np.zeros((n, n), dtype=np.float64)
+    for i in range(n):
+        for j in range(i + 1, n):
+            d[i, j] = d[j, i] = distance_blocks(
+                fingerprints[i], fingerprints[j], config, blocks, scalar_norm=scalar_norm
+            )
+    return d
+
+
+def scalar_scale(fingerprints: npt.NDArray[np.float32], config: Config) -> float:
+    """Largest pairwise Euclidean distance of the scalar entries: maps to distance 1.0 (spec 9)."""
+    tail = fingerprints[:, -config.fingerprint.n_scalars :].astype(np.float64)
+    diff = tail[:, None, :] - tail[None, :, :]
+    return float(max(np.linalg.norm(diff, axis=2).max(), 1e-9))
 
 
 def corpus_metrics(

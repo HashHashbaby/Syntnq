@@ -87,8 +87,13 @@ class Onset(_Section):
     aggregate: str
 
 
+class PitchChroma(_Section):
+    n_chroma: int
+
+
 class Features(_Section):
     mfcc: Mfcc
+    chroma: PitchChroma
     centroid: LogFlag
     loudness: Loudness
     noisiness: Noisiness
@@ -191,6 +196,8 @@ class RhythmMap(_Section):
     bpm_bins: int
     time_cols: int
     start_bpm: float
+    tempo_refine_tolerance: float
+    tempo_refine_min_beats: int
 
 
 class DynamicsMap(_Section):
@@ -201,8 +208,21 @@ class DynamicsMap(_Section):
     lra_percentiles: tuple[float, float]
 
 
+class Ramp(_Section):
+    """Fixed sequential ramp of a feature grid: one OKLCH hue, dark to light."""
+
+    hue_deg: float
+
+
+class RampStyle(_Section):
+    lightness: tuple[float, float]
+    chroma: float
+
+
 class Maps(_Section):
     feature_grids: list[str]
+    ramp_hues: dict[str, Ramp]
+    ramp: RampStyle
     structure: StructureMap
     rhythm: RhythmMap
     dynamics: DynamicsMap

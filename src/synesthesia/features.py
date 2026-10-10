@@ -1,6 +1,6 @@
 """Frame features, smoothing and change term (docs/ANALYSIS.md section 2).
 
-All arithmetic is float64. Chroma (maps only) is computed in M4, not here.
+All arithmetic is float64. Chroma is used by the structure map only (M4).
 """
 
 from __future__ import annotations
@@ -27,12 +27,14 @@ Array = npt.NDArray[np.float64]
 class FrameFeatures:
     """Per-frame features, ``T`` frames at ``fps = sample_rate / hop``.
 
-    ``mfcc`` is ``(T, 13)``; every other field is ``(T,)``. Smoothed fields are used for
-    layout, color and the live stream; ``*_raw`` are the unsmoothed values.
+    ``mfcc`` is ``(T, 13)`` and ``chroma_raw`` ``(T, 12)``; every other field is ``(T,)``.
+    Smoothed fields are used for layout, color and the live stream; ``*_raw`` are the
+    unsmoothed values.
     """
 
     mfcc: Array
     mfcc_raw: Array
+    chroma_raw: Array  # (T, 12), unsmoothed (structure map)
     brightness: Array  # log10 Hz, smoothed
     loudness: Array  # dBFS, smoothed
     loudness_raw: Array  # dBFS, unsmoothed (dynamics map)
@@ -103,6 +105,16 @@ def extract_features(y: Array, config: Config) -> FrameFeatures:
     cep = scipy.fft.dct(mel_db, axis=0, type=2, norm="ortho")[: cfg_m.n_mfcc]
     mfcc_raw = np.ascontiguousarray(cep[cfg_m.use[0] : cfg_m.use[1] + 1].T)
 
+    chroma_raw = np.ascontiguousarray(
+        librosa.feature.chroma_stft(
+            S=power,
+            sr=sr,
+            n_fft=fr.n_fft,
+            n_chroma=config.features.chroma.n_chroma,
+            tuning=0.0,
+        ).T
+    )
+
     freqs = librosa.fft_frequencies(sr=sr, n_fft=fr.n_fft)
     energy = power.sum(axis=0)
     mag_sum = mag.sum(axis=0)
@@ -147,6 +159,7 @@ def extract_features(y: Array, config: Config) -> FrameFeatures:
     return FrameFeatures(
         mfcc=mfcc_s,
         mfcc_raw=mfcc_raw,
+        chroma_raw=chroma_raw,
         brightness=bright_s,
         loudness=loud_s,
         loudness_raw=loudness_raw,
