@@ -14,13 +14,14 @@ import numpy as np
 import numpy.typing as npt
 from threadpoolctl import threadpool_limits
 
+from synesthesia import N_THREADS
 from synesthesia.config import Config
 
 
 @contextmanager
 def single_thread() -> Iterator[None]:
     """Limit every BLAS/OpenMP thread pool to one thread within the context."""
-    with threadpool_limits(limits=1):
+    with threadpool_limits(limits=N_THREADS):
         yield
 
 
