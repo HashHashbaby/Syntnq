@@ -404,3 +404,13 @@ def load_config(
     if overrides:
         data = _deep_merge(data, overrides)
     return Config.model_validate(data)
+
+
+def calibration_hash(path: Path | str | None = None) -> str | None:
+    """SHA-256 of the canonical JSON of the calibration file next to ``path``, or ``None``."""
+    cfg_path = Path(path) if path is not None else DEFAULT_CONFIG_PATH
+    calibration = cfg_path.parent / CALIBRATION_FILENAME
+    if not calibration.is_file():
+        return None
+    text = json.dumps(_read_yaml(calibration), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
