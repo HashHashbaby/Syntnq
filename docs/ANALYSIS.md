@@ -110,7 +110,7 @@ Per cell, in OKLCH:
 t     = n_brightness                       # (optionally 0.8 t + 0.2 n_valence when valence_blend > 0)
 H     = 265 + (30 − 265) * t                # degrees; blue-violet → red-orange via teal, green, yellow
 L     = 0.22 + (0.86 − 0.22) * (0.6 * occ_norm + 0.4 * n_loudness)
-C     = 0.03 + (0.18 − 0.03) * n_harmonicity
+C     = 0.06 + (0.20 − 0.06) * n_harmonicity     # D-018; spec was 0.03 .. 0.18
 if empty: L = 0.16; C = C * 0.35
 ```
 
@@ -226,7 +226,7 @@ Readers check `schema_version` and refuse unknown majors.
 - Canvas `px` (1024 preview; 2048/4096/8192 export), background `#000000`.
 - Margin = `margin_cells` × pitch; pitch = `px / (64 + 2·margin_cells)`.
 - Each cell: a filled circle of radius `0.34 · pitch` at its center in `color_srgb`, anti-aliased (render at 2× and downsample with Lanczos).
-- Glow: copy of the dot layer blurred with σ = `0.25 · pitch`, composited with screen blend at 0.35 opacity (D-017; the original 0.5 / 0.6 filled the gaps between dots and mixed neighboring colors).
+- Glow: copy of the dot layer blurred with σ = `0.30 · pitch`, composited with screen blend at 0.45 opacity (D-017, D-018; the original 0.5 / 0.6 filled the gaps between dots and mixed neighboring colors).
 - Export PNG with an embedded text chunk: song ID, pipeline version, config hash. Same input → same bytes (fix Pillow compression level; no timestamps).
 - SVG export: 4,096 `<circle>` elements plus an SVG Gaussian blur filter for the glow.
 - Contact sheets (`contact_sheet.py`): N signatures in a grid with file name and genre labels, for review.

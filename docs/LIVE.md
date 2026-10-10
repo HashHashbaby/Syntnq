@@ -71,7 +71,7 @@ Convert to sRGB with the shared OKLab code (GLSL port; tests compare with Python
 
 **2.8 Trail.** Draw the BMU path over the last 2.0 s as a soft line (width 0.8 cells) through cell centers, fading with age. Trail drawn under the dots, above the background.
 
-**2.9 Dot drawing.** Same geometry as the static render (radius 0.34 · pitch, glow σ `render.glow_sigma_ratio` · pitch (0.25, D-017)), but radius may swell by up to +12% with `A_i`.
+**2.9 Dot drawing.** Same geometry as the static render (radius 0.34 · pitch, glow σ `render.glow_sigma_ratio` · pitch (0.30, D-018)), but radius may swell by up to +12% with `A_i`.
 
 ## 3. Reduced motion
 
