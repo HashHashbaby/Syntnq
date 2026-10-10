@@ -1,0 +1,30 @@
+# data and outputs (never commit audio)
+data/*
+!data/manifests/
+out/
+storage/
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.ogg
+*.opus
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# web
+node_modules/
+web/dist/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

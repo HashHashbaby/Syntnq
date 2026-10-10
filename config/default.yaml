@@ -1,0 +1,186 @@
+# SYNESTHESIA default configuration (schema v1).
+# Every tunable number lives here. Code reads it through src/synesthesia/config.py.
+# The canonical-JSON SHA-256 of the resolved config is stored in every output.
+# Changing any value changes the config hash; changing a default needs a DECISIONS entry.
+
+schema_version: 1
+seed: 20261010
+
+ingest:
+  sample_rate: 22050            # Hz, analysis rate
+  resampler: soxr_hq            # deterministic resampler
+  mono: mean                    # average channels
+  target_lufs: -23.0            # EBU R128 integrated loudness after normalization
+  peak_ceiling_dbfs: -1.0       # limit gain so true peak stays below this
+  trim_silence_dbfs: -60.0      # trim leading/trailing audio below this level
+  min_duration_s: 20.0
+  max_duration_s: 720.0         # 12 minutes
+  max_file_mb: 100
+  silent_lufs: -60.0            # below this integrated loudness -> E_SILENT
+  formats: [wav, flac, mp3, m4a, aac, ogg, opus]
+
+frames:
+  n_fft: 2048
+  hop: 512                      # ≈ 23.2 ms at 22,050 Hz → ≈ 43.07 frames/s
+  window: hann
+  n_mels: 64
+  fmin_hz: 30
+  fmax_hz: 11025
+  smooth_frames: 9              # centered moving average for SOM/live features (≈ 0.2 s)
+  max_som_frames: 16384         # deterministic uniform stride above this
+
+features:
+  mfcc:
+    n_mfcc: 14                  # compute c0..c13
+    use: [1, 13]                # keep c1..c13 (13 dims); drop c0 (loudness lives elsewhere)
+  centroid: {log: true}         # log10 Hz
+  loudness: {unit: rms_dbfs}
+  noisiness: {measure: spectral_flatness, log: true}
+  harmonicity: {method: hpss, margin: 1.0, kernel_size: 31}   # H/(H+P) per frame
+  change:
+    window_s: 0.5               # compare mean vector of previous vs next 0.5 s
+  onset: {aggregate: median}
+
+layout:
+  # Per-song z-scoring, then block weights (each block's total contribution).
+  standardize: zscore_per_song
+  block_weights:
+    timbre: 0.50                # MFCC c1..c13, divided by sqrt(13) per dim
+    brightness: 0.15
+    loudness: 0.15
+    noisiness: 0.10
+    change: 0.10
+  # D = 13 + 1 + 1 + 1 + 1 = 17
+
+grid:
+  size: 64                      # locked; 32/40/100 only in compare-sizes experiments
+  topology: planar
+
+som:
+  algorithm: batch
+  init: pca                     # PCA components with sign fixed (largest |loading| positive)
+  epochs: 40
+  sigma_start: 16.0             # neighborhood radius in cells
+  sigma_end: 1.0
+  sigma_decay: exponential
+  neighborhood: gaussian
+  dtype: float64
+  frame_chunk: 2048             # frames per distance block (memory bound)
+
+orientation:
+  enabled: true
+  up_feature: brightness        # brighter prototypes toward the top
+  right_feature: loudness       # louder prototypes toward the right
+
+occupancy:
+  kernel_sigma_cells: 1.5       # Gaussian smoothing of hit counts on the map
+  gamma: 0.5                    # occ_norm = (occ / max) ** gamma
+  empty_threshold: 0.02         # below this occ_norm a cell is "empty"
+
+color:
+  space: oklch
+  # Global ranges: placeholders until M2 calibration writes config/calibration.yaml
+  # (2nd/98th percentiles over the 30-track corpus), then frozen.
+  ranges:
+    centroid_log10_hz: [2.398, 3.699]     # 250 Hz .. 5,000 Hz
+    loudness_dbfs: [-50.0, -5.0]
+    noisiness_log10: [-4.0, -0.3]
+    harmonicity: [0.0, 1.0]
+    change_z: [0.0, 3.0]
+  hue:
+    from_deg: 265               # t = 0 (dark timbre)
+    to_deg: 30                  # t = 1 (bright timbre)
+    valence_blend: 0.0          # 0.2 once the M10 emotion model is validated
+  lightness:
+    min: 0.22
+    max: 0.86
+    occupancy_weight: 0.6
+    loudness_weight: 0.4
+    empty_L: 0.16
+    empty_chroma_factor: 0.35
+  chroma:
+    min: 0.03
+    max: 0.18
+  gamut: srgb_chroma_bisect     # reduce chroma until in sRGB, 24 bisection steps
+  display_smoothing_sigma: 0.6  # light Gaussian on lightness only, in cells; 0 disables
+
+maps:
+  feature_grids: [brightness, loudness, noisiness, harmonicity, change]
+  structure:
+    block_s: 0.5
+    features: [chroma, mfcc]
+    size: 256
+    similarity: cosine
+  rhythm:
+    tempogram_win_frames: 384   # ≈ 8.9 s
+    bpm_min: 40
+    bpm_max: 240
+    bpm_bins: 128               # log-spaced
+    time_cols: 256
+    start_bpm: 120
+  dynamics:
+    envelope_points: 1024
+    hist_bins: 40
+    hist_range_dbfs: [-60.0, 0.0]
+    short_term_s: 3.0
+    lra_percentiles: [10, 95]
+
+fingerprint:
+  version: 1
+  hist_bins: 16                 # per color feature, over the global ranges
+  hue_bins: 12
+  lightness_bins: 4
+  # length = 5*16 + 12*4 + 5 scalars = 133
+
+live:
+  fps: 43.066                   # = sample_rate / hop
+  tau_scale: 1.0                # tau = tau_scale * median BMU distance of the song
+  attack_ms: 40
+  release_ms: 250
+  diffusion_rate: 0.20
+  diffusion_passes: 2
+  glow_sigma_cells: [1.0, 3.0]  # quiet .. loud
+  live_mix_max: 0.85            # max blend from static color to live color
+  live_lightness_boost: 0.30
+  ripple:
+    onset_threshold: 0.35       # normalized onset strength
+    speed_cells_per_s: 24
+    decay_s: 0.6
+    width_cells: 1.5
+    amplitude: 0.5
+    max_concurrent: 8
+  trail:
+    length_s: 2.0
+    width_cells: 0.8
+  reduced_motion:
+    ripples: false
+    diffusion: false
+    release_ms: 500
+
+render:
+  export_px: [2048, 4096, 8192]
+  preview_px: 1024
+  margin_cells: 1.0
+  dot_radius_ratio: 0.34        # dot radius / cell pitch
+  glow_sigma_ratio: 0.50        # glow blur sigma / cell pitch
+  glow_opacity: 0.60
+  background: "#000000"
+  caption: {enabled: false, font: system}
+
+preview:
+  fps: 30
+  default_seconds: 20
+  codec: h264
+  crf: 18
+
+api:
+  storage_dir: storage
+  keep_audio: false             # delete uploads after analysis
+  retention_days: 30            # analysis outputs of anonymous uploads
+  max_concurrent_jobs: 1
+  job_timeout_s: 300
+
+performance:
+  budget_analysis_s_per_4min: 30   # on an Apple M1 / 8 GB or comparable x86
+  budget_peak_ram_gb: 1.5
+  target_fps: 60
