@@ -27,7 +27,6 @@ from synesthesia.pipeline import SongResult
 Array = npt.NDArray[np.float64]
 
 _BYTE_MAX = 255.0
-_MAX_LIVE_LIGHTNESS = 0.95  # docs/LIVE.md 2.7 clamp
 _MIN_LIVE_LIGHTNESS = 0.05
 _RIPPLE_END_DECAYS = 5.0  # a ripple is dropped after this many decay times
 _SWELL_MAX = 0.12  # docs/LIVE.md 2.9: dot radius swells up to +12% with A_i
@@ -366,7 +365,7 @@ class LiveEngine:
                 np.clip(
                     base_l + lv.live_lightness_boost * act + swing,
                     _MIN_LIVE_LIGHTNESS,
-                    _MAX_LIVE_LIGHTNESS,
+                    lv.max_lightness,
                 ),
                 ((1.0 - m) * base_c + m * live_c) * lv.live_chroma_gain,
                 (base_h + m * arc) % 360.0,

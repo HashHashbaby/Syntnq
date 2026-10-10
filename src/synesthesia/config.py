@@ -259,6 +259,7 @@ class Live(_Section):
     diffusion_passes: int
     glow_sigma_cells: tuple[float, float]
     live_mix_max: float
+    max_lightness: float
     live_lightness_boost: float
     global_mix: float
     global_lightness_swing: float

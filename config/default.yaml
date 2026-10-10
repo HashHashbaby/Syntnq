@@ -93,7 +93,7 @@ color:
     valence_blend: 0.0          # 0.2 once the M10 emotion model is validated
   lightness:
     min: 0.22
-    max: 0.86
+    max: 0.82                   # D-026 (spec 0.86)
     occupancy_weight: 0.6
     loudness_weight: 0.4
     empty_L: 0.16
@@ -145,6 +145,7 @@ live:
   diffusion_passes: 2
   glow_sigma_cells: [1.0, 3.0]  # quiet .. loud
   live_mix_max: 0.85            # max blend from static color to live color
+  max_lightness: 0.86           # clamp on live lightness (D-026; spec 0.95 pushed bright regions to white)
   live_lightness_boost: 0.18    # D-025 (spec 0.30: the bloom went white instead of colored)
   global_mix: 0.40              # whole-grid blend toward the current frame's hue/chroma (D-025)
   global_lightness_swing: 0.16  # whole-grid lightness swing with loudness, +- this * (loud - 0.5) * 2
@@ -171,7 +172,7 @@ render:
   margin_cells: 1.0
   dot_radius_ratio: 0.34        # dot radius / cell pitch
   glow_sigma_ratio: 0.30        # glow blur sigma / cell pitch (D-018; D-017 had 0.25, spec 0.50)
-  glow_opacity: 0.45            # D-018 (D-017 had 0.35, spec 0.60)
+  glow_opacity: 0.30            # D-026 (D-018 had 0.45, D-017 0.35, spec 0.60)
   background: "#000000"
   caption: {enabled: false, font: system}
 
