@@ -50,9 +50,8 @@ def main() -> int:
     size = cfg.grid.size
     block = cfg.render.glass.display_block
     lenses = size // block
-    sys.stdout.write(
-        f"{'song':12}{'r(L)':>8}{'rank r':>8}{'mean dL':>9}{'hue err':>9}{'dim 10% L':>11}{'dim data':>10}\n"
-    )
+    head = ["song", "r(L)", "rank r", "mean dL", "hue err", "dim 10% L", "dim data"]
+    sys.stdout.write(f"{head[0]:12}" + "".join(f"{h:>10}" for h in head[1:]) + "\n")
     rows = []
     for name in SONGS:
         lab = np.frombuffer((DATA / f"{name}_static.f32").read_bytes(), dtype=np.float32).reshape(
