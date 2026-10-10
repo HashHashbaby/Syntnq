@@ -1,7 +1,7 @@
 # SYNESTHESIA developer commands. Keep in sync with the "Commands" list in CLAUDE.md.
 # Requires uv (https://docs.astral.sh/uv/). Targets for later milestones fail with a clear message.
 
-.PHONY: setup lint test test-determinism analyze render preview calibrate compare-sizes api-dev web-dev web-test
+.PHONY: setup lint test test-determinism analyze render preview calibrate fetch-corpus corpus-report compare-sizes api-dev web-dev web-test
 
 setup:
 	uv sync
@@ -29,10 +29,16 @@ preview:
 	uv run syn preview $(SONG_ID) --seconds $(SECONDS)
 
 calibrate:
-	@echo "make calibrate arrives in M2 (scripts/calibrate.py)" && exit 1
+	uv run python scripts/calibrate.py
+
+fetch-corpus:
+	uv run python scripts/fetch_manifest_tracks.py
+
+corpus-report:
+	uv run python scripts/corpus_report.py
 
 compare-sizes:
-	@echo "make compare-sizes arrives in M2 (scripts/compare_sizes.py)" && exit 1
+	uv run python scripts/compare_sizes.py
 
 api-dev:
 	@echo "make api-dev arrives in M6 (FastAPI service)" && exit 1

@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
 DEFAULT_CONFIG_PATH = CONFIG_DIR / "default.yaml"
 CALIBRATION_FILENAME = "calibration.yaml"
+CALIBRATION_META_KEY = "calibration_meta"
 
 _FLOAT_TOL = 1e-3
 
@@ -400,7 +401,9 @@ def load_config(
     data = _read_yaml(cfg_path)
     calibration = cfg_path.parent / CALIBRATION_FILENAME
     if use_calibration and calibration.is_file():
-        data = _deep_merge(data, _read_yaml(calibration))
+        cal = _read_yaml(calibration)
+        cal.pop(CALIBRATION_META_KEY, None)  # provenance only; never part of the config
+        data = _deep_merge(data, cal)
     if overrides:
         data = _deep_merge(data, overrides)
     return Config.model_validate(data)
