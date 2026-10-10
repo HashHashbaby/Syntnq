@@ -1,4 +1,164 @@
-"""analyze(path, config) -> SongResult (docs/ANALYSIS.md section 0).
+"""``analyze(path, config) -> SongResult`` (docs/ANALYSIS.md section 0)."""
 
-Implemented in M1.
-"""
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import numpy as np
+import numpy.typing as npt
+
+from synesthesia import PIPELINE_VERSION
+from synesthesia.color import SignatureColors, map_colors
+from synesthesia.config import Config
+from synesthesia.determinism import single_thread
+from synesthesia.features import FrameFeatures, extract_features
+from synesthesia.fingerprint import compute_fingerprint
+from synesthesia.ingest import DecodedAudio, IngestInfo, decode_file, normalize, song_id
+from synesthesia.occupancy import CellStats, cell_statistics
+from synesthesia.orient import orient
+from synesthesia.som import SomResult, train_som
+from synesthesia.standardize import LayoutSpace, build_layout, layout_columns, to_physical
+
+Array = npt.NDArray[np.float64]
+
+
+@dataclass(frozen=True)
+class SongResult:
+    """Everything M1 produces for one song (arrays in oriented unit order)."""
+
+    song_id: str
+    source_name: str
+    pipeline_version: str
+    config_hash: str
+    calibration_hash: str | None
+    ingest: IngestInfo
+    n_frames: int
+    fps: float
+    orientation: str
+    som: SomResult
+    space: LayoutSpace
+    prototypes: Array  # (K, D) oriented, layout space
+    bmu: npt.NDArray[np.uint16]  # (T,) oriented
+    stats: CellStats
+    colors: SignatureColors
+    feature_grids: npt.NDArray[np.float32]  # (5, size, size)
+    fingerprint: npt.NDArray[np.float32]
+    fingerprint_complete: bool
+    features: FrameFeatures
+    timings: dict[str, float] = field(default_factory=dict)
+
+
+def analyze_audio(
+    audio: DecodedAudio,
+    config: Config,
+    *,
+    source_name: str = "",
+    calibration_hash: str | None = None,
+) -> SongResult:
+    """Analyze already-decoded audio. Same samples + config + version -> identical arrays.
+
+    Args:
+        audio: decoded samples ``(N, C)`` at the native rate.
+        config: resolved configuration.
+        source_name: file name, recorded only in metadata.
+        calibration_hash: hash of the calibration file merged into ``config``, if any.
+
+    Returns:
+        :class:`SongResult`.
+    """
+    timings: dict[str, float] = {}
+    clock = time.perf_counter()
+
+    def lap(name: str) -> None:
+        nonlocal clock
+        now = time.perf_counter()
+        timings[name] = now - clock
+        clock = now
+
+    with single_thread():
+        y, info = normalize(audio, config)
+        sid = song_id(y)
+        lap("normalize")
+
+        feats = extract_features(y, config)
+        lap("features")
+
+        space = build_layout(feats.layout_raw(), config)
+        lap("standardize")
+
+        som = train_som(space.features, config)
+        lap("som")
+
+        oriented = orient(som.prototypes, som.bmu, space, config)
+        lap("orient")
+
+        f_color = feats.color_matrix()
+        cols = layout_columns(config)
+        physical = to_physical(oriented.prototypes, space)
+        proto_color = np.column_stack(
+            [
+                physical[:, cols["brightness"].start],
+                physical[:, cols["loudness"].start],
+                physical[:, cols["noisiness"].start],
+                physical[:, cols["change"].start],
+            ]
+        )
+        stats = cell_statistics(oriented.bmu, f_color, proto_color, config)
+        lap("occupancy")
+
+        colors = map_colors(stats.cell_features, stats.occ_norm, stats.empty, config)
+        size = config.grid.size
+        grids = colors.normalized.reshape(-1, size, size).astype(np.float32)
+        lap("color")
+
+        fingerprint = compute_fingerprint(f_color, stats.hits, colors, config)
+        lap("fingerprint")
+
+    return SongResult(
+        song_id=sid,
+        source_name=source_name,
+        pipeline_version=PIPELINE_VERSION,
+        config_hash=config.hash(),
+        calibration_hash=calibration_hash,
+        ingest=info,
+        n_frames=feats.n_frames,
+        fps=feats.fps,
+        orientation=oriented.transform,
+        som=som,
+        space=space,
+        prototypes=oriented.prototypes,
+        bmu=oriented.bmu,
+        stats=stats,
+        colors=colors,
+        feature_grids=grids,
+        fingerprint=fingerprint,
+        fingerprint_complete=False,
+        features=feats,
+        timings=timings,
+    )
+
+
+def analyze(path: Path, config: Config, *, calibration_hash: str | None = None) -> SongResult:
+    """Decode and analyze an audio file.
+
+    Args:
+        path: audio file (wav, flac, ogg, mp3, m4a, aac, opus).
+        config: resolved configuration.
+        calibration_hash: hash of the merged calibration file, if any.
+
+    Returns:
+        :class:`SongResult` with ``timings['decode']`` included.
+
+    Raises:
+        SynError: with a code from docs/ANALYSIS.md section 13.
+    """
+    t0 = time.perf_counter()
+    audio = decode_file(Path(path), config)
+    decode_s = time.perf_counter() - t0
+    result = analyze_audio(
+        audio, config, source_name=Path(path).name, calibration_hash=calibration_hash
+    )
+    result.timings["decode"] = decode_s
+    return result
