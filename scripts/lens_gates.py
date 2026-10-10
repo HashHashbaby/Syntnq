@@ -1,13 +1,14 @@
-"""Measure the glass-lens fidelity and rim gates on captured stills.
+"""Measure the glass-chip fidelity gates on captured stills.
 
-Gates (central zone = within ``render.glass.central_radius`` of the lens radius, ~50% of the area):
-- mean colour of the central zone within 0.02 OKLab of the data colour (mean of the 4 sub-cells)
-- lightness correlation with the data >= 0.99, hue error <= 3 degrees (all three songs)
-- darkest 10% of lenses within 0.02 L of the data
-- rim: peak luminance <= rim_max_ratio * lens luminance + floor; no clipped white outside the glint
-- at 50% downscale the lens colour reads before any ring does (ring / interior contrast reported)
+Per variant and song, shots ``<prefix>_<variant>_<song>_1440.png`` (rendered without the glint, for
+colour) and ``<prefix>g_<variant>_<song>_1440.png`` (with the glint, for gap luminance).
 
-Usage: ``python scripts/lens_gates.py <prefix> ...`` for shots ``<prefix>_<song>_1440.png``.
+Gates (docs of the chip look; measured on rendered images):
+- rendered luminance (OKLab L of the chip mean) vs the data lightness target: correlation >= 0.99
+- hue error <= 3 degrees (mean over chromatic chips)
+- area-weighted mean chip colour (glint excluded) within 0.02 OKLab of the data colour
+- darkest 10% of chips within 0.02 L of target
+- gaps never brighter than 5% of the average chip luminance (measured on the lead-gap variant)
 """
 
 from __future__ import annotations
@@ -27,6 +28,9 @@ SONGS = ["electronic", "rock", "ambient"]
 SIDE = 1440
 MARGIN = 0.6
 LUMA = np.array([0.2126, 0.7152, 0.0722])
+MEASURE_RADIUS = (
+    0.97  # fraction of the chip radius (whole chip incl. the ring; 1 px clear of the AA edge)
+)
 
 
 def to_lin(img: np.ndarray) -> np.ndarray:
@@ -34,25 +38,30 @@ def to_lin(img: np.ndarray) -> np.ndarray:
     return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
 
 
-def measure(prefix: str, song: str, cfg) -> dict[str, float]:
+def measure(
+    prefix: str, variant: str, song: str, cfg, radius: float, overlap: bool
+) -> dict[str, float]:
     g = cfg.render.glass
     size, block = cfg.grid.size, g.display_block
-    lenses = size // block
+    n = size // block
     lab = np.frombuffer((DATA / f"{song}_static.f32").read_bytes(), dtype=np.float32)
     lab = lab.reshape(size, size, 3).astype(np.float64)
-    img = np.asarray(Image.open(SHOTS / f"{prefix}_{song}_{SIDE}.png").convert("RGB"))
+    img = np.asarray(Image.open(SHOTS / f"{prefix}_{variant}_{song}_{SIDE}.png").convert("RGB"))
     lin = to_lin(img)
-    oklab = linear_srgb_to_oklab(lin)
-    pitch = SIDE / (lenses + 2 * MARGIN)
-    rad = g.lens_radius * pitch
+    ok = linear_srgb_to_oklab(lin)
+    pitch = SIDE / (n + 2 * MARGIN)
+    occ = np.frombuffer((DATA / f"{song}_occ.f32").read_bytes(), dtype=np.float32)
     yy, xx = np.mgrid[0:SIDE, 0:SIDE]
-    half = int(np.ceil(rad)) + 2
-
-    de, dh, ratio, over, clipped = [], [], [], [], 0
-    data_l, rend_l, data_c = [], [], []
-    ring_contrast = []
-    for i in range(lenses * lenses):
-        r, c = divmod(i, lenses)
+    de, dh, data_l, rend_l, data_c = [], [], [], [], []
+    for i in range(n * n):
+        r, c = divmod(i, n)
+        scale = (
+            np.sqrt(1.0 + g.radius_occ_amount * (2.0 * float(occ[i]) - 1.0))
+            if variant == "O"
+            else 1.0
+        )
+        rad = radius * scale * pitch
+        half = int(np.ceil(rad)) + 2
         cy, cx = (MARGIN + r + 0.5) * pitch, (MARGIN + c + 0.5) * pitch
         y0, x0 = int(cy) - half, int(cx) - half
         sl = (slice(y0, y0 + 2 * half + 1), slice(x0, x0 + 2 * half + 1))
@@ -62,24 +71,13 @@ def measure(prefix: str, song: str, cfg) -> dict[str, float]:
             .reshape(-1, 3)
             .mean(axis=0)
         )
-        center = dist <= g.central_radius * rad
-        m = oklab[sl][center].mean(axis=0)
+        m = ok[sl][dist <= MEASURE_RADIUS * rad].mean(axis=0)
         de.append(float(np.linalg.norm(m - ref)))
         data_l.append(ref[0])
         rend_l.append(m[0])
         data_c.append(float(np.hypot(ref[1], ref[2])))
         h = np.rad2deg(np.arctan2(m[2], m[1]) - np.arctan2(ref[2], ref[1]))
         dh.append(abs((h + 180) % 360 - 180))
-        # rim: ring between 0.80 and 0.97 of the radius
-        ring = (dist >= 0.80 * rad) & (dist <= 0.97 * rad)
-        lum_c = float((lin[sl][center] @ LUMA).mean())
-        lum_r = lin[sl][ring] @ LUMA
-        ratio.append(float(lum_r.max() / max(lum_c, 1e-4)))
-        over.append(float(lum_r.max() > 1.05 * (g.rim_max_ratio * lum_c + g.rim_floor)))
-        ring_contrast.append(float(lum_r.mean() / max(lum_c, 1e-4)))
-        outside = (dist > g.central_radius * rad) & (dist <= 1.05 * rad)
-        px = img[sl][outside]
-        clipped += int(np.sum(np.all(px >= 253, axis=1)))
     de, dh = np.array(de), np.array(dh)
     data_l, rend_l, data_c = np.array(data_l), np.array(rend_l), np.array(data_c)
     dim = data_l <= np.quantile(data_l, 0.10)
@@ -90,27 +88,49 @@ def measure(prefix: str, song: str, cfg) -> dict[str, float]:
         "hue mean": dh[chroma].mean(), "hue p95": np.percentile(dh[chroma], 95),
         "dim dL": float(np.abs(rend_l[dim] - data_l[dim]).mean()),
         "mean dL": float((rend_l - data_l).mean()),
-        "rim/lens p95": np.percentile(ratio, 95), "rim/lens max": max(ratio),
-        "rim cap viol": float(np.mean(over)),
-        "ring/centre mean": float(np.mean(ring_contrast)),
-        "clipped px": float(clipped),
     }  # fmt: skip
+
+
+def gap_ratio(prefix: str, variant: str, song: str, cfg, radius: float) -> float:
+    """Max luminance in the lead between neighbouring chips / mean chip luminance."""
+    g = cfg.render.glass
+    n = cfg.grid.size // g.display_block
+    img = np.asarray(Image.open(SHOTS / f"{prefix}_{variant}_{song}_{SIDE}.png").convert("RGB"))
+    y = to_lin(img) @ LUMA
+    pitch = SIDE / (n + 2 * MARGIN)
+    chips, gaps = [], []
+    for r in range(1, n - 1):
+        for c in range(1, n - 1):
+            cy, cx = (MARGIN + r + 0.5) * pitch, (MARGIN + c + 0.5) * pitch
+            chips.append(y[int(cy) - 3 : int(cy) + 4, int(cx) - 3 : int(cx) + 4].mean())
+            # centre of the lead to the right and below: midway between chip edges
+            gaps.append(
+                y[
+                    int(cy) - 1 : int(cy) + 2, int(cx + pitch / 2) - 1 : int(cx + pitch / 2) + 2
+                ].max()
+            )
+            gaps.append(
+                y[
+                    int(cy + pitch / 2) - 1 : int(cy + pitch / 2) + 2, int(cx) - 1 : int(cx) + 2
+                ].max()
+            )
+    return float(np.max(gaps) / np.mean(chips))
 
 
 def main() -> int:
     cfg = load_config()
-    prefixes = sys.argv[1:] or ["final", "a1"]
+    g = cfg.render.glass
+    prefix = sys.argv[1] if len(sys.argv) > 1 else "g"
+    variants = sys.argv[2:] or ["A", "B", "C"]
     gates = {"dE p95": 0.02, "L corr": 0.99, "hue mean": 3.0, "dim dL": 0.02}
-    for prefix in prefixes:
-        sys.stdout.write(f"\n=== {prefix} ===\n")
-        keys = [
-            "dE mean", "dE p95", "dE max", "L corr", "hue mean", "hue p95", "dim dL", "mean dL",
-            "rim/lens p95", "rim/lens max", "rim cap viol", "ring/centre mean", "clipped px",
-        ]  # fmt: skip
-        sys.stdout.write(f"{'':18}" + "".join(f"{s:>13}" for s in SONGS) + "\n")
-        res = {s: measure(prefix, s, cfg) for s in SONGS}
+    keys = ["dE mean", "dE p95", "dE max", "L corr", "hue mean", "hue p95", "dim dL", "mean dL"]
+    for v in variants:
+        radius = g.overlap_radius if v == "B" else g.chip_radius
+        sys.stdout.write(f"\n=== variant {v} (prefix {prefix}) ===\n")
+        sys.stdout.write(f"{'':16}" + "".join(f"{s:>13}" for s in SONGS) + "\n")
+        res = {s: measure(prefix, v, s, cfg, radius, v == "B") for s in SONGS}
         for k in keys:
-            sys.stdout.write(f"{k:18}" + "".join(f"{res[s][k]:13.4f}" for s in SONGS))
+            sys.stdout.write(f"{k:16}" + "".join(f"{res[s][k]:13.4f}" for s in SONGS))
             if k in gates:
                 ok = all(
                     (res[s][k] >= gates[k]) if k == "L corr" else (res[s][k] <= gates[k])
@@ -118,6 +138,13 @@ def main() -> int:
                 )
                 sys.stdout.write(f"   gate {gates[k]}: {'PASS' if ok else 'FAIL'}")
             sys.stdout.write("\n")
+        if (SHOTS / f"{prefix}g_{v}_{SONGS[0]}_{SIDE}.png").exists():
+            gr = [gap_ratio(prefix + "g", v, s, cfg, radius) for s in SONGS]
+            sys.stdout.write(
+                f"{'gap/chip lum':16}"
+                + "".join(f"{x:13.4f}" for x in gr)
+                + f"   gate 0.05: {'PASS' if max(gr) <= 0.05 else 'FAIL'}\n"
+            )
     return 0
 
 

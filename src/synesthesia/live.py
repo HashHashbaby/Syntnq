@@ -31,6 +31,7 @@ _MIN_LIVE_LIGHTNESS = 0.05
 _RIPPLE_END_DECAYS = 5.0  # a ripple is dropped after this many decay times
 _SWELL_MAX = 0.12  # docs/LIVE.md 2.9: dot radius swells up to +12% with A_i
 _RENORM_FLOOR = 1e-12
+_ONSET_WINDOW_FRAMES = 3  # frames after a beat searched for its onset peak
 _PEAK_EPS = 1e-9  # minimum curvature for a parabolic beat refinement
 
 
@@ -306,7 +307,7 @@ class LiveEngine:
         rp = self.config.live.ripple
         if not (self.reduced_motion and not self.config.live.reduced_motion.ripples):
             for b in crossed:
-                onset = float(self._lerp(self.stream.onset, float(b))) / _BYTE_MAX
+                onset = self.beat_onset(float(b))
                 if onset >= rp.onset_threshold:
                     t0, _, a = self._locate(float(b))
                     cell = int(self.stream.bmu[t0 + (1 if a >= 0.5 else 0)])
@@ -317,6 +318,17 @@ class LiveEngine:
                     )
             del self._ripples[: max(0, len(self._ripples) - rp.max_concurrent)]
         return True
+
+    def beat_onset(self, b: float) -> float:
+        """Onset strength of a beat in [0, 1]: the envelope peak within a short window after ``b``.
+
+        Beat times are shifted ahead of the envelope peak by ``beat_latency_s``, so the value at
+        ``b`` itself sits on the rising edge; the peak lies up to a few frames later.
+        """
+        n = self.stream.n_frames
+        lo = min(max(int(np.floor(b * self.stream.fps)), 0), n - 1)
+        hi = min(lo + _ONSET_WINDOW_FRAMES, n - 1)
+        return float(self.stream.onset[lo : hi + 1].max()) / _BYTE_MAX
 
     def _ring_field(self, s: float) -> Array:
         rp = self.config.live.ripple

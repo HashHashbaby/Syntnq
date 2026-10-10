@@ -165,15 +165,30 @@ live:
     ripples: false
     diffusion: false
     release_ms: 500
-  glass:                        # live behavior of the lens look (render.glass.mode: lens)
+  glass:                        # chip swirl behaviour in live mode (render.glass.mode: chip)
     swirl_flow_gain: 0.90       # extra swirl angle (radians) per unit of the smooth response field
     swirl_loud_gain: 0.35       # extra swirl angle (radians) per unit of normalized loudness
     swirl_drift_hz: 0.18        # slow rotation of the swirl phase, scaled by the response
-    normal_from_response: 0.60  # how much the response-field gradient tilts the lens surface
-    ripple_bend: 0.50           # how much beat ripples bend the refracted light
-    light_drift: 0.05           # key light drift following the response (radians)
-    bridge_activity_gain: 1.0   # meniscus bridge growth with neighbor activity (needs bridge_strength)
-    reduced_motion: static      # static | flat: highlights fixed (or flat lenses) under reduced motion
+    reduced_motion: static      # static | flat: swirl frozen (or flat chips) under reduced motion
+  flow:                         # river-ripple motion: damped 2D wave equation + gentle current (visual layer)
+    enabled: true
+    wave_speed: 13.0            # cells per second
+    damping: 1.5                # 1/s
+    substeps: 4                 # simulation steps per display frame
+    source_gain: 0.85           # continuous emission at the best-matching cell x loudness
+    source_sigma_cells: 1.3
+    beat_gain: 1.60             # impulse of a beat ring (existing ripple logic, tempo-synced)
+    current_dir: [1.0, 0.0]     # drift direction (default left to right)
+    current_speed: 2.6          # cells per second at loudness 0.5
+    current_loud_gain: 1.2      # speed scales with loudness
+    curl_amp: 0.30              # curl-noise share of the current (deterministic)
+    curl_scale: 0.11            # curl noise frequency (1/cells)
+    mod_transmission: 0.12      # wave height -> transmission (relative lightness), bounded
+    mod_vibrance: 0.18          # wave height -> vibrance (relative chroma), bounded
+    mod_radius: 0.15            # wave height -> radius swell, +-
+    slope_glint_gain: 0.90      # wave slope -> glint travel
+    wave_limit: 1.0             # |height| clamp
+    reduced_motion: follow      # follow | static: no waves or advection; simple transmission follow
 
 render:
   export_px: [2048, 4096, 8192]
@@ -184,45 +199,44 @@ render:
   glow_opacity: 0.30            # D-026 (D-018 had 0.45, D-017 0.35, spec 0.60)
   background: "#000000"
   caption: {enabled: false, font: system}
-  glass:                        # display layer: 32 x 32 glass lenses over the 64 x 64 analysis (D-027)
-    mode: flat                  # flat | lens   (flat = the 64 x 64 dots; lens = glass lenses)
-    display_block: 2            # analysis cells per lens side (2 -> 32 x 32 lenses)
-    lens_radius: 0.455          # lens radius in lens-pitch units
-    lens_height: 0.55           # lens thickness in lens-radius units (rounded dome)
-    profile_power: 2.6          # superellipse exponent of the dome (higher = flatter top)
-    ior: 1.50                   # index of refraction of the glass
-    dispersion: 0.055           # per-channel IOR spread (chromatic dispersion)
-    refraction_depth: 1.10      # distance from the lens base to the colour field, in lens radii
-    absorption: 1.60            # Beer-Lambert strength, tinted by the cell color
-    body_shading: 0.40          # volume shading of the dome (lit side brighter, far side darker)
-    edge_darkening: 0.40        # darkening toward the thick rim (inner shadow)
-    inner_glow: 0.45            # emissive glow of the data color inside the glass
-    swirl_angle_deg: 35.0       # peak rotation of the colour field at the lens center (static)
-    swirl_falloff_power: 2.0    # angle(s) = peak * (1 - s)^power, s = r / lens radius
-    light_dir: [-0.45, -0.60, 0.66]   # key light, from the top-left (x right, y down, z to viewer)
-    key_strength: 1.00          # soft-box key reflection
-    rim_light_strength: 0.35    # weak rim light from the back right
-    env_strength: 1.60          # procedural studio environment reflection
-    fresnel_f0_boost: 1.0       # multiplier on the Schlick F0 derived from the IOR
-    bevel_strength: 0.60        # directional rim reflection gain (Fresnel at the bevel; lit side)
-    bevel_width: 0.055          # in lens-radius units
-    caustic_strength: 0.40      # data-colored caustic spill on the ground (post-process)
-    caustic_offset: 0.55        # in lens radii, opposite the light
-    gap_highlight: 0.012        # faint neutral highlight in the gaps between lenses
-    edge_refraction: 0.45       # the rim samples colour from beyond the lens (shows the neighbors)
-    central_radius: 0.70         # central zone (fraction of lens radius) that must stay data-exact
-    rim_max_ratio: 1.40         # rim luminance cap as a multiple of the lens interior luminance
-    rim_floor: 0.050            # absolute linear-luminance floor so dim lenses still read as glass
-    glint_strength: 0.55        # small neutral specular glint (the only pure-white term)
-    bridge_strength: 0.0        # meniscus bridge between neighbors (stretch goal; 0 = off)
-    exposure: 1.00              # linear-light exposure before the filmic tone map
-    bloom_strength: 0.14        # restrained bloom
-    bloom_sigma: 0.55           # in lens pitches
-    dither: 1.0                 # 0..1 amplitude of the dither (1 = +-0.5 LSB)
-    color_space: srgb           # srgb | display-p3 (P3 canvas, sRGB fallback)
-    chroma_ceiling: 0.24        # OKLCH chroma ceiling for sRGB output
-    chroma_ceiling_p3: 0.30     # ceiling when color_space is display-p3
-    flat_fallback: true         # weak GPU / reduced transparency -> flat lenses
+  glass:                        # display layer: 32 x 32 translucent glass chips over the 64 x 64 analysis
+    mode: flat                  # flat | chip   (flat = the 64 x 64 dots; chip = translucent glass chips)
+    display_block: 2            # analysis cells per chip side (2 -> 32 x 32 chips)
+    radius_mode: constant       # constant | occupancy (+-radius_occ_amount of the AREA from occupancy)
+    chip_radius: 0.43           # chip radius in pitch units (constant mode, no overlap)
+    radius_occ_amount: 0.10     # occupancy variant: area varies by +-this fraction
+    radius_min: 0.30            # hard bounds, pitch units
+    radius_max: 0.50
+    overlap: 0.0                # 0 = lead gaps; >0 = neighbors overlap and blend multiplicatively
+    overlap_radius: 0.54        # chip radius used when overlap > 0 (pitch units)
+    overlap_radius_max: 0.58
+    overlap_lightness_comp: 0.013   # lightens chips to offset the multiplicative darkening where they overlap
+    swirl_angle_deg: 35.0       # peak rotation of the colour field at the chip centre (static)
+    swirl_falloff_power: 2.0    # angle(s) = peak * (1 - s)^power, s = r / chip radius
+    absorb_edge_dark: 0.06      # centre lighter / edge denser (mean-preserving)
+    absorb_edge_sat: 0.30       # edge more saturated (mean-preserving)
+    edge_ring_start: 0.78       # thick-glass edge ring starts here (fraction of the radius)
+    edge_ring_dark: 0.20        # extra density in the ring (mean-preserving)
+    edge_ring_sat: 0.28         # extra saturation in the ring (mean-preserving)
+    edge_directional: 0.70      # ring denser on the lit side, lighter on the far side (zero-mean in angle)
+    grain: 0.010                # fine glass grain (relative lightness, mean zero)
+    veins: 0.010                # faint veins steered by the sub-cell colours (mean zero)
+    vein_scale: 3.2             # vein frequency in radii
+    backlight: 1.00             # light behind the chips
+    haze_strength: 0.0          # large-scale backdrop haze (blurred cell colours); variant C
+    haze_sigma_cells: 3.0
+    glint_strength: 0.14        # one small soft neutral glint (rim sliver), top-left
+    glint_size: 0.07            # sliver half-width, in chip radii
+    glint_offset: 0.90          # radial position of the sliver, in chip radii
+    light_dir: [-0.50, -0.65, 0.57]   # direction used for the glint (x right, y down)
+    exposure: 1.00
+    bloom_strength: 0.04        # backlight bloom (restrained)
+    bloom_sigma: 0.50           # in chip pitches
+    dither: 1.0
+    color_space: srgb           # srgb | display-p3
+    chroma_ceiling: 0.24
+    chroma_ceiling_p3: 0.30
+    flat_fallback: true         # reduced transparency / weak GPU -> flat dots
 
 preview:
   fps: 30

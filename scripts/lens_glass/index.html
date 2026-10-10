@@ -1,21 +1,16 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>glass lens prototype</title>
+<title>glass chips prototype</title>
 <style>
   html,body{margin:0;background:#000;color:#bbb;font:12px/1.4 ui-monospace,Consolas,monospace}
   canvas{display:block;background:#000}
-  #log{position:fixed;right:6px;bottom:4px;opacity:.55;white-space:pre;pointer-events:none}
 </style>
 <canvas id="c"></canvas>
-<div id="log"></div>
 <script>
 "use strict";
-// 32 x 32 glass lenses over a 64 x 64 colour field (D-027). One lens pass into an RGBA16F target,
-// restrained bloom, filmic shoulder, dither, sRGB / Display P3 encode. Parameters: /params.json.
-const $ = (id) => document.getElementById(id);
-const logEl = $('log');
-const log = (s) => { logEl.textContent = s; };
-const cv = $('c');
+// 32 x 32 translucent glass chips over the 64 x 64 analysis grid. Flat 2D discs, lit from behind.
+// Passes: wave tank (ping-pong) -> chips (RGBA16F HDR) -> bloom -> composite (shoulder, dither, encode).
+const cv = document.getElementById('c');
 const gl = cv.getContext('webgl2', {antialias: false, alpha: false, preserveDrawingBuffer: false,
                                     powerPreference: 'high-performance'});
 if (!gl) throw new Error('WebGL2 unavailable');
@@ -25,31 +20,77 @@ gl.getExtension('OES_texture_float_linear');
 const VS = `#version 300 es
 in vec2 p; out vec2 vUv; void main(){ vUv = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }`;
 
-// ------------------------------------------------------------------------------------------
-const FS_LENS = `#version 300 es
+const COMMON = `
+float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x+p3.y)*p3.z); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p); f = f*f*(3.0 - 2.0*f);
+  return mix(mix(hash12(i), hash12(i + vec2(1,0)), f.x), mix(hash12(i + vec2(0,1)), hash12(i + vec2(1,1)), f.x), f.y);
+}`;
+
+// ------------------------------------------------------------------------------------------ wave tank
+const FS_WAVE = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o;
+uniform sampler2D uW;
+uniform vec4 uSrc;     // x, y (cells), continuous emission amplitude, beat impulse amplitude
+uniform vec4 uP0;      // dt, wave speed (cells/s), damping, source sigma (cells)
+uniform vec4 uP1;      // current x, current y (cells/s), curl amplitude, curl scale
+uniform vec4 uP2;      // time, limit, source gain, beat gain
+uniform float uPaused, uBeatNow;
+${COMMON}
+vec2 curl(vec2 p, float t){
+  float e = 0.35;
+  float n1 = vnoise(p*uP1.w + vec2(0.0, t*0.07)), n2 = vnoise((p + vec2(0.0, e))*uP1.w + vec2(0.0, t*0.07));
+  float n3 = vnoise((p + vec2(e, 0.0))*uP1.w + vec2(0.0, t*0.07));
+  return vec2(n2 - n1, -(n3 - n1)) / e;
+}
+void main(){
+  ivec2 c = ivec2(gl_FragCoord.xy);
+  vec2 pos = vec2(c) + 0.5;
+  float dt = uP0.x;
+  vec2 vel = uP1.xy + curl(pos, uP2.x) * uP1.z * length(uP1.xy);
+  vec2 back = pos - vel * dt;
+  vec4 s = texture(uW, back / 64.0);
+  float h = s.r, v = s.g;
+  ivec2 hi = ivec2(63);
+  float hl = texelFetch(uW, clamp(c + ivec2(-1, 0), ivec2(0), hi), 0).r;
+  float hr = texelFetch(uW, clamp(c + ivec2( 1, 0), ivec2(0), hi), 0).r;
+  float hd = texelFetch(uW, clamp(c + ivec2(0, -1), ivec2(0), hi), 0).r;
+  float hu = texelFetch(uW, clamp(c + ivec2(0,  1), ivec2(0), hi), 0).r;
+  float lap = hl + hr + hd + hu - 4.0 * h;
+  float edge = min(min(pos.x, 64.0 - pos.x), min(pos.y, 64.0 - pos.y));
+  float sponge = (1.0 - smoothstep(0.0, 7.0, edge)) * 3.5;                 // open water: waves leave the tank
+  float damp = uP0.z * (1.0 + 3.0*uPaused) + sponge;
+  v += (uP0.y*uP0.y*lap - damp*v) * dt;
+  vec2 d = pos - uSrc.xy - 0.5;
+  float g = exp(-dot(d, d) / (2.0*uP0.w*uP0.w));
+  v += (uP2.z * uSrc.z * g * 10.0) * dt * (1.0 - uPaused);                 // loudness-proportional emission
+  v += uP2.w * uSrc.w * g * 14.0 * uBeatNow * (1.0 - uPaused);             // beat ring impulse (one substep)
+  h += v * dt;
+  h = clamp(h, -uP2.y, uP2.y);
+  o = vec4(h, v, 0.0, 1.0);
+}`;
+
+// ------------------------------------------------------------------------------------------ chips
+const FS_CHIP = `#version 300 es
 precision highp float;
 precision highp int;
 in vec2 vUv; out vec4 o;
-
-uniform sampler2D uLab;    // 64x64 RGB32F: OKLab of every analysis cell
-uniform sampler2D uFlow;   // 64x64 RGB32F: d/dx, d/dy, value of the smooth response field
-uniform float uSide;       // frame side in pixels
-uniform float uLenses;     // lenses per side (32)
-uniform float uCells;      // analysis cells per side (64)
-uniform float uMargin;     // frame margin in lens pitches
-uniform float uRadius, uHeight, uPower, uIor, uDisp, uDepth, uAbsorb, uGlow;
-uniform float uSwirl, uSwirlPow;
-uniform vec3  uLight;
-uniform float uKey, uRimL, uEnv, uF0, uBevel, uBevelW, uCaus, uCausOff, uGap, uBody, uEdgeDark, uEdgeRef;
-uniform float uCentral, uRimMax, uRimFloor, uGlint, uAvgH;
-uniform vec3 uCrop;       // crop window in frame pixels: x, y, width (square)
-uniform sampler2D uCorr;  // 32x32 RGB32F: OKLab delta making each lens centre exact
-uniform float uFlat;       // 1 = flat lenses (fallback)
-uniform float uLive;       // 0 = static, 1 = live
-uniform float uTime, uLoud, uSwirlFlow, uSwirlLoud, uDriftHz, uNormFlow, uLightDrift;
-
-const float PI = 3.14159265;
-
+uniform sampler2D uLab;    // 64x64 RGB32F OKLab per analysis cell
+uniform sampler2D uFlow;   // 64x64 RGB32F (dx, dy, value) of the smooth response field
+uniform sampler2D uCorr;   // 32x32 RGB32F mean-preserving OKLab correction per chip
+uniform sampler2D uOcc;    // 32x32 RGB32F occupancy in r
+uniform sampler2D uWave;   // 64x64 RGBA16F wave height (r)
+uniform sampler2D uHaze;   // 64x64 RGB32F blurred OKLab
+uniform float uSide, uLenses, uCells, uMargin;
+uniform float uRadius, uOverlap, uOverlapR, uRmin, uRmax, uRmaxOv, uRadMode, uOccAmt;
+uniform float uSwirl, uSwirlPow, uAbsDark, uAbsSat, uRingStart, uRingDark, uRingSat, uAvgQ;
+uniform float uGrain, uVeins, uVeinScale, uBacklight, uHazeK, uGlintK, uGlintSize, uGlintOff;
+uniform vec2  uLightXY;
+uniform float uFlat, uLive, uWaveOn, uTime, uLoud, uSwirlFlow, uSwirlLoud, uDriftHz;
+uniform float uModT, uModV, uModR, uSlopeGain, uNoGlint, uOvComp, uEdgeDir;
+uniform vec3  uCrop;
+${COMMON}
 vec3 labToLin(vec3 c){
   float l_ = c.x + 0.3963377774*c.y + 0.2158037573*c.z;
   float m_ = c.x - 0.1055613458*c.y - 0.0638541728*c.z;
@@ -64,7 +105,6 @@ vec4 crW(float t){
   return vec4(-0.5*t3 + t2 - 0.5*t, 1.5*t3 - 2.5*t2 + 1.0, -1.5*t3 + 2.0*t2 + 0.5*t, 0.5*t3 - 0.5*t2);
 }
 vec3 labAt(ivec2 c){ c = clamp(c, ivec2(0), ivec2(int(uCells)-1)); return texelFetch(uLab, c, 0).rgb; }
-// Catmull-Rom field in OKLab at analysis-cell coordinates (cell centre of (i,j) at (j+.5,i+.5))
 vec3 field(vec2 pc){
   vec2 g = pc - 0.5; vec2 i0 = floor(g); vec2 t = g - i0;
   vec4 wx = crW(t.x), wy = crW(t.y);
@@ -82,128 +122,124 @@ vec2 swirlWarp(vec2 q, float angle0, float R){
   float c = cos(a), sn = sin(a);
   return vec2(q.x*c - q.y*sn, q.x*sn + q.y*c);
 }
-float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x+p3.y)*p3.z); }
+float waveH(vec2 cellsPos){ return texture(uWave, cellsPos / uCells).r * uWaveOn; }
 
-vec3 environment(vec3 R, vec3 L){
-  // procedural studio: dark gradient room, a large soft key box, a smaller fill box, a rim strip
-  float up = clamp(-R.y*0.5 + 0.5, 0.0, 1.0);
-  vec3 env = mix(vec3(0.010,0.011,0.013), vec3(0.060,0.065,0.075), smoothstep(0.0, 1.0, up));
-  float key = smoothstep(cos(0.50), cos(0.16), dot(R, L));
-  vec3 Lf = normalize(vec3(-L.x, L.y*0.9, L.z));
-  float fill = smoothstep(cos(0.42), cos(0.14), dot(R, Lf));
-  vec3 Lr = normalize(vec3(0.78, 0.12, 0.30));
-  float rim = pow(max(dot(R, Lr), 0.0), 7.0);
-  return env + vec3(3.4)*key*uKey + vec3(0.9)*fill + vec3(1.6)*rim*uRimL;
-}
-
-void main(){
-  vec2 uvImg = vec2(vUv.x, 1.0 - vUv.y);
-  vec2 frag = uCrop.xy + uvImg * uCrop.z;        // frame pixels (nominal side uSide)
-  float P = uSide / (uLenses + 2.0*uMargin);
-  vec2 l = frag / P - uMargin;
-  vec2 idx = clamp(floor(l), 0.0, uLenses - 1.0);
-  vec2 f = l - idx - 0.5;
-  float R = uRadius;
+// one chip: returns (transmittance colour, coverage); glint intensity out
+vec4 chipEval(vec2 id, vec2 f, out float glint){
+  glint = 0.0;
+  if (id.x < 0.0 || id.y < 0.0 || id.x >= uLenses || id.y >= uLenses) return vec4(1.0, 1.0, 1.0, 0.0);
+  float block = uCells / uLenses;
+  vec2 cc = (id + 0.5) * block;
+  float occ = texelFetch(uOcc, ivec2(id), 0).r;
+  float r0 = (uOverlap > 0.5) ? uOverlapR : uRadius;
+  if (uRadMode > 0.5) r0 *= sqrt(max(1.0 + uOccAmt*(2.0*occ - 1.0), 0.2));
+  float wc = clamp(waveH(cc) / 0.6, -1.0, 1.0);
+  float R = clamp(r0 * (1.0 + uModR*wc), uRmin, (uOverlap > 0.5) ? uRmaxOv : uRmax);
   float r = length(f);
   float u = r / R;
   float d = r - R;
   float aa = max(fwidth(d)*0.75, 1e-5);
   float cover = 1.0 - smoothstep(-aa, aa, d);
-  vec2 fdir = f / max(r, 1e-5);
+  if (cover <= 0.0) return vec4(1.0, 1.0, 1.0, 0.0);
 
-  float block = uCells / uLenses;
-  vec2 centreCells = (idx + 0.5) * block;
-  vec3 flow = vec3(0.0);
-  for (int j = 0; j < 2; j++) for (int i = 0; i < 2; i++)
-    flow += texelFetch(uFlow, clamp(ivec2(centreCells) - ivec2(1) + ivec2(i, j), ivec2(0), ivec2(int(uCells)-1)), 0).rgb;
-  flow *= 0.25;
-  vec3 corr = texelFetch(uCorr, ivec2(idx), 0).rgb;      // OKLab delta that makes the centre exact
-
+  vec3 flow = texelFetch(uFlow, clamp(ivec2(cc), ivec2(0), ivec2(int(uCells)-1)), 0).rgb;
   float ang = radians(uSwirl);
   if (uLive > 0.5) {
-    float ph = sin(6.2831853*uDriftHz*uTime + 6.2831853*hash12(idx))*0.25*flow.z;
+    float ph = sin(6.2831853*uDriftHz*uTime + 6.2831853*hash12(id))*0.25*flow.z;
     ang += uSwirlFlow*flow.z + uSwirlLoud*uLoud + ph;
   }
-  vec3 L = normalize(uLight);
-  if (uLive > 0.5) L = normalize(L + uLightDrift*vec3(flow.x, flow.y, 0.0)*2.0);
+  vec3 corr = texelFetch(uCorr, ivec2(id), 0).rgb;
+  vec3 lab = field(cc + swirlWarp(f, ang, R)*block) + corr;
 
-  float wC = 1.0 - smoothstep(uCentral, uCentral + 0.25, u);      // 1 in the central zone, 0 at the rim
-  float wRim = smoothstep(uCentral - 0.04, uCentral + 0.22, u);   // rim effects live out here only
-  vec3 outc = vec3(0.0);
-  vec3 centre = labToLin(field(centreCells) + corr);               // the lens's data colour (linear)
+  // fine glass texture: grain + veins steered by the sub-cell colours (deterministic, mean zero)
+  vec2 q = f / R;
+  float grain = (vnoise(q*14.0 + id*5.31) - 0.5) * 2.0 * uGrain;
+  float steer = lab.y * 6.0 + lab.z * 4.0;
+  float warpv = 2.6*vnoise(q*1.7 + id*1.7) + 1.4*vnoise(q*3.9 + id*0.9);
+  float vein = sin(dot(q, vec2(0.80, 0.60))*uVeinScale*0.9 + steer*2.0 + warpv*3.1);
+  float tex = grain + uVeins * vein * (1.0 - 0.35*u);
 
-  if (uFlat > 0.5) {
-    vec2 w = swirlWarp(f, ang, R);
-    vec3 c = labToLin(field(centreCells + w*block) + corr*wC);
-    outc = max(c, 0.0) * cover;
-  } else {
-    // ---- thick lens: rounded-top height field -------------------------------------------------
-    float uc = min(u, 0.999);
-    float q = uPower;
-    float base = max(1.0 - pow(uc, q), 1e-4);
-    float Hh = uHeight * R;
-    float h = Hh * pow(base, 1.0/q);
-    float dhdr = clamp(-(Hh/R) * pow(uc, q - 1.0) * pow(base, 1.0/q - 1.0), -7.0, 0.0);
-    vec3 n = normalize(vec3(-dhdr*fdir, 1.0));
-    if (uLive > 0.5) { n.xy -= uNormFlow*3.0*flow.xy*(h/Hh)*wRim; n = normalize(n); }
+  // absorption: lighter centre, denser and more saturated edge; thick-glass ring (mean preserving)
+  float p = u*u;
+  float ring = smoothstep(uRingStart, 1.0, u);
+  // directional thick edge: denser on the lit side, lighter where the light exits (zero-mean in angle)
+  float side = dot(f / max(r, 1e-5), normalize(uLightXY));
+  float Lmul = 1.0 - uAbsDark*(p - 0.5) - uRingDark*(ring - uAvgQ)*(1.0 + uEdgeDir*side);
+  float Cmul = 1.0 + uAbsSat*(p - 0.5) + uRingSat*(ring - uAvgQ)*(1.0 - 0.5*uEdgeDir*side);
+  float L = lab.x * Lmul * (1.0 + tex) * (1.0 + uOvComp);
+  vec2 ab = lab.yz * Cmul;
 
-    // ---- refraction: none in the central zone (colour stays exact), full at the rim ------------
-    vec3 I = vec3(0.0, 0.0, -1.0);
-    float depth = h + uDepth*R;
-    vec3 tr = refract(I, n, 1.0/(uIor - uDisp));
-    vec3 tg = refract(I, n, 1.0/uIor);
-    vec3 tb = refract(I, n, 1.0/(uIor + uDisp));
-    float rimK = uEdgeRef * smoothstep(uCentral, 1.0, u);
-    vec2 pr = f + (tr.xy/max(-tr.z, 0.25)*depth)*wRim + f*rimK*(1.0 + 3.0*uDisp);
-    vec2 pg = f + (tg.xy/max(-tg.z, 0.25)*depth)*wRim + f*rimK;
-    vec2 pb = f + (tb.xy/max(-tb.z, 0.25)*depth)*wRim + f*rimK*(1.0 - 3.0*uDisp);
-    vec3 cr = labToLin(field(centreCells + swirlWarp(pr, ang, R)*block) + corr*wC);
-    vec3 cg = labToLin(field(centreCells + swirlWarp(pg, ang, R)*block) + corr*wC);
-    vec3 cb = labToLin(field(centreCells + swirlWarp(pb, ang, R)*block) + corr*wC);
-    vec3 col = max(vec3(cr.r, cg.g, cb.b), 0.0);
-
-    // ---- volume: zero-mean shading in the centre; absorption, edge shadow only toward the rim --
-    float ndl = dot(n, L);
-    col *= clamp(1.0 + uBody*(ndl - L.z)*1.6*mix(0.35, 1.0, wRim), 0.4, 1.6);
-    col *= 1.0 + uGlow*((h/Hh) - uAvgH);
-    float path = depth / max(-tg.z, 0.25);
-    vec3 sigma = uAbsorb * (1.0 - clamp(col, 0.0, 1.0)) * 0.9;
-    col *= mix(vec3(1.0), exp(-sigma*path*0.55), wRim);              // tinted by the data colour
-    float facing = clamp(0.5 + 0.5*dot(fdir, normalize(L.xy)), 0.0, 1.0);
-    col *= 1.0 - uEdgeDark*smoothstep(uCentral, 1.0, u)*(0.35 + 0.65*(1.0 - facing));
-
-    // ---- rim: Fresnel + refracted neighbours, directional, luminance-capped --------------------
-    float f0 = pow((uIor - 1.0)/(uIor + 1.0), 2.0) * uF0;
-    float F = f0 + (1.0 - f0)*pow(1.0 - clamp(n.z, 0.0, 1.0), 5.0);
-    vec3 Rv = vec3(2.0*n.z*n.x, 2.0*n.z*n.y, 2.0*n.z*n.z - 1.0);
-    vec3 env = environment(Rv, L);
-    float dirGain = 0.18 + 0.82*pow(facing, 2.6);                      // strong on the lit edge
-    float widthVar = 0.85 + 0.15*sin(3.0*atan(fdir.y, fdir.x) + 0.7); // smooth variation along the rim
-    vec3 neighbour = max(labToLin(field(centreCells + f*block*(1.0 + 0.9*uEdgeRef))), 0.0);
-    vec3 rimTint = mix(col, neighbour, 0.45);                          // lens colour + neighbours
-    vec3 rimAdd = (rimTint * (F*6.0) + env*F*uEnv*0.35) * uBevel * dirGain * widthVar * wRim;
-    float lensLum = dot(centre, vec3(0.2126, 0.7152, 0.0722));
-    float cap = uRimMax*lensLum + uRimFloor;                           // rim peak luminance cap
-    float colLum = dot(col, vec3(0.2126, 0.7152, 0.0722));
-    float addLum = dot(rimAdd, vec3(0.2126, 0.7152, 0.0722));
-    float room = max(cap - colLum, 0.0);
-    rimAdd *= min(1.0, room / max(addLum, 1e-5));
-    vec3 body = col + rimAdd;
-    // whole-rim luminance cap (refracted neighbours included): <= ratio x lens luminance + floor
-    float capTot = uRimMax*lensLum + uRimFloor;
-    body *= mix(1.0, min(1.0, capTot/max(dot(body, vec3(0.2126, 0.7152, 0.0722)), 1e-5)), wRim);
-    // ---- the only pure-white term: a small specular glint -----------------------------------
-    vec3 Hh3 = normalize(L + vec3(0.0, 0.0, 1.0));
-    float glint = pow(max(dot(n, Hh3), 0.0), 220.0) * uGlint * uKey;
-    outc = (body + vec3(glint)) * cover;
-    // ---- ground: faint neutral highlight in the gaps ------------------------------------------
-    float gap = uGap * exp(-max(d, 0.0)/0.055) * (0.4 + 0.6*clamp(dot(fdir, normalize(L.xy)), 0.0, 1.0));
-    outc += vec3(gap) * (1.0 - cover);
+  if (uLive > 0.5 && uWaveOn > 0.5) {                                   // wave modulation, bounded
+    float hw = clamp(waveH((id + 0.5 + f) * block) / 0.6, -1.0, 1.0);
+    L *= 1.0 + uModT * hw;
+    ab *= 1.0 + uModV * hw;
   }
-  o = vec4(max(outc, 0.0), cover);
+  vec3 col = max(labToLin(vec3(L, ab)), 0.0) * uBacklight;
+
+  // one small soft neutral glint, top-left; travels with the wave slope
+  vec2 slope = vec2(0.0);
+  if (uLive > 0.5 && uWaveOn > 0.5) {
+    vec2 pc = (id + 0.5 + f) * block;
+    slope = vec2(waveH(pc + vec2(0.5, 0.0)) - waveH(pc - vec2(0.5, 0.0)),
+                 waveH(pc + vec2(0.0, 0.5)) - waveH(pc - vec2(0.0, 0.5)));
+  }
+  // glint = a short soft sliver on the rim edge facing the light (flat glass catching light);
+  // the wave slope rotates it, so highlights slide like light on water
+  vec2 ldir = normalize(normalize(uLightXY) - slope * uSlopeGain * 6.0);
+  float facing = max(dot(f / max(r, 1e-5), ldir), 0.0);
+  float band = smoothstep(uGlintOff - uGlintSize, uGlintOff, u) * (1.0 - smoothstep(uGlintOff, uGlintOff + uGlintSize, u));
+  glint = uGlintK * (1.0 - uNoGlint) * pow(facing, 6.0) * band;
+  return vec4(col, cover);
+}
+
+void main(){
+  vec2 uvImg = vec2(vUv.x, 1.0 - vUv.y);
+  vec2 frag = uCrop.xy + uvImg * uCrop.z;
+  float P = uSide / (uLenses + 2.0*uMargin);
+  vec2 l = frag / P - uMargin;
+  vec2 idx = floor(l);
+  vec2 f = l - idx - 0.5;
+  float block = uCells / uLenses;
+
+  vec3 T = vec3(1.0); float unc = 1.0; float glintSum = 0.0;
+  if (uFlat > 0.5) {
+    // flat reference chips: plain discs of the data colour (no texture, no absorption, no glint)
+    vec2 id = clamp(idx, 0.0, uLenses - 1.0);
+    vec2 cc = (id + 0.5) * block;
+    float R = uRadius;
+    float r = length(f);
+    float aa = max(fwidth(r - R)*0.75, 1e-5);
+    float cover = 1.0 - smoothstep(-aa, aa, r - R);
+    vec3 lab = field(cc + swirlWarp(f, radians(uSwirl), R)*block) + texelFetch(uCorr, ivec2(id), 0).rgb;
+    T = max(labToLin(lab), 0.0) * uBacklight; unc = 1.0 - cover;
+    if (idx.x < 0.0 || idx.y < 0.0 || idx.x >= uLenses || idx.y >= uLenses) unc = 1.0;
+  } else if (uOverlap > 0.5) {
+    for (int k = 0; k < 5; k++) {
+      vec2 off = (k == 0) ? vec2(0.0) : (k == 1) ? vec2(1.0, 0.0) : (k == 2) ? vec2(-1.0, 0.0) : (k == 3) ? vec2(0.0, 1.0) : vec2(0.0, -1.0);
+      float gg;
+      vec4 v = chipEval(idx + off, f - off, gg);
+      T *= mix(vec3(1.0), v.rgb, clamp(v.a * 20.0, 0.0, 1.0));   // full colour once covered
+      unc *= 1.0 - v.a;
+      glintSum += gg * v.a;
+    }
+  } else {
+    float gg;
+    vec4 v = chipEval(idx, f, gg);
+    T = v.rgb; unc = 1.0 - v.a; glintSum = gg * v.a;
+  }
+  float covered = 1.0 - unc;
+  vec3 chipRGB = T * covered;
+  vec3 haze = vec3(0.0);
+  if (uHazeK > 0.0) {
+    vec2 pc = clamp(frag / P - uMargin, 0.0, uLenses) * block;
+    vec3 hl = texture(uHaze, pc / uCells).rgb;
+    haze = max(labToLin(hl), 0.0) * uHazeK;
+  }
+  vec3 outc = chipRGB + haze * (1.0 - 0.85*covered) + vec3(glintSum) * covered;
+  o = vec4(max(outc, 0.0), covered);
 }`;
 
-const FS_BLOOM_DOWN = `#version 300 es
+const FS_BLOOM = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 o; uniform sampler2D uT; uniform vec2 uTexel; uniform vec2 uDir; uniform float uThreshold; uniform float uFirst;
 void main(){
@@ -221,10 +257,9 @@ const FS_COMPOSITE = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 o;
 uniform sampler2D uHdr, uBloom;
-uniform float uBloomK, uExposure, uDither, uP3, uSide, uCaus;
-uniform vec2 uCausVec;
+uniform float uBloomK, uExposure, uDither, uP3, uSide;
 float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x+p3.y)*p3.z); }
-vec3 shoulder(vec3 x){  // filmic highlight shoulder: identity below the knee, soft roll-off above
+vec3 shoulder(vec3 x){
   const float k = 0.92;   // above the data range: colours are never compressed, only highlights
   vec3 t = (x - k) / (1.0 - k);
   return mix(x, k + (1.0 - k)*(1.0 - exp(-max(t, 0.0))), step(k, x));
@@ -233,21 +268,18 @@ vec3 oetf(vec3 c){ return mix(c*12.92, 1.055*pow(max(c,0.0), vec3(1.0/2.4)) - 0.
 void main(){
   vec4 h = texture(uHdr, vUv);
   vec3 c = h.rgb + texture(uBloom, vUv).rgb * uBloomK;
-  c += texture(uBloom, vUv + uCausVec).rgb * uCaus * (1.0 - h.a);   // data-coloured caustic on the ground
   c = shoulder(c * uExposure);
-  if (uP3 > 0.5) {  // linear sRGB -> linear Display P3
-    c = mat3(0.8224621, 0.0331941, 0.0170827,
-             0.1775380, 0.9668058, 0.0723974,
-             0.0000000, 0.0000000, 0.9105199) * c;
+  if (uP3 > 0.5) {
+    c = mat3(0.8224621, 0.0331941, 0.0170827, 0.1775380, 0.9668058, 0.0723974, 0.0000000, 0.0000000, 0.9105199) * c;
   }
   vec3 e = oetf(clamp(c, 0.0, 1.0));
   vec2 fc = vec2(vUv.x, 1.0 - vUv.y) * uSide;
-  float n = hash12(fc) + hash12(fc + 17.3) - 1.0;       // triangular noise, +-1 LSB
+  float n = hash12(fc) + hash12(fc + 17.3) - 1.0;
   e += n * uDither / 255.0;
   o = vec4(e, 1.0);
 }`;
 
-// ------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------ GL setup
 function program(fs) {
   const mk = (type, src) => {
     const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
@@ -260,7 +292,7 @@ function program(fs) {
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
   return p;
 }
-const pLens = program(FS_LENS), pBloom = program(FS_BLOOM_DOWN), pComp = program(FS_COMPOSITE);
+const pWave = program(FS_WAVE), pChip = program(FS_CHIP), pBloom = program(FS_BLOOM), pComp = program(FS_COMPOSITE);
 const vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
 gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
@@ -268,28 +300,35 @@ gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 
 function floatTex(data, size) {
   const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB32F, size, size, 0, gl.RGB, gl.FLOAT, data);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR],
+                        [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]])
+    gl.texParameteri(gl.TEXTURE_2D, k, v);
   return t;
 }
-function target(w, h) {
+function nearestTex(data, size) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB32F, size, size, 0, gl.RGB, gl.FLOAT, data);
+  for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST],
+                        [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]])
+    gl.texParameteri(gl.TEXTURE_2D, k, v);
+  return t;
+}
+function target(w, h, filter = gl.LINEAR) {
   const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, filter], [gl.TEXTURE_MAG_FILTER, filter],
+                        [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]])
+    gl.texParameteri(gl.TEXTURE_2D, k, v);
   const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+  gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
   return {t, f, w, h};
 }
 
-// --- CPU helpers: make each lens centre data-exact (mean of the 4 sub-cells) -----------------
+// ------------------------------------------------------------------------------------------ CPU helpers
 function crw(t) { const t2 = t*t, t3 = t2*t;
   return [-0.5*t3 + t2 - 0.5*t, 1.5*t3 - 2.5*t2 + 1.0, -1.5*t3 + 2.0*t2 + 0.5*t, 0.5*t3 - 0.5*t2]; }
-function fieldAt(g, x, y, out) {      // Catmull-Rom of the 64x64 OKLab grid at cell coords
+function fieldAt(g, x, y, out) {
   const gx = x - 0.5, gy = y - 0.5, x0 = Math.floor(gx), y0 = Math.floor(gy);
   const wx = crw(gx - x0), wy = crw(gy - y0);
   out[0] = out[1] = out[2] = 0;
@@ -301,14 +340,14 @@ function fieldAt(g, x, y, out) {      // Catmull-Rom of the 64x64 OKLab grid at 
     }
   }
 }
-function computeCorr(g, par) {
-  const lenses = 64 / par.display_block, R = par.lens_radius, rc = par.central_radius * R;
-  const NS = 24, pts = [];
-  for (let k = 0; k < NS; k++) {           // Fibonacci disc: equal-area samples of the central zone
-    const r = rc * Math.sqrt((k + 0.5) / NS), a = k * 2.399963229728653;
-    pts.push([r*Math.cos(a), r*Math.sin(a)]);
+// OKLab delta so the whole chip's mean equals the mean of its 2x2 sub-cells (mean-preserving)
+function computeCorr(g, b) {
+  const lenses = 64 / b, NS = 40, pts = [];
+  for (let k = 0; k < NS; k++) {
+    const r = 0.5 * Math.sqrt((k + 0.5) / NS) * 0.86, a = k * 2.399963229728653;   // disc ~ chip footprint
+    pts.push([r * Math.cos(a), r * Math.sin(a)]);
   }
-  const out = new Float32Array(lenses*lenses*3), t = [0, 0, 0], b = par.display_block;
+  const out = new Float32Array(lenses*lenses*3), t = [0, 0, 0];
   for (let i = 0; i < lenses; i++) for (let j = 0; j < lenses; j++) {
     const cx = (j + 0.5)*b, cy = (i + 0.5)*b, m = [0, 0, 0], m4 = [0, 0, 0];
     for (const [qx, qy] of pts) { fieldAt(g, cx + qx*b, cy + qy*b, t); m[0] += t[0]; m[1] += t[1]; m[2] += t[2]; }
@@ -320,32 +359,46 @@ function computeCorr(g, par) {
   }
   return out;
 }
-function avgHeight(par) {                 // area mean of h/Hh over the central zone
-  const c = par.central_radius, q = par.profile_power, N = 400; let acc = 0;
-  for (let k = 0; k < N; k++) { const u = (k + 0.5)/N*c; acc += Math.pow(1 - Math.pow(u, q), 1/q)*2*u*(c/N); }
-  return acc/(c*c);
+function avgRing(start) {                  // area mean of smoothstep(start,1,u) over the unit disc
+  const N = 400; let acc = 0;
+  for (let k = 0; k < N; k++) {
+    const u = (k + 0.5)/N, t = Math.min(1, Math.max(0, (u - start)/(1 - start)));
+    acc += t*t*(3 - 2*t) * 2*u / N;
+  }
+  return acc;
 }
-const S = {params: null, index: null, side: 0, hdr: null, b1: null, b2: null,
-           labTex: null, flowTex: null, song: null, live: null, flat: false, frameLab: null, frameFlow: null};
-const base = '';
+function blurLab(g, sigma) {
+  const rad = Math.ceil(sigma*3), k = []; let ks = 0;
+  for (let i = -rad; i <= rad; i++) { const w = Math.exp(-i*i/(2*sigma*sigma)); k.push(w); ks += w; }
+  const tmp = new Float32Array(g.length), out = new Float32Array(g.length);
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) for (let c = 0; c < 3; c++) {
+    let a = 0; for (let i = -rad; i <= rad; i++) a += k[i + rad]*g[(y*64 + Math.min(63, Math.max(0, x + i)))*3 + c];
+    tmp[(y*64 + x)*3 + c] = a/ks; }
+  for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) for (let c = 0; c < 3; c++) {
+    let a = 0; for (let i = -rad; i <= rad; i++) a += k[i + rad]*tmp[(Math.min(63, Math.max(0, y + i))*64 + x)*3 + c];
+    out[(y*64 + x)*3 + c] = a/ks; }
+  return out;
+}
 
-async function fetchF32(name) {
-  const r = await fetch('/data/' + name); return new Float32Array(await r.arrayBuffer());
+// ------------------------------------------------------------------------------------------ state
+const S = {params: null, index: null, songs: {}, side: 0, hdr: null, b1: null, b2: null,
+           waves: null, wi: 0, tex: {}, flowZero: new Float32Array(64*64*3), lastSong: null, emitLog: []};
+async function fetchF32(name) { return new Float32Array(await (await fetch('/data/' + name)).arrayBuffer()); }
+function merged(over) {
+  const g = Object.assign({}, S.params.render, (over && over.render) || {});
+  const f = Object.assign({}, S.params.flow, (over && over.flow) || {});
+  const lg = {glass: Object.assign({}, S.params.live, (over && over.live) || {})};
+  return {g, f, lg};
 }
 async function init() {
   S.params = await (await fetch('/params.json')).json();
   S.index = await (await fetch('/data/index.json')).json();
-  S.songs = {};
   for (const [name, e] of Object.entries(S.index)) {
-    S.songs[name] = {static: await fetchF32(e.static), meta: e.live || null};
-    if (e.live) {
-      S.songs[name].liveLab = await fetchF32(e.live.lab);
-      S.songs[name].liveFlow = await fetchF32(e.live.flow);
-    }
+    const o = {static: await fetchF32(e.static), occ: await fetchF32(e.occ), meta: e.live || null};
+    if (e.live) { o.liveLab = await fetchF32(e.live.lab); o.liveFlow = await fetchF32(e.live.flow); o.liveSrc = await fetchF32(e.live.src); }
+    S.songs[name] = o;
   }
-  S.flowZero = new Float32Array(64 * 64 * 3);
-  S.labTex = floatTex(S.songs.electronic.static, 64);
-  S.flowTex = floatTex(S.flowZero, 64);
+  S.waves = [target(64, 64, gl.LINEAR), target(64, 64, gl.LINEAR)];
   return Object.keys(S.songs);
 }
 function resize(side) {
@@ -357,120 +410,174 @@ function resize(side) {
   S.b1 = target(q, q); S.b2 = target(q, q);
 }
 function setTex(unit, tex) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, tex); }
-function uni(p, n) { return gl.getUniformLocation(p, n); }
-
-// simplified lens for small displays (lens < ~14 px): no dispersion, half the studio
-// reflection, a wider bevel so it survives, no caustic, less rim refraction
-function simplified(g) {
-  return Object.assign({}, g, {dispersion: 0, env_strength: g.env_strength * 0.5,
-    bevel_width: g.bevel_width * 1.7, caustic_strength: 0, edge_refraction: g.edge_refraction * 0.4,
-    bloom_strength: g.bloom_strength * 0.6});
+function U(p, n) { return gl.getUniformLocation(p, n); }
+function setFields(lab, flow, occ, g, hazeSigma) {
+  S.tex.lab = nearestTex(lab, 64); S.tex.flow = nearestTex(flow, 64);
+  S.tex.corr = nearestTex(computeCorr(lab, g.display_block), 64 / g.display_block);
+  const o3 = new Float32Array(occ.length*3); for (let i = 0; i < occ.length; i++) o3[i*3] = occ[i];
+  S.tex.occ = nearestTex(o3, 64 / g.display_block);
+  S.tex.haze = floatTex(blurLab(lab, hazeSigma), 64);
 }
-function draw(opts) {
-  const g = opts.simple ? simplified(S.params.render) : S.params.render, lg = S.params.live;
-  const side = S.side, nominal = opts.nominal || side;
-  const crop = opts.crop || {x: 0, y: 0, w: nominal};
-  gl.useProgram(pLens);
-  setTex(0, S.labTex); setTex(1, S.flowTex); setTex(2, S.corrTex);
-  gl.uniform1i(uni(pLens, 'uLab'), 0); gl.uniform1i(uni(pLens, 'uFlow'), 1); gl.uniform1i(uni(pLens, 'uCorr'), 2);
-  gl.uniform3f(uni(pLens, 'uCrop'), crop.x, crop.y, crop.w);
-  gl.uniform1f(uni(pLens, 'uCentral'), g.central_radius); gl.uniform1f(uni(pLens, 'uRimMax'), g.rim_max_ratio);
-  gl.uniform1f(uni(pLens, 'uRimFloor'), g.rim_floor); gl.uniform1f(uni(pLens, 'uGlint'), g.glint_strength);
-  gl.uniform1f(uni(pLens, 'uAvgH'), avgHeight(g));
-  const zoom = nominal / crop.w;           // canvas pixels per nominal pixel
-  const f = (n, v) => gl.uniform1f(uni(pLens, n), v);
-  f('uSide', nominal); f('uLenses', 64 / g.display_block); f('uCells', 64); f('uMargin', 0.6);
-  f('uRadius', g.lens_radius); f('uHeight', g.lens_height); f('uPower', g.profile_power);
-  f('uIor', g.ior); f('uDisp', g.dispersion); f('uDepth', g.refraction_depth);
-  f('uAbsorb', g.absorption); f('uGlow', g.inner_glow);
-  f('uSwirl', g.swirl_angle_deg); f('uSwirlPow', g.swirl_falloff_power);
-  gl.uniform3f(uni(pLens, 'uLight'), g.light_dir[0], g.light_dir[1], g.light_dir[2]);
-  f('uKey', g.key_strength); f('uRimL', g.rim_light_strength); f('uEnv', g.env_strength);
-  f('uF0', g.fresnel_f0_boost); f('uBevel', g.bevel_strength); f('uBevelW', g.bevel_width);
-  f('uCaus', g.caustic_strength); f('uCausOff', g.caustic_offset); f('uGap', g.gap_highlight);
-  f('uBody', g.body_shading); f('uEdgeDark', g.edge_darkening); f('uEdgeRef', g.edge_refraction);
-  f('uFlat', opts.flat ? 1 : 0); f('uLive', opts.live ? 1 : 0);
-  f('uTime', opts.time || 0); f('uLoud', opts.loud || 0);
-  f('uSwirlFlow', opts.static_hi ? 0 : lg.swirl_flow_gain); f('uSwirlLoud', opts.static_hi ? 0 : lg.swirl_loud_gain);
-  f('uDriftHz', lg.swirl_drift_hz); f('uNormFlow', opts.static_hi ? 0 : lg.normal_from_response);
-  f('uLightDrift', opts.static_hi ? 0 : lg.light_drift);
+function waveReset() {
+  for (const w of S.waves) { gl.bindFramebuffer(gl.FRAMEBUFFER, w.f); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); }
+  S.wi = 0; S.emitLog = [];
+}
+function waveStep(src, o, paused, beatNow) {
+  const {f} = merged(o.over);
+  const dt = 1 / (30 * f.substeps);
+  gl.useProgram(pWave);
+  const a = S.waves[S.wi], b = S.waves[1 - S.wi];
+  setTex(0, a.t); gl.uniform1i(U(pWave, 'uW'), 0);
+  gl.uniform4f(U(pWave, 'uSrc'), src[0], src[1], src[2], src[3]);
+  gl.uniform4f(U(pWave, 'uP0'), dt, f.wave_speed, f.damping, f.source_sigma_cells);
+  const spd = f.current_speed * (1 + f.current_loud_gain * (src[2] - 0.5));
+  const dir = f.current_dir, dl = Math.hypot(dir[0], dir[1]) || 1;
+  gl.uniform4f(U(pWave, 'uP1'), dir[0]/dl*spd, dir[1]/dl*spd, f.curl_amp, f.curl_scale);
+  gl.uniform4f(U(pWave, 'uP2'), o.time || 0, f.wave_limit, f.source_gain, f.beat_gain);
+  gl.uniform1f(U(pWave, 'uPaused'), paused ? 1 : 0); gl.uniform1f(U(pWave, 'uBeatNow'), beatNow ? 1 : 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, b.f); gl.viewport(0, 0, 64, 64);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  S.wi = 1 - S.wi;
+}
+function drawChips(o) {
+  const {g, f, lg} = merged(o.over);
+  const side = S.side, nominal = o.nominal || side, crop = o.crop || {x: 0, y: 0, w: nominal};
+  gl.useProgram(pChip);
+  setTex(0, S.tex.lab); setTex(1, S.tex.flow); setTex(2, S.tex.corr); setTex(3, S.tex.occ);
+  setTex(4, S.waves[S.wi].t); setTex(5, S.tex.haze);
+  for (const [n, i] of [['uLab', 0], ['uFlow', 1], ['uCorr', 2], ['uOcc', 3], ['uWave', 4], ['uHaze', 5]])
+    gl.uniform1i(U(pChip, n), i);
+  const fl = (n, v) => gl.uniform1f(U(pChip, n), v);
+  fl('uSide', nominal); fl('uLenses', 64 / g.display_block); fl('uCells', 64); fl('uMargin', 0.6);
+  gl.uniform3f(U(pChip, 'uCrop'), crop.x, crop.y, crop.w);
+  fl('uRadius', g.chip_radius); fl('uOverlap', g.overlap > 0 ? 1 : 0); fl('uOverlapR', g.overlap_radius);
+  fl('uRmin', g.radius_min); fl('uRmax', g.radius_max); fl('uRmaxOv', g.overlap_radius_max);
+  fl('uRadMode', g.radius_mode === 'occupancy' ? 1 : 0); fl('uOccAmt', g.radius_occ_amount);
+  fl('uSwirl', g.swirl_angle_deg); fl('uSwirlPow', g.swirl_falloff_power);
+  fl('uAbsDark', g.absorb_edge_dark); fl('uAbsSat', g.absorb_edge_sat);
+  fl('uRingStart', g.edge_ring_start); fl('uRingDark', g.edge_ring_dark); fl('uRingSat', g.edge_ring_sat);
+  fl('uAvgQ', avgRing(g.edge_ring_start));
+  fl('uGrain', g.grain); fl('uVeins', g.veins); fl('uVeinScale', g.vein_scale);
+  fl('uBacklight', g.backlight); fl('uHazeK', g.haze_strength);
+  fl('uGlintK', g.glint_strength); fl('uGlintSize', g.glint_size); fl('uGlintOff', g.glint_offset);
+  gl.uniform2f(U(pChip, 'uLightXY'), g.light_dir[0], g.light_dir[1]);
+  fl('uFlat', o.flat ? 1 : 0); fl('uLive', o.live ? 1 : 0); fl('uWaveOn', o.waves ? 1 : 0);
+  fl('uTime', o.time || 0); fl('uLoud', o.loud || 0);
+  fl('uSwirlFlow', o.live ? lg.glass.swirl_flow_gain : 0); fl('uSwirlLoud', o.live ? lg.glass.swirl_loud_gain : 0);
+  fl('uDriftHz', lg.glass.swirl_drift_hz);
+  fl('uModT', f.mod_transmission); fl('uModV', f.mod_vibrance); fl('uModR', f.mod_radius);
+  fl('uSlopeGain', f.slope_glint_gain); fl('uNoGlint', o.noGlint ? 1 : 0);
+  fl('uOvComp', g.overlap > 0 ? g.overlap_lightness_comp : 0); fl('uEdgeDir', g.edge_directional);
   gl.bindFramebuffer(gl.FRAMEBUFFER, S.hdr.f); gl.viewport(0, 0, side, side);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-  // restrained bloom: bright-pass + separable blur at quarter resolution
+  // restrained bloom (the backlight), quarter resolution
   gl.useProgram(pBloom);
-  const sigmaPx = g.bloom_sigma * (nominal / (64 / g.display_block + 1.2)) * zoom * (side / nominal);
-  const step = Math.max(sigmaPx / 4 / (S.b1.w), 0.0);
-  gl.uniform1i(uni(pBloom, 'uT'), 0);
+  const zoom = nominal / crop.w;
+  const pitchPx = (nominal / (64 / g.display_block + 1.2)) * zoom * (side / nominal);
+  const sigmaPx = g.bloom_sigma * pitchPx;
+  gl.uniform1i(U(pBloom, 'uT'), 0);
   setTex(0, S.hdr.t);
   gl.bindFramebuffer(gl.FRAMEBUFFER, S.b1.f); gl.viewport(0, 0, S.b1.w, S.b1.h);
-  gl.uniform2f(uni(pBloom, 'uTexel'), 1 / S.b1.w, 1 / S.b1.h);
-  gl.uniform2f(uni(pBloom, 'uDir'), Math.max(sigmaPx / 4, 1), 0);
-  gl.uniform1f(uni(pBloom, 'uThreshold'), 0.45); gl.uniform1f(uni(pBloom, 'uFirst'), 1);
+  gl.uniform2f(U(pBloom, 'uTexel'), 1 / S.b1.w, 1 / S.b1.h);
+  gl.uniform2f(U(pBloom, 'uDir'), Math.max(sigmaPx / 4, 1), 0);
+  gl.uniform1f(U(pBloom, 'uThreshold'), 0.30); gl.uniform1f(U(pBloom, 'uFirst'), 1);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   setTex(0, S.b1.t);
   gl.bindFramebuffer(gl.FRAMEBUFFER, S.b2.f);
-  gl.uniform2f(uni(pBloom, 'uDir'), 0, Math.max(sigmaPx / 4, 1));
-  gl.uniform1f(uni(pBloom, 'uFirst'), 0);
+  gl.uniform2f(U(pBloom, 'uDir'), 0, Math.max(sigmaPx / 4, 1));
+  gl.uniform1f(U(pBloom, 'uFirst'), 0);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 
   gl.useProgram(pComp);
   setTex(0, S.hdr.t); setTex(1, S.b2.t);
-  gl.uniform1i(uni(pComp, 'uHdr'), 0); gl.uniform1i(uni(pComp, 'uBloom'), 1);
-  gl.uniform1f(uni(pComp, 'uBloomK'), g.bloom_strength); gl.uniform1f(uni(pComp, 'uExposure'), g.exposure);
-  gl.uniform1f(uni(pComp, 'uDither'), g.dither); gl.uniform1f(uni(pComp, 'uP3'), g.color_space === 'display-p3' ? 1 : 0);
-  gl.uniform1f(uni(pComp, 'uSide'), side);
-  gl.uniform1f(uni(pComp, 'uCaus'), g.caustic_strength);
-  { const lx = g.light_dir[0], ly = g.light_dir[1], ll = Math.hypot(lx, ly) || 1;
-    const off = g.caustic_offset * g.lens_radius / (64 / g.display_block + 1.2) * (nominal / crop.w);
-    gl.uniform2f(uni(pComp, 'uCausVec'), lx / ll * off, -ly / ll * off); }
+  gl.uniform1i(U(pComp, 'uHdr'), 0); gl.uniform1i(U(pComp, 'uBloom'), 1);
+  gl.uniform1f(U(pComp, 'uBloomK'), g.bloom_strength); gl.uniform1f(U(pComp, 'uExposure'), g.exposure);
+  gl.uniform1f(U(pComp, 'uDither'), g.dither); gl.uniform1f(U(pComp, 'uP3'), g.color_space === 'display-p3' ? 1 : 0);
+  gl.uniform1f(U(pComp, 'uSide'), side);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, side, side);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
-
-function setField(lab, flow) {
-  S.labTex = floatTex(lab, 64);
-  S.flowTex = floatTex(flow, 64);
-  S.corrTex = floatTex(computeCorr(lab, S.params.render), 64 / S.params.render.display_block);
-}
-function useStatic(song) { setField(S.songs[song].static, S.flowZero); }
-function useLive(song, k) {
-  const m = S.songs[song].meta, n = 64 * 64 * 3;
-  setField(S.songs[song].liveLab.subarray(k * n, (k + 1) * n), S.songs[song].liveFlow.subarray(k * n, (k + 1) * n));
-  return {time: k / m.fps, loud: m.loud[k]};
-}
 async function save(name) {
   const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
-  const r = await fetch('/save?name=' + encodeURIComponent(name), {method: 'POST', body: blob});
-  return r.ok;
+  return (await fetch('/save?name=' + encodeURIComponent(name), {method: 'POST', body: blob})).ok;
 }
 const px = new Uint8Array(4);
 function sync() { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); }
+function stillFields(song, o) {
+  const {g} = merged(o.over);
+  setFields(S.songs[song].static, S.flowZero, S.songs[song].occ, g, g.haze_sigma_cells);
+}
 
 window.LENS = {
   init,
   async reloadParams() { S.params = await (await fetch('/params.json')).json(); },
   async still(song, side, name, o = {}) {
-    resize(side); useStatic(song);
-    draw({flat: !!o.flat, live: false, static_hi: true, simple: !!o.simple, nominal: o.nominal, crop: o.crop});
+    resize(side); stillFields(song, o);
+    waveReset();
+    drawChips(Object.assign({}, o, {live: false, waves: false}));
     sync(); return save(name);
   },
+  // sequential live frames: the wave tank is stepped from the clip start, so captures are deterministic
   async liveFrame(song, side, k, name, o = {}) {
-    resize(side); const t = useLive(song, k);
-    draw({flat: !!o.flat, live: !o.static, time: t.time, loud: t.loud, static_hi: !!o.static, simple: !!o.simple});
+    const d = S.songs[song], m = d.meta, n = 64*64*3;
+    resize(side);
+    const {g, f} = merged(o.over);
+    if (k === 0 || S.lastSong !== song) { waveReset(); S.lastSong = song; }
+    setFields(d.liveLab.subarray(k*n, (k + 1)*n), d.liveFlow.subarray(k*n, (k + 1)*n), d.occ, g, g.haze_sigma_cells);
+    const src = d.liveSrc.subarray(k*4, k*4 + 4);
+    const reduced = !!o.reduced;
+    if (f.enabled && !reduced) {
+      for (let s = 0; s < f.substeps; s++) waveStep(src, {over: o.over, time: k/m.fps + s/(m.fps*f.substeps)}, !!o.paused, s === 0 && src[3] > 0);
+    } else if (reduced && f.reduced_motion === 'follow') {
+      // simple transmission follow: height follows the response field value, no advection or waves
+      const w = new Float32Array(64*64*4);
+      const fl = d.liveFlow.subarray(k*n, (k + 1)*n);
+      for (let i = 0; i < 64*64; i++) w[i*4] = Math.max(-1, Math.min(1, (fl[i*3 + 2] - 0.15) * 1.2));
+      gl.bindTexture(gl.TEXTURE_2D, S.waves[S.wi].t);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, 64, 64, 0, gl.RGBA, gl.FLOAT, w);
+    }
+    if (src[3] > 0) S.emitLog.push(k);
+    drawChips({over: o.over, live: true, waves: !!(f.enabled || reduced), time: k/m.fps, loud: m.loud[k],
+               nominal: o.nominal, crop: o.crop, flat: o.flat, noGlint: o.noGlint});
     sync(); return name ? save(name) : true;
   },
   async liveClip(song, side, from, to, prefix, o = {}) {
     for (let k = from; k < to; k++) await this.liveFrame(song, side, k, `${prefix}_${String(k).padStart(4, '0')}.png`, o);
     return to - from;
   },
-  bench(song, side, frames = 90, o = {}) {
-    resize(side); useStatic(song);
-    const opt = {flat: !!o.flat, live: !!o.live, static_hi: !o.live, simple: !!o.simple, time: 1.0, loud: 0.5};
-    for (let i = 0; i < 8; i++) draw(opt);
+  // total wave energy of the tank (CPU readback) - for the tempo-sync check
+  waveEnergy() {
+    const w = S.waves[S.wi]; gl.bindFramebuffer(gl.FRAMEBUFFER, w.f);
+    const buf = new Uint16Array(64*64*4); gl.readPixels(0, 0, 64, 64, gl.RGBA, gl.HALF_FLOAT, buf);
+    const h2f = (h) => { const s = (h & 0x8000) ? -1 : 1, e = (h >> 10) & 0x1f, m = h & 0x3ff;
+      return e === 0 ? s*Math.pow(2, -14)*(m/1024) : e === 31 ? 0 : s*Math.pow(2, e - 15)*(1 + m/1024); };
+    let e = 0; for (let i = 0; i < 64*64; i++) { const v = h2f(buf[i*4]); e += v*v; }
+    return e;
+  },
+  async energySeries(song, from, to, o = {}) {
+    const out = [];
+    for (let k = from; k < to; k++) { await this.liveFrame(song, 256, k, null, o); out.push(this.waveEnergy()); }
+    return out;
+  },
+  emitLog: () => S.emitLog.slice(),
+  bench(song, side, frames = 60, o = {}) {
+    resize(side); stillFields(song, o); waveReset();
+    const opt = Object.assign({}, o, {live: !!o.live, waves: !!o.live, time: 1.0, loud: 0.5});
+    for (let i = 0; i < 6; i++) drawChips(opt);
     sync(); const t0 = performance.now();
-    for (let i = 0; i < frames; i++) draw(opt);
+    for (let i = 0; i < frames; i++) drawChips(opt);
     sync(); return (performance.now() - t0) / frames;
+  },
+  async svgToPng(svgText, side, name) {
+    const img = new Image();
+    const url = URL.createObjectURL(new Blob([svgText], {type: 'image/svg+xml'}));
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    const c = document.createElement('canvas'); c.width = side; c.height = side;
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, side, side);
+    ctx.drawImage(img, 0, 0, side, side);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    return (await fetch('/save?name=' + encodeURIComponent(name), {method: 'POST', body: blob})).ok;
   },
   info() {
     const d = gl.getExtension('WEBGL_debug_renderer_info');

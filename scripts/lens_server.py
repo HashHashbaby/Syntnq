@@ -41,8 +41,11 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/params.json":
             cfg = load_config()
-            doc = {"render": cfg.render.glass.model_dump(), "live": cfg.live.glass.model_dump(),
-                   "bloom_sigma_flat": cfg.render.glow_sigma_ratio}  # fmt: skip
+            doc = {
+                "render": cfg.render.glass.model_dump(),
+                "flow": cfg.live.flow.model_dump(),
+                "live": cfg.live.glass.model_dump(),
+            }
             self._send(200, json.dumps(doc).encode(), "application/json")
             return
         if path.startswith("/data/"):

@@ -146,3 +146,88 @@ def contact_sheet(
         draw.text((x + 2, y + 8), label, fill=(230, 230, 230), font=font)
         sheet.paste(img.resize((tile_px, tile_px), Image.Resampling.LANCZOS), (x, y + label_px))
     return sheet
+
+
+def render_chip_svg(
+    lab_grid: npt.NDArray[np.float64], config: Config, px: int | None = None
+) -> str:
+    """Vector approximation of the glass-chip look (circles, gradients, opacity).
+
+    Each chip is a circle filled with a radial gradient (lighter centre, denser and more saturated
+    edge) in the chip's mean colour, with the four sub-cell colours as semi-transparent blobs
+    clipped to the chip (the swirl approximated by a quarter-turn-free quadrant blend) and one
+    neutral rim-sliver glint. Textures, wave motion and bloom are not representable.
+
+    Args:
+        lab_grid: ``(size, size, 3)`` OKLab per analysis cell.
+        config: resolved configuration (``render.glass``).
+        px: nominal side in pixels; defaults to ``render.preview_px``.
+
+    Returns:
+        Deterministic SVG text.
+    """
+    from synesthesia.color import linear_to_srgb8, oklab_to_linear_srgb
+
+    g = config.render.glass
+    size, block = lab_grid.shape[0], g.display_block
+    n = size // block
+    side = px or config.render.preview_px
+    margin = 0.6
+    pitch = side / (n + 2.0 * margin)
+    radius = g.chip_radius * pitch
+
+    def hexrgb(lab: npt.NDArray[np.float64]) -> str:
+        r, gg, b = linear_to_srgb8(oklab_to_linear_srgb(lab.reshape(1, 3)))[0]
+        return f"#{int(r):02x}{int(gg):02x}{int(b):02x}"
+
+    defs: list[str] = []
+    body: list[str] = []
+    lx, ly = g.light_dir[0], g.light_dir[1]
+    ll = float(np.hypot(lx, ly))
+    gx, gy = lx / ll, ly / ll
+    r0, r1 = radius * 0.90, radius * 0.45
+    sliver = (
+        f"M {gx * r0 - gy * r1:.2f} {gy * r0 + gx * r1:.2f} "
+        f"A {r0:.2f} {r0:.2f} 0 0 0 {gx * r0 + gy * r1:.2f} {gy * r0 - gx * r1:.2f}"
+    )
+    for i in range(n):
+        for j in range(n):
+            cell = lab_grid[i * block : (i + 1) * block, j * block : (j + 1) * block].reshape(-1, 3)
+            mean = cell.mean(axis=0)
+            centre = mean.copy()
+            centre[0] = min(centre[0] * (1.0 + 0.5 * g.absorb_edge_dark), 1.0)
+            edge = mean.copy()
+            edge[0] *= 1.0 - g.edge_ring_dark
+            edge[1:] *= 1.0 + g.edge_ring_sat
+            cid = f"c{i}_{j}"
+            defs.append(
+                f'<radialGradient id="{cid}"><stop offset="0" stop-color="{hexrgb(centre)}"/>'
+                f'<stop offset="{g.edge_ring_start:.2f}" stop-color="{hexrgb(mean)}"/>'
+                f'<stop offset="1" stop-color="{hexrgb(edge)}"/></radialGradient>'
+            )
+            defs.append(f'<clipPath id="k{i}_{j}"><circle r="{radius:.2f}"/></clipPath>')
+            cx = (margin + j + 0.5) * pitch
+            cy = (margin + i + 0.5) * pitch
+            blobs = []
+            for k in range(block * block):
+                sx = (k % block) - (block - 1) / 2.0
+                sy = (k // block) - (block - 1) / 2.0
+                blobs.append(
+                    f'<circle cx="{sx * radius * 0.62:.2f}" cy="{sy * radius * 0.62:.2f}" '
+                    f'r="{radius * 0.62:.2f}" fill="{hexrgb(cell[k])}" fill-opacity="0.55"/>'
+                )
+            body.append(
+                f'<g transform="translate({cx:.2f} {cy:.2f})">'
+                f'<circle r="{radius:.2f}" fill="url(#{cid})"/>'
+                f'<g clip-path="url(#k{i}_{j})">{"".join(blobs)}</g>'
+                f'<path d="{sliver}" fill="none" stroke="#ffffff" '
+                f'stroke-opacity="{g.glint_strength:.2f}" '
+                f'stroke-width="{radius * 0.10:.2f}" stroke-linecap="round"/></g>'
+            )
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{side}" height="{side}" '
+        f'viewBox="0 0 {side} {side}">\n<defs>\n' + "\n".join(defs) + "\n</defs>\n"
+        f'<rect width="{side}" height="{side}" fill="{config.render.background}"/>\n'
+        + "\n".join(body)
+        + "\n</svg>\n"
+    )

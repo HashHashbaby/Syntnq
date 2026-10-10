@@ -268,6 +268,7 @@ class Live(_Section):
     trail: Trail
     reduced_motion: ReducedMotion
     glass: LiveGlass
+    flow: LiveFlow
 
 
 class Caption(_Section):
@@ -276,36 +277,35 @@ class Caption(_Section):
 
 
 class RenderGlass(_Section):
-    mode: Literal["flat", "lens"]
+    mode: Literal["flat", "chip"]
     display_block: int
-    lens_radius: float
-    lens_height: float
-    profile_power: float
-    ior: float
-    dispersion: float
-    refraction_depth: float
-    absorption: float
-    body_shading: float
-    edge_darkening: float
-    inner_glow: float
+    radius_mode: Literal["constant", "occupancy"]
+    chip_radius: float
+    radius_occ_amount: float
+    radius_min: float
+    radius_max: float
+    overlap: float
+    overlap_radius: float
+    overlap_radius_max: float
+    overlap_lightness_comp: float
     swirl_angle_deg: float
     swirl_falloff_power: float
-    light_dir: tuple[float, float, float]
-    key_strength: float
-    rim_light_strength: float
-    env_strength: float
-    fresnel_f0_boost: float
-    bevel_strength: float
-    bevel_width: float
-    caustic_strength: float
-    caustic_offset: float
-    gap_highlight: float
-    edge_refraction: float
-    central_radius: float
-    rim_max_ratio: float
-    rim_floor: float
+    absorb_edge_dark: float
+    absorb_edge_sat: float
+    edge_ring_start: float
+    edge_ring_dark: float
+    edge_ring_sat: float
+    edge_directional: float
+    grain: float
+    veins: float
+    vein_scale: float
+    backlight: float
+    haze_strength: float
+    haze_sigma_cells: float
     glint_strength: float
-    bridge_strength: float
+    glint_size: float
+    glint_offset: float
+    light_dir: tuple[float, float, float]
     exposure: float
     bloom_strength: float
     bloom_sigma: float
@@ -320,11 +320,28 @@ class LiveGlass(_Section):
     swirl_flow_gain: float
     swirl_loud_gain: float
     swirl_drift_hz: float
-    normal_from_response: float
-    ripple_bend: float
-    light_drift: float
-    bridge_activity_gain: float
     reduced_motion: Literal["static", "flat"]
+
+
+class LiveFlow(_Section):
+    enabled: bool
+    wave_speed: float
+    damping: float
+    substeps: int
+    source_gain: float
+    source_sigma_cells: float
+    beat_gain: float
+    current_dir: tuple[float, float]
+    current_speed: float
+    current_loud_gain: float
+    curl_amp: float
+    curl_scale: float
+    mod_transmission: float
+    mod_vibrance: float
+    mod_radius: float
+    slope_glint_gain: float
+    wave_limit: float
+    reduced_motion: Literal["follow", "static"]
 
 
 class Render(_Section):

@@ -35,7 +35,7 @@ def test_field_interpolates_the_cell_centres() -> None:
 
 def test_swirl_keeps_the_mean_colour_of_the_lens(config: Config) -> None:
     gl = config.render.glass
-    radius, peak, power = gl.lens_radius, np.deg2rad(gl.swirl_angle_deg), gl.swirl_falloff_power
+    radius, peak, power = gl.chip_radius, np.deg2rad(gl.swirl_angle_deg), gl.swirl_falloff_power
     qx, qy = _disc_points(radius)
     for seed in range(4):
         g = _grid(seed)
@@ -52,14 +52,14 @@ def test_swirl_keeps_the_mean_colour_of_the_lens(config: Config) -> None:
 
 def test_lens_mean_matches_the_four_subcell_colours(config: Config) -> None:
     gl = config.render.glass
-    qx, qy = _disc_points(gl.lens_radius)
+    qx, qy = _disc_points(gl.chip_radius)
     errs = []
     for seed in range(6):
         g = _grid(seed, smooth=1.2)
         for row, col in ((4, 4), (13, 21), (27, 9), (16, 16)):
             block = g[row * 2 : row * 2 + 2, col * 2 : col * 2 + 2].reshape(4, 3).mean(axis=0)
             warped = lens_color(
-                g, row, col, qx, qy, block=BLOCK, radius=gl.lens_radius,
+                g, row, col, qx, qy, block=BLOCK, radius=gl.chip_radius,
                 peak_rad=np.deg2rad(gl.swirl_angle_deg), power=gl.swirl_falloff_power,
             )  # fmt: skip
             errs.append(np.abs(warped.mean(axis=0) - block).max())
@@ -68,7 +68,7 @@ def test_lens_mean_matches_the_four_subcell_colours(config: Config) -> None:
 
 def test_subcell_centres_stay_in_their_own_quadrant(config: Config) -> None:
     gl = config.render.glass
-    radius, power = gl.lens_radius, gl.swirl_falloff_power
+    radius, power = gl.chip_radius, gl.swirl_falloff_power
     for peak_deg in (0.0, 15.0, gl.swirl_angle_deg, 60.0):
         for sx in (-1, 1):
             for sy in (-1, 1):
@@ -81,8 +81,8 @@ def test_subcell_centres_stay_in_their_own_quadrant(config: Config) -> None:
 
 def test_swirl_angle_profile(config: Config) -> None:
     gl = config.render.glass
-    r = np.array([0.0, 0.5 * gl.lens_radius, gl.lens_radius, 2 * gl.lens_radius])
-    a = swirl_angle(r, gl.lens_radius, np.deg2rad(35.0), gl.swirl_falloff_power)
+    r = np.array([0.0, 0.5 * gl.chip_radius, gl.chip_radius, 2 * gl.chip_radius])
+    a = swirl_angle(r, gl.chip_radius, np.deg2rad(35.0), gl.swirl_falloff_power)
     assert a[0] == pytest.approx(np.deg2rad(35.0))
     assert a[1] == pytest.approx(np.deg2rad(35.0) * 0.25)  # (1 - 0.5)^2
     assert a[2] == 0.0 and a[3] == 0.0
