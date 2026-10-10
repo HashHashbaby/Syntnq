@@ -41,6 +41,9 @@ uniform float uRadius, uHeight, uPower, uIor, uDisp, uDepth, uAbsorb, uGlow;
 uniform float uSwirl, uSwirlPow;
 uniform vec3  uLight;
 uniform float uKey, uRimL, uEnv, uF0, uBevel, uBevelW, uCaus, uCausOff, uGap, uBody, uEdgeDark, uEdgeRef;
+uniform float uCentral, uRimMax, uRimFloor, uGlint, uAvgH;
+uniform vec3 uCrop;       // crop window in frame pixels: x, y, width (square)
+uniform sampler2D uCorr;  // 32x32 RGB32F: OKLab delta making each lens centre exact
 uniform float uFlat;       // 1 = flat lenses (fallback)
 uniform float uLive;       // 0 = static, 1 = live
 uniform float uTime, uLoud, uSwirlFlow, uSwirlLoud, uDriftHz, uNormFlow, uLightDrift;
@@ -94,27 +97,27 @@ vec3 environment(vec3 R, vec3 L){
 }
 
 void main(){
-  vec2 frag = vec2(vUv.x, 1.0 - vUv.y) * uSide;
+  vec2 uvImg = vec2(vUv.x, 1.0 - vUv.y);
+  vec2 frag = uCrop.xy + uvImg * uCrop.z;        // frame pixels (nominal side uSide)
   float P = uSide / (uLenses + 2.0*uMargin);
   vec2 l = frag / P - uMargin;
   vec2 idx = clamp(floor(l), 0.0, uLenses - 1.0);
-  vec2 f = l - idx - 0.5;                 // offset from the lens centre, lens-pitch units
+  vec2 f = l - idx - 0.5;
   float R = uRadius;
   float r = length(f);
   float u = r / R;
-  float d = r - R;                        // signed distance to the lens edge
+  float d = r - R;
   float aa = max(fwidth(d)*0.75, 1e-5);
   float cover = 1.0 - smoothstep(-aa, aa, d);
   vec2 fdir = f / max(r, 1e-5);
-  bool inLens = idx.x >= 0.0 && idx.x < uLenses;
 
-  float block = uCells / uLenses;         // analysis cells per lens side (2)
+  float block = uCells / uLenses;
   vec2 centreCells = (idx + 0.5) * block;
-  // flow at the lens centre: mean of the lens's cells
   vec3 flow = vec3(0.0);
   for (int j = 0; j < 2; j++) for (int i = 0; i < 2; i++)
     flow += texelFetch(uFlow, clamp(ivec2(centreCells) - ivec2(1) + ivec2(i, j), ivec2(0), ivec2(int(uCells)-1)), 0).rgb;
   flow *= 0.25;
+  vec3 corr = texelFetch(uCorr, ivec2(idx), 0).rgb;      // OKLab delta that makes the centre exact
 
   float ang = radians(uSwirl);
   if (uLive > 0.5) {
@@ -124,70 +127,76 @@ void main(){
   vec3 L = normalize(uLight);
   if (uLive > 0.5) L = normalize(L + uLightDrift*vec3(flow.x, flow.y, 0.0)*2.0);
 
+  float wC = 1.0 - smoothstep(uCentral, uCentral + 0.25, u);      // 1 in the central zone, 0 at the rim
+  float wRim = smoothstep(uCentral - 0.04, uCentral + 0.22, u);   // rim effects live out here only
   vec3 outc = vec3(0.0);
-  vec3 lensAvg = labToLin(field(centreCells));   // colour of the lens centre for ground effects
+  vec3 centre = labToLin(field(centreCells) + corr);               // the lens's data colour (linear)
 
   if (uFlat > 0.5) {
     vec2 w = swirlWarp(f, ang, R);
-    vec3 c = labToLin(field(centreCells + w*block));
-    outc = max(c, 0.0) * cover * (0.80 + 0.20*(1.0 - u*u));
+    vec3 c = labToLin(field(centreCells + w*block) + corr*wC);
+    outc = max(c, 0.0) * cover;
   } else {
-    // ---- thick lens: rounded-top height field and its normal --------------------------------
+    // ---- thick lens: rounded-top height field -------------------------------------------------
     float uc = min(u, 0.999);
     float q = uPower;
-    float uq = pow(uc, q);
-    float base = max(1.0 - uq, 1e-4);
+    float base = max(1.0 - pow(uc, q), 1e-4);
     float Hh = uHeight * R;
-    float h = Hh * pow(base, 1.0/q);                          // height above the base plane
-    float dhdr = -(Hh/R) * pow(uc, q - 1.0) * pow(base, 1.0/q - 1.0);
-    dhdr = clamp(dhdr, -7.0, 0.0);
+    float h = Hh * pow(base, 1.0/q);
+    float dhdr = clamp(-(Hh/R) * pow(uc, q - 1.0) * pow(base, 1.0/q - 1.0), -7.0, 0.0);
     vec3 n = normalize(vec3(-dhdr*fdir, 1.0));
-    if (uLive > 0.5) {
-      n.xy -= uNormFlow*3.0*flow.xy*(h/Hh);
-      n = normalize(n);
-    }
-    // ---- refraction with chromatic dispersion; field plane sits below the lens base ----------
+    if (uLive > 0.5) { n.xy -= uNormFlow*3.0*flow.xy*(h/Hh)*wRim; n = normalize(n); }
+
+    // ---- refraction: none in the central zone (colour stays exact), full at the rim ------------
     vec3 I = vec3(0.0, 0.0, -1.0);
     float depth = h + uDepth*R;
     vec3 tr = refract(I, n, 1.0/(uIor - uDisp));
     vec3 tg = refract(I, n, 1.0/uIor);
     vec3 tb = refract(I, n, 1.0/(uIor + uDisp));
-    // rim: the sample position runs past the lens edge so the rim shows the neighbours (per-channel
-    // stretch gives chromatic fringes); inside, the refracted ray alone decides the position
-    float rimK = uEdgeRef * smoothstep(0.55, 1.0, u);
-    vec2 pr = f + tr.xy/max(-tr.z, 0.25)*depth + f*rimK*(1.0 + 3.0*uDisp);
-    vec2 pg = f + tg.xy/max(-tg.z, 0.25)*depth + f*rimK;
-    vec2 pb = f + tb.xy/max(-tb.z, 0.25)*depth + f*rimK*(1.0 - 3.0*uDisp);
-    vec3 cr = labToLin(field(centreCells + swirlWarp(pr, ang, R)*block));
-    vec3 cg = labToLin(field(centreCells + swirlWarp(pg, ang, R)*block));
-    vec3 cb = labToLin(field(centreCells + swirlWarp(pb, ang, R)*block));
+    float rimK = uEdgeRef * smoothstep(uCentral, 1.0, u);
+    vec2 pr = f + (tr.xy/max(-tr.z, 0.25)*depth)*wRim + f*rimK*(1.0 + 3.0*uDisp);
+    vec2 pg = f + (tg.xy/max(-tg.z, 0.25)*depth)*wRim + f*rimK;
+    vec2 pb = f + (tb.xy/max(-tb.z, 0.25)*depth)*wRim + f*rimK*(1.0 - 3.0*uDisp);
+    vec3 cr = labToLin(field(centreCells + swirlWarp(pr, ang, R)*block) + corr*wC);
+    vec3 cg = labToLin(field(centreCells + swirlWarp(pg, ang, R)*block) + corr*wC);
+    vec3 cb = labToLin(field(centreCells + swirlWarp(pb, ang, R)*block) + corr*wC);
     vec3 col = max(vec3(cr.r, cg.g, cb.b), 0.0);
-    // ---- Beer-Lambert absorption tinted by the data colour; subtle internal glow --------------
+
+    // ---- volume: zero-mean shading in the centre; absorption, edge shadow only toward the rim --
+    float ndl = dot(n, L);
+    col *= clamp(1.0 + uBody*(ndl - L.z)*1.6*mix(0.35, 1.0, wRim), 0.4, 1.6);
+    col *= 1.0 + uGlow*((h/Hh) - uAvgH);
     float path = depth / max(-tg.z, 0.25);
     vec3 sigma = uAbsorb * (1.0 - clamp(col, 0.0, 1.0)) * 0.9;
-    col *= exp(-sigma * path * 0.55);
-    col *= 1.0 + uGlow * (h/Hh - 0.45);
-    // volume: lit side brighter, far side darker; thick rim darkens (inner shadow)
-    float ndl = dot(n, L);
-    col *= clamp(1.0 + uBody*(ndl - L.z)*1.6, 0.35, 1.7);
-    float far = clamp(0.5 - 0.5*dot(fdir, normalize(L.xy)), 0.0, 1.0);   // side away from the key
-    float cres = smoothstep(0.50, 0.86, u) * (1.0 - smoothstep(0.90, 1.0, u)) * pow(far, 2.2);
-    col += col * (0.70 * uGlow) * cres + vec3(0.05) * cres * uGlow;       // focused light, data tinted
-    col *= 1.0 - uEdgeDark*smoothstep(0.55, 1.0, u)*(0.55 + 0.45*clamp(0.5 - 0.5*dot(fdir, normalize(L.xy)), 0.0, 1.0));
-    // ---- Fresnel (Schlick), studio-environment reflection, bevel, key specular ---------------
-    float f0 = pow((uIor - 1.0)/(uIor + 1.0), 2.0) * uF0;
-    float ndv = clamp(n.z, 0.0, 1.0);
-    float F = f0 + (1.0 - f0)*pow(1.0 - ndv, 5.0);
-    vec3 Rv = vec3(2.0*n.z*n.x, 2.0*n.z*n.y, 2.0*n.z*n.z - 1.0);
-    vec3 refl = environment(Rv, L) * uEnv * F;
+    col *= mix(vec3(1.0), exp(-sigma*path*0.55), wRim);              // tinted by the data colour
     float facing = clamp(0.5 + 0.5*dot(fdir, normalize(L.xy)), 0.0, 1.0);
-    float lit = 0.05 + 0.95*pow(facing, 4.0);
-    float bevel = smoothstep(1.0 - 2.4*uBevelW, 1.0 - 0.6*uBevelW, u) * (1.0 - smoothstep(1.0 - 0.35*uBevelW, 1.0, u));
+    col *= 1.0 - uEdgeDark*smoothstep(uCentral, 1.0, u)*(0.35 + 0.65*(1.0 - facing));
+
+    // ---- rim: Fresnel + refracted neighbours, directional, luminance-capped --------------------
+    float f0 = pow((uIor - 1.0)/(uIor + 1.0), 2.0) * uF0;
+    float F = f0 + (1.0 - f0)*pow(1.0 - clamp(n.z, 0.0, 1.0), 5.0);
+    vec3 Rv = vec3(2.0*n.z*n.x, 2.0*n.z*n.y, 2.0*n.z*n.z - 1.0);
+    vec3 env = environment(Rv, L);
+    float dirGain = 0.18 + 0.82*pow(facing, 2.6);                      // strong on the lit edge
+    float widthVar = 0.85 + 0.15*sin(3.0*atan(fdir.y, fdir.x) + 0.7); // smooth variation along the rim
+    vec3 neighbour = max(labToLin(field(centreCells + f*block*(1.0 + 0.9*uEdgeRef))), 0.0);
+    vec3 rimTint = mix(col, neighbour, 0.45);                          // lens colour + neighbours
+    vec3 rimAdd = (rimTint * (F*6.0) + env*F*uEnv*0.35) * uBevel * dirGain * widthVar * wRim;
+    float lensLum = dot(centre, vec3(0.2126, 0.7152, 0.0722));
+    float cap = uRimMax*lensLum + uRimFloor;                           // rim peak luminance cap
+    float colLum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    float addLum = dot(rimAdd, vec3(0.2126, 0.7152, 0.0722));
+    float room = max(cap - colLum, 0.0);
+    rimAdd *= min(1.0, room / max(addLum, 1e-5));
+    vec3 body = col + rimAdd;
+    // whole-rim luminance cap (refracted neighbours included): <= ratio x lens luminance + floor
+    float capTot = uRimMax*lensLum + uRimFloor;
+    body *= mix(1.0, min(1.0, capTot/max(dot(body, vec3(0.2126, 0.7152, 0.0722)), 1e-5)), wRim);
+    // ---- the only pure-white term: a small specular glint -----------------------------------
     vec3 Hh3 = normalize(L + vec3(0.0, 0.0, 1.0));
-    float spec = pow(max(dot(n, Hh3), 0.0), 120.0) * 0.9 * uKey;
-    vec3 white = vec3(bevel*uBevel*lit + spec);
-    outc = (col*(1.0 - F) + refl + white) * cover;
-    // ---- ground: faint neutral highlight in the gaps (the caustic spill is a composite pass) --
+    float glint = pow(max(dot(n, Hh3), 0.0), 220.0) * uGlint * uKey;
+    outc = (body + vec3(glint)) * cover;
+    // ---- ground: faint neutral highlight in the gaps ------------------------------------------
     float gap = uGap * exp(-max(d, 0.0)/0.055) * (0.4 + 0.6*clamp(dot(fdir, normalize(L.xy)), 0.0, 1.0));
     outc += vec3(gap) * (1.0 - cover);
   }
@@ -216,7 +225,7 @@ uniform float uBloomK, uExposure, uDither, uP3, uSide, uCaus;
 uniform vec2 uCausVec;
 float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x+p3.y)*p3.z); }
 vec3 shoulder(vec3 x){  // filmic highlight shoulder: identity below the knee, soft roll-off above
-  const float k = 0.62;
+  const float k = 0.92;   // above the data range: colours are never compressed, only highlights
   vec3 t = (x - k) / (1.0 - k);
   return mix(x, k + (1.0 - k)*(1.0 - exp(-max(t, 0.0))), step(k, x));
 }
@@ -277,6 +286,45 @@ function target(w, h) {
   return {t, f, w, h};
 }
 
+// --- CPU helpers: make each lens centre data-exact (mean of the 4 sub-cells) -----------------
+function crw(t) { const t2 = t*t, t3 = t2*t;
+  return [-0.5*t3 + t2 - 0.5*t, 1.5*t3 - 2.5*t2 + 1.0, -1.5*t3 + 2.0*t2 + 0.5*t, 0.5*t3 - 0.5*t2]; }
+function fieldAt(g, x, y, out) {      // Catmull-Rom of the 64x64 OKLab grid at cell coords
+  const gx = x - 0.5, gy = y - 0.5, x0 = Math.floor(gx), y0 = Math.floor(gy);
+  const wx = crw(gx - x0), wy = crw(gy - y0);
+  out[0] = out[1] = out[2] = 0;
+  for (let dy = 0; dy < 4; dy++) {
+    const yi = Math.min(63, Math.max(0, y0 + dy - 1));
+    for (let dx = 0; dx < 4; dx++) {
+      const xi = Math.min(63, Math.max(0, x0 + dx - 1)), w = wx[dx]*wy[dy], o = (yi*64 + xi)*3;
+      out[0] += w*g[o]; out[1] += w*g[o + 1]; out[2] += w*g[o + 2];
+    }
+  }
+}
+function computeCorr(g, par) {
+  const lenses = 64 / par.display_block, R = par.lens_radius, rc = par.central_radius * R;
+  const NS = 24, pts = [];
+  for (let k = 0; k < NS; k++) {           // Fibonacci disc: equal-area samples of the central zone
+    const r = rc * Math.sqrt((k + 0.5) / NS), a = k * 2.399963229728653;
+    pts.push([r*Math.cos(a), r*Math.sin(a)]);
+  }
+  const out = new Float32Array(lenses*lenses*3), t = [0, 0, 0], b = par.display_block;
+  for (let i = 0; i < lenses; i++) for (let j = 0; j < lenses; j++) {
+    const cx = (j + 0.5)*b, cy = (i + 0.5)*b, m = [0, 0, 0], m4 = [0, 0, 0];
+    for (const [qx, qy] of pts) { fieldAt(g, cx + qx*b, cy + qy*b, t); m[0] += t[0]; m[1] += t[1]; m[2] += t[2]; }
+    for (let di = 0; di < b; di++) for (let dj = 0; dj < b; dj++) {
+      const o = ((i*b + di)*64 + (j*b + dj))*3; m4[0] += g[o]; m4[1] += g[o+1]; m4[2] += g[o+2];
+    }
+    const o2 = (i*lenses + j)*3;
+    for (let c = 0; c < 3; c++) out[o2 + c] = m4[c]/(b*b) - m[c]/NS;
+  }
+  return out;
+}
+function avgHeight(par) {                 // area mean of h/Hh over the central zone
+  const c = par.central_radius, q = par.profile_power, N = 400; let acc = 0;
+  for (let k = 0; k < N; k++) { const u = (k + 0.5)/N*c; acc += Math.pow(1 - Math.pow(u, q), 1/q)*2*u*(c/N); }
+  return acc/(c*c);
+}
 const S = {params: null, index: null, side: 0, hdr: null, b1: null, b2: null,
            labTex: null, flowTex: null, song: null, live: null, flat: false, frameLab: null, frameFlow: null};
 const base = '';
@@ -320,12 +368,18 @@ function simplified(g) {
 }
 function draw(opts) {
   const g = opts.simple ? simplified(S.params.render) : S.params.render, lg = S.params.live;
-  const side = S.side;
+  const side = S.side, nominal = opts.nominal || side;
+  const crop = opts.crop || {x: 0, y: 0, w: nominal};
   gl.useProgram(pLens);
-  setTex(0, S.labTex); setTex(1, S.flowTex);
-  gl.uniform1i(uni(pLens, 'uLab'), 0); gl.uniform1i(uni(pLens, 'uFlow'), 1);
+  setTex(0, S.labTex); setTex(1, S.flowTex); setTex(2, S.corrTex);
+  gl.uniform1i(uni(pLens, 'uLab'), 0); gl.uniform1i(uni(pLens, 'uFlow'), 1); gl.uniform1i(uni(pLens, 'uCorr'), 2);
+  gl.uniform3f(uni(pLens, 'uCrop'), crop.x, crop.y, crop.w);
+  gl.uniform1f(uni(pLens, 'uCentral'), g.central_radius); gl.uniform1f(uni(pLens, 'uRimMax'), g.rim_max_ratio);
+  gl.uniform1f(uni(pLens, 'uRimFloor'), g.rim_floor); gl.uniform1f(uni(pLens, 'uGlint'), g.glint_strength);
+  gl.uniform1f(uni(pLens, 'uAvgH'), avgHeight(g));
+  const zoom = nominal / crop.w;           // canvas pixels per nominal pixel
   const f = (n, v) => gl.uniform1f(uni(pLens, n), v);
-  f('uSide', side); f('uLenses', 64 / g.display_block); f('uCells', 64); f('uMargin', 0.6);
+  f('uSide', nominal); f('uLenses', 64 / g.display_block); f('uCells', 64); f('uMargin', 0.6);
   f('uRadius', g.lens_radius); f('uHeight', g.lens_height); f('uPower', g.profile_power);
   f('uIor', g.ior); f('uDisp', g.dispersion); f('uDepth', g.refraction_depth);
   f('uAbsorb', g.absorption); f('uGlow', g.inner_glow);
@@ -345,7 +399,7 @@ function draw(opts) {
 
   // restrained bloom: bright-pass + separable blur at quarter resolution
   gl.useProgram(pBloom);
-  const sigmaPx = g.bloom_sigma * side / (64 / g.display_block + 1.2);
+  const sigmaPx = g.bloom_sigma * (nominal / (64 / g.display_block + 1.2)) * zoom * (side / nominal);
   const step = Math.max(sigmaPx / 4 / (S.b1.w), 0.0);
   gl.uniform1i(uni(pBloom, 'uT'), 0);
   setTex(0, S.hdr.t);
@@ -368,20 +422,21 @@ function draw(opts) {
   gl.uniform1f(uni(pComp, 'uSide'), side);
   gl.uniform1f(uni(pComp, 'uCaus'), g.caustic_strength);
   { const lx = g.light_dir[0], ly = g.light_dir[1], ll = Math.hypot(lx, ly) || 1;
-    const off = g.caustic_offset * g.lens_radius / (64 / g.display_block + 1.2);
+    const off = g.caustic_offset * g.lens_radius / (64 / g.display_block + 1.2) * (nominal / crop.w);
     gl.uniform2f(uni(pComp, 'uCausVec'), lx / ll * off, -ly / ll * off); }
   gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, side, side);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
 
-function useStatic(song) {
-  S.labTex = floatTex(S.songs[song].static, 64);
-  S.flowTex = floatTex(S.flowZero, 64);
+function setField(lab, flow) {
+  S.labTex = floatTex(lab, 64);
+  S.flowTex = floatTex(flow, 64);
+  S.corrTex = floatTex(computeCorr(lab, S.params.render), 64 / S.params.render.display_block);
 }
+function useStatic(song) { setField(S.songs[song].static, S.flowZero); }
 function useLive(song, k) {
   const m = S.songs[song].meta, n = 64 * 64 * 3;
-  S.labTex = floatTex(S.songs[song].liveLab.subarray(k * n, (k + 1) * n), 64);
-  S.flowTex = floatTex(S.songs[song].liveFlow.subarray(k * n, (k + 1) * n), 64);
+  setField(S.songs[song].liveLab.subarray(k * n, (k + 1) * n), S.songs[song].liveFlow.subarray(k * n, (k + 1) * n));
   return {time: k / m.fps, loud: m.loud[k]};
 }
 async function save(name) {
@@ -397,7 +452,7 @@ window.LENS = {
   async reloadParams() { S.params = await (await fetch('/params.json')).json(); },
   async still(song, side, name, o = {}) {
     resize(side); useStatic(song);
-    draw({flat: !!o.flat, live: false, static_hi: true, simple: !!o.simple});
+    draw({flat: !!o.flat, live: false, static_hi: true, simple: !!o.simple, nominal: o.nominal, crop: o.crop});
     sync(); return save(name);
   },
   async liveFrame(song, side, k, name, o = {}) {

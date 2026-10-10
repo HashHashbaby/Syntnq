@@ -301,6 +301,10 @@ class RenderGlass(_Section):
     caustic_offset: float
     gap_highlight: float
     edge_refraction: float
+    central_radius: float
+    rim_max_ratio: float
+    rim_floor: float
+    glint_strength: float
     bridge_strength: float
     exposure: float
     bloom_strength: float

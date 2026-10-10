@@ -194,7 +194,7 @@ render:
     dispersion: 0.055           # per-channel IOR spread (chromatic dispersion)
     refraction_depth: 1.10      # distance from the lens base to the colour field, in lens radii
     absorption: 1.60            # Beer-Lambert strength, tinted by the cell color
-    body_shading: 0.45          # volume shading of the dome (lit side brighter, far side darker)
+    body_shading: 0.40          # volume shading of the dome (lit side brighter, far side darker)
     edge_darkening: 0.40        # darkening toward the thick rim (inner shadow)
     inner_glow: 0.45            # emissive glow of the data color inside the glass
     swirl_angle_deg: 35.0       # peak rotation of the colour field at the lens center (static)
@@ -204,12 +204,16 @@ render:
     rim_light_strength: 0.35    # weak rim light from the back right
     env_strength: 1.60          # procedural studio environment reflection
     fresnel_f0_boost: 1.0       # multiplier on the Schlick F0 derived from the IOR
-    bevel_strength: 0.60        # bevel highlight at the lens edge (lit side only)
+    bevel_strength: 0.60        # directional rim reflection gain (Fresnel at the bevel; lit side)
     bevel_width: 0.055          # in lens-radius units
     caustic_strength: 0.40      # data-colored caustic spill on the ground (post-process)
     caustic_offset: 0.55        # in lens radii, opposite the light
     gap_highlight: 0.012        # faint neutral highlight in the gaps between lenses
     edge_refraction: 0.45       # the rim samples colour from beyond the lens (shows the neighbors)
+    central_radius: 0.70         # central zone (fraction of lens radius) that must stay data-exact
+    rim_max_ratio: 1.40         # rim luminance cap as a multiple of the lens interior luminance
+    rim_floor: 0.050            # absolute linear-luminance floor so dim lenses still read as glass
+    glint_strength: 0.55        # small neutral specular glint (the only pure-white term)
     bridge_strength: 0.0        # meniscus bridge between neighbors (stretch goal; 0 = off)
     exposure: 1.00              # linear-light exposure before the filmic tone map
     bloom_strength: 0.14        # restrained bloom
