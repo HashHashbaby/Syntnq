@@ -274,13 +274,27 @@ class Caption(_Section):
     font: str
 
 
+class DotStyle(_Section):
+    """Parameters of the ``dot`` node style (src/synesthesia/nodes.py)."""
+
+    radius_ratio: float
+    glow_sigma_ratio: float
+    glow_opacity: float
+
+
+class NodeStyleConfig(_Section):
+    """Which node look is drawn, plus one parameter block per style."""
+
+    style: Literal["dot"]
+    dot: DotStyle
+
+
 class Render(_Section):
     export_px: list[int]
     preview_px: int
+    display_grid: int
     margin_cells: float
-    dot_radius_ratio: float
-    glow_sigma_ratio: float
-    glow_opacity: float
+    node: NodeStyleConfig
     background: str
     caption: Caption
 

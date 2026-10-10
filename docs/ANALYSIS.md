@@ -224,11 +224,13 @@ Readers check `schema_version` and refuse unknown majors.
 ## 12. Static rendering (`render.py`)
 
 - Canvas `px` (1024 preview; 2048/4096/8192 export), background `#000000`.
-- Margin = `margin_cells` × pitch; pitch = `px / (64 + 2·margin_cells)`.
-- Each cell: a filled circle of radius `0.34 · pitch` at its center in `color_srgb`, anti-aliased (render at 2× and downsample with Lanczos).
+- **Display grid (D-030):** the signature is drawn as `render.display_grid` × `render.display_grid` nodes (32 × 32). Each node is the mean (OKLab) of a `block × block` square of analysis cells (`block = grid.size / display_grid` = 2). Analysis, calibration, fingerprint and companion maps stay at 64 × 64; set `display_grid: 64` for one node per cell.
+- Margin = `margin_cells` × pitch; pitch = `px / (display_grid + 2·margin_cells)`.
+- **Node look (D-030):** drawn by the style named in `render.node.style` (`src/synesthesia/nodes.py`); the numbers below are the `dot` style.
+- Each node: a filled circle of radius `0.34 · pitch` at its center in the pooled colour, anti-aliased (render at 2× and downsample with Lanczos).
 - Glow: copy of the dot layer blurred with σ = `0.30 · pitch`, composited with screen blend at 0.45 opacity (D-017, D-018; the original 0.5 / 0.6 filled the gaps between dots and mixed neighboring colors).
 - Export PNG with an embedded text chunk: song ID, pipeline version, config hash. Same input → same bytes (fix Pillow compression level; no timestamps).
-- SVG export: 4,096 `<circle>` elements plus an SVG Gaussian blur filter for the glow.
+- SVG export: one `<circle>` per node (1,024 at 32 × 32) plus an SVG Gaussian blur filter for the glow.
 - Contact sheets (`contact_sheet.py`): N signatures in a grid with file name and genre labels, for review.
 
 ## 13. Errors (`errors.py`)

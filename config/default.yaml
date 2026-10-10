@@ -169,10 +169,14 @@ live:
 render:
   export_px: [2048, 4096, 8192]
   preview_px: 1024
-  margin_cells: 1.0
-  dot_radius_ratio: 0.34        # dot radius / cell pitch
-  glow_sigma_ratio: 0.30        # glow blur sigma / cell pitch (D-018; D-017 had 0.25, spec 0.50)
-  glow_opacity: 0.30            # D-026 (D-018 had 0.45, D-017 0.35, spec 0.60)
+  display_grid: 32              # nodes drawn per side; the 64 x 64 analysis is mean-pooled to this (D-030)
+  margin_cells: 1.0             # in display nodes
+  node:                         # the look of one node; swap by changing `style` (D-030)
+    style: dot                  # dot | (future styles register in src/synesthesia/nodes.py)
+    dot:
+      radius_ratio: 0.34        # dot radius / node pitch
+      glow_sigma_ratio: 0.30    # glow blur sigma / node pitch (D-018; D-017 had 0.25, spec 0.50)
+      glow_opacity: 0.30        # D-026 (D-018 had 0.45, D-017 0.35, spec 0.60)
   background: "#000000"
   caption: {enabled: false, font: system}
 

@@ -1,7 +1,7 @@
 """Static PNG renders (docs/ANALYSIS.md section 12).
 
-M1 provides the sound map (dots, glow, deterministic PNG). SVG export and contact sheets
-arrive in M2.
+The look of a node is not decided here: see ``nodes.py`` (D-030). This module pools the analysis
+grid to the display grid, hands the nodes to the configured style, and writes files.
 """
 
 from __future__ import annotations
@@ -10,56 +10,32 @@ from pathlib import Path
 
 import numpy as np
 import numpy.typing as npt
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw
 from PIL.PngImagePlugin import PngInfo
 
 from synesthesia.config import Config
+from synesthesia.display import pool_colors
+from synesthesia.nodes import get_node_style
 
-_SUPERSAMPLE = 2  # draw at 2x then downsample with Lanczos (spec)
 _PNG_COMPRESS_LEVEL = 6  # fixed so identical pixels give identical bytes
-_MAX_8BIT = 255.0
-
-
-def _parse_hex(color: str) -> tuple[int, int, int]:
-    c = color.lstrip("#")
-    return int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
 
 
 def render_sound_map(
     srgb: npt.NDArray[np.uint8], config: Config, px: int | None = None
 ) -> Image.Image:
-    """Render the dot grid with glow.
+    """Render the signature as drawn nodes (display grid, node style from config).
 
     Args:
-        srgb: ``(K, 3)`` uint8 per-cell colors, ``i = row * size + col``.
+        srgb: ``(K, 3)`` uint8 per-cell colors on the analysis grid, ``i = row * size + col``.
         config: resolved configuration (``render.*``, ``grid.size``).
         px: output side in pixels; defaults to ``render.preview_px``.
 
     Returns:
         ``px x px`` RGB image.
     """
-    rc, size = config.render, config.grid.size
-    side = px or rc.preview_px
-    bg = _parse_hex(rc.background)
-    big = side * _SUPERSAMPLE
-    pitch = big / (size + 2.0 * rc.margin_cells)
-    radius = rc.dot_radius_ratio * pitch
-    canvas = Image.new("RGB", (big, big), bg)
-    draw = ImageDraw.Draw(canvas)
-    for i in range(size * size):
-        r, c = divmod(i, size)
-        cx = (rc.margin_cells + c + 0.5) * pitch
-        cy = (rc.margin_cells + r + 0.5) * pitch
-        draw.ellipse(
-            (cx - radius, cy - radius, cx + radius, cy + radius),
-            fill=tuple(int(v) for v in srgb[i]),
-        )
-    dots = canvas.resize((side, side), Image.Resampling.LANCZOS)
-    glow = dots.filter(ImageFilter.GaussianBlur(rc.glow_sigma_ratio * pitch / _SUPERSAMPLE))
-    a = np.asarray(dots, dtype=np.float64) / _MAX_8BIT
-    g = np.asarray(glow, dtype=np.float64) / _MAX_8BIT * rc.glow_opacity
-    screen = 1.0 - (1.0 - a) * (1.0 - g)
-    return Image.fromarray(np.rint(screen * _MAX_8BIT).astype(np.uint8), "RGB")
+    side = px or config.render.preview_px
+    nodes = pool_colors(srgb, config)
+    return get_node_style(config).render_static(nodes, config.render.display_grid, side)
 
 
 def save_png(image: Image.Image, path: Path, metadata: dict[str, str]) -> None:
@@ -71,47 +47,20 @@ def save_png(image: Image.Image, path: Path, metadata: dict[str, str]) -> None:
     image.save(path, format="PNG", pnginfo=info, compress_level=_PNG_COMPRESS_LEVEL, optimize=False)
 
 
-_SVG_PRECISION = 3  # decimals for coordinates; fixed so output text is deterministic
-
-
 def render_svg(srgb: npt.NDArray[np.uint8], config: Config, px: int | None = None) -> str:
-    """Vector sound map: 4,096 circles plus an SVG Gaussian blur filter for the glow.
+    """Vector sound map in the configured node style.
 
     Args:
-        srgb: ``(K, 3)`` uint8 per-cell colors, ``i = row * size + col``.
+        srgb: ``(K, 3)`` uint8 per-cell colors on the analysis grid, ``i = row * size + col``.
         config: resolved configuration (``render.*``, ``grid.size``).
         px: nominal side in pixels (the SVG scales); defaults to ``render.preview_px``.
 
     Returns:
         SVG document text (deterministic).
     """
-    rc, size = config.render, config.grid.size
-    side = px or rc.preview_px
-    pitch = side / (size + 2.0 * rc.margin_cells)
-    radius = rc.dot_radius_ratio * pitch
-    dots: list[str] = []
-    for i in range(size * size):
-        r, c = divmod(i, size)
-        cx = (rc.margin_cells + c + 0.5) * pitch
-        cy = (rc.margin_cells + r + 0.5) * pitch
-        fill = "#{:02x}{:02x}{:02x}".format(*(int(v) for v in srgb[i]))
-        dots.append(
-            f'<circle cx="{cx:.{_SVG_PRECISION}f}" cy="{cy:.{_SVG_PRECISION}f}" '
-            f'r="{radius:.{_SVG_PRECISION}f}" fill="{fill}"/>'
-        )
-    body = "\n".join(dots)
-    sigma = rc.glow_sigma_ratio * pitch
-    return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
-        f'width="{side}" height="{side}" viewBox="0 0 {side} {side}">\n'
-        f'<defs>\n<filter id="glow" x="-5%" y="-5%" width="110%" height="110%">'
-        f'<feGaussianBlur stdDeviation="{sigma:.{_SVG_PRECISION}f}"/></filter>\n'
-        f'<g id="dots">\n{body}\n</g>\n</defs>\n'
-        f'<rect width="{side}" height="{side}" fill="{rc.background}"/>\n'
-        f'<use xlink:href="#dots" href="#dots" filter="url(#glow)" opacity="{rc.glow_opacity}" '
-        f'style="mix-blend-mode:screen"/>\n'
-        f'<use xlink:href="#dots" href="#dots"/>\n</svg>\n'
-    )
+    side = px or config.render.preview_px
+    nodes = pool_colors(srgb, config)
+    return get_node_style(config).svg(nodes, config.render.display_grid, side)
 
 
 def contact_sheet(

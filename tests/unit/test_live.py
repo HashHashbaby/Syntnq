@@ -207,10 +207,11 @@ def test_response_width_hits_the_target_share(config: Config) -> None:
 def test_raster_maps_pixels_to_cells(config: Config) -> None:
     ras = make_raster(640, config)
     pitch, margin = ras.pitch, config.render.margin_cells
-    for r, c in ((0, 0), (10, 20), (63, 63)):
+    n = config.render.display_grid  # the raster is on the display grid (D-030)
+    for r, c in ((0, 0), (10, 20), (n - 1, n - 1)):
         py = int((margin + r + 0.5) * pitch)
         px = int((margin + c + 0.5) * pitch)
-        assert ras.cell[py, px] == r * SIZE + c
+        assert ras.cell[py, px] == r * n + c
         assert ras.dist[py, px] < 1.0
     assert not ras.valid[0, 0]
 

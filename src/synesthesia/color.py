@@ -111,6 +111,19 @@ def linear_to_srgb8(rgb_lin: Array) -> npt.NDArray[np.uint8]:
     return np.asarray(np.rint(enc * _MAX_8BIT), dtype=np.uint8)
 
 
+def srgb8_to_linear(srgb8: npt.NDArray[np.uint8]) -> Array:
+    """Gamma-encoded uint8 sRGB ``(..., 3)`` to linear sRGB float64."""
+    c = srgb8.astype(np.float64) / _MAX_8BIT
+    return np.asarray(
+        np.where(
+            c <= _SRGB_LINEAR_BREAK * _SRGB_LINEAR_SLOPE,
+            c / _SRGB_LINEAR_SLOPE,
+            np.power((c + _SRGB_A) / (1.0 + _SRGB_A), _SRGB_GAMMA),
+        ),
+        dtype=np.float64,
+    )
+
+
 def normalize_features(cell_features: Array, config: Config) -> Array:
     """Normalize ``(5, K)`` (or ``(T, 5)`` via transpose) physical features with global ranges.
 

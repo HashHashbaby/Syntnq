@@ -9,7 +9,6 @@ from __future__ import annotations
 import shutil
 import subprocess
 from collections.abc import Iterator
-from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -17,75 +16,30 @@ import numpy.typing as npt
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from synesthesia.config import Config
+from synesthesia.display import Raster, make_raster, to_display
 from synesthesia.errors import ErrorCode, SynError
 from synesthesia.live import LiveEngine, LiveFrame, LiveStream
+from synesthesia.nodes import get_node_style
 
 Array = npt.NDArray[np.float64]
 
 _MAX_8BIT = 255.0
 _TRAIL_TINT = np.array([1.0, 1.0, 1.0])
-_AA_PX = 1.0  # anti-aliasing ramp width in pixels
 _FLASH_FRACTION = 0.06  # side of the sync flash square as a fraction of the frame
 _OVERLAY_MARGIN_PX = 8
 
 
-@dataclass(frozen=True)
-class Raster:
-    """Precomputed pixel -> cell geometry for one output size."""
-
-    px: int
-    pitch: float
-    cell: npt.NDArray[np.int32]  # (px, px) cell index, -1 outside the grid
-    dist: Array  # (px, px) distance to the cell center, in pixels
-    valid: npt.NDArray[np.bool_]
-
-
-def make_raster(px: int, config: Config) -> Raster:
-    """Pixel-to-cell maps for a ``px x px`` frame (same geometry as the static render)."""
-    size, margin = config.grid.size, config.render.margin_cells
-    pitch = px / (size + 2.0 * margin)
-    coords = (np.arange(px) + 0.5) / pitch - margin  # cell units, cell c spans [c, c+1)
-    col = np.floor(coords).astype(np.int64)
-    inside = (col >= 0) & (col < size)
-    colc = np.clip(col, 0, size - 1)
-    cell = (colc[:, None] * size + colc[None, :]).astype(np.int32)
-    valid = inside[:, None] & inside[None, :]
-    cx = (colc + 0.5 + margin) * pitch
-    dist = np.hypot(
-        (np.arange(px) + 0.5)[:, None] - cx[:, None], (np.arange(px) + 0.5)[None, :] - cx[None, :]
-    )
-    return Raster(px=px, pitch=pitch, cell=cell, dist=dist, valid=valid)
-
-
 def rasterize(frame: LiveFrame, raster: Raster, config: Config) -> npt.NDArray[np.uint8]:
-    """Draw one live frame: trail under dots, dots, then glow screened on top.
+    """Draw one live frame: pool to the display grid, trail underneath, then the nodes.
 
     Returns:
         ``(px, px, 3)`` uint8.
     """
-    rc = config.render
-    radius = rc.dot_radius_ratio * raster.pitch * frame.radius_scale  # (K,) pixels
-    coverage = np.clip((radius[raster.cell] - raster.dist) / _AA_PX + 0.5, 0.0, 1.0)
-    coverage = np.where(raster.valid, coverage, 0.0)
-    dots = (frame.srgb[raster.cell].astype(np.float64) / _MAX_8BIT) * coverage[..., None]
-
+    shown = to_display(frame.srgb, frame.radius_scale, frame.trail, config)
     base = np.zeros((raster.px, raster.px, 3))
-    if frame.trail.shape[0] >= 2:
-        base = _draw_trail(frame.trail, raster, config)
-    out = base * (1.0 - coverage[..., None]) + dots
-
-    sigma = rc.glow_sigma_ratio * raster.pitch
-    glow = (
-        np.asarray(
-            Image.fromarray(np.rint(np.clip(out, 0, 1) * _MAX_8BIT).astype(np.uint8)).filter(
-                ImageFilter.GaussianBlur(sigma)
-            ),
-            dtype=np.float64,
-        )
-        / _MAX_8BIT
-    )
-    screen = 1.0 - (1.0 - out) * (1.0 - glow * rc.glow_opacity)
-    return np.asarray(np.rint(np.clip(screen, 0, 1) * _MAX_8BIT), dtype=np.uint8)
+    if shown.trail.shape[0] >= 2:
+        base = _draw_trail(shown.trail, raster, config)
+    return get_node_style(config).draw_live(base, shown.srgb, shown.radius_scale, raster)
 
 
 def _draw_trail(trail: Array, raster: Raster, config: Config) -> Array:

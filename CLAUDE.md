@@ -42,7 +42,8 @@ If a spec and the code disagree, the spec wins unless `docs/DECISIONS.md` record
 
 | Area | Decision |
 | --- | --- |
-| Grid | 64 × 64 (4,096 cells); `grid.size` is a parameter for experiments only. |
+| Grid | 64 × 64 (4,096 cells) analysed; drawn as 32 × 32 nodes (`render.display_grid`, mean of 2 × 2 cells, D-030). `grid.size` is a parameter for experiments only. |
+| Node look | Swappable `NodeStyle` in `src/synesthesia/nodes.py`, chosen by `render.node.style`; only the flat glowing `dot` exists until the project works end to end (D-030). |
 | What a cell is | A cluster of similar-sounding moments (a SOM prototype), not a time slice. |
 | Moments | Analysis frames: 22,050 Hz, hop 512 (≈ 43.07 frames/s), features smoothed over 9 frames (≈ 0.2 s). The SOM trains on all frames (strided to ≤ 16,384). |
 | Layout | Per-song batch SOM, PCA initialization, planar topology, then canonical orientation (brightness up, loudness right). |
@@ -108,6 +109,8 @@ synesthesia/
     fingerprint.py
     live.py                 # live stream export + reference response field
     render.py               # static PNG/SVG renders, contact sheets
+    display.py              # pool the 64 x 64 analysis to the drawn grid (32 x 32), raster geometry
+    nodes.py                # NodeStyle seam: the look of one node (dot today), selected by render.node.style
     preview.py              # Python reference liquid-grid MP4 preview
     io.py                   # npz/json/bin writers and readers, schema versions
     pipeline.py             # analyze(path, config) -> SongResult

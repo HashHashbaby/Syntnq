@@ -56,6 +56,7 @@ def main() -> int:
                 cfg = load_config(
                     overrides={
                         "grid": {"size": s},
+                        "render": {"display_grid": s},  # compare analysis sizes at native density
                         "som": {"sigma_start": base.som.sigma_start * s / REFERENCE_SIZE},
                     }
                 )
@@ -73,7 +74,7 @@ def main() -> int:
     header += f"{'QE':>8}{'TE':>8}{'empty':>8}{'s/track':>9}"
     sys.stdout.write(header + "\n")
     for s in sizes:
-        cfg = load_config(overrides={"grid": {"size": s}})
+        cfg = load_config(overrides={"grid": {"size": s}, "render": {"display_grid": s}})
         m = corpus_metrics(distance_matrix(np.vstack(prints[s]), cfg), labels)
         qe, te, em = np.mean(np.array(som_stats[s]), axis=0)
         sys.stdout.write(

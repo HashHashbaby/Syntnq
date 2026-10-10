@@ -24,13 +24,20 @@ def _srgb() -> np.ndarray:
     return rng.integers(0, 256, size=(K, 3), dtype=np.uint8)
 
 
-def test_svg_has_4096_circles_and_is_deterministic(config: Config) -> None:
+def test_svg_has_one_circle_per_display_node_and_is_deterministic(config: Config) -> None:
     svg = render_svg(_srgb(), config)
     assert svg == render_svg(_srgb(), config)
     root = ET.fromstring(svg)
     ns = "{http://www.w3.org/2000/svg}"
-    assert len(root.findall(f".//{ns}circle")) == K
+    n = config.render.display_grid  # D-030: 32 x 32 drawn nodes over the 64 x 64 analysis
+    assert len(root.findall(f".//{ns}circle")) == n * n
     assert root.find(f".//{ns}feGaussianBlur") is not None
+
+
+def test_svg_has_4096_circles_when_drawn_at_analysis_density() -> None:
+    cfg = load_config(overrides={"render": {"display_grid": 64}})
+    root = ET.fromstring(render_svg(_srgb(), cfg))
+    assert len(root.findall(".//{http://www.w3.org/2000/svg}circle")) == K
 
 
 def test_contact_sheet_geometry(config: Config) -> None:
