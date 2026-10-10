@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Match the sound to its picture</title>
+<style>
+  :root { color-scheme: dark; --bg:#000; --fg:#f2f2f7; --dim:#8e8e93; --card:#1c1c1e; --line:#38383a; --accent:#0a84ff; }
+  @media (prefers-color-scheme: light) { :root { color-scheme: light; --bg:#fff; --fg:#1c1c1e; --dim:#6e6e73; --card:#f2f2f7; --line:#d1d1d6; } }
+  html, body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; }
+  main { max-width:880px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:28px; margin:8px 0 12px; }
+  p, li { color:var(--fg); } .dim { color:var(--dim); font-size:15px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin:16px 0; }
+  label { display:block; margin:10px 0 4px; }
+  input[type=number], select { font:inherit; padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--fg); }
+  button { font:inherit; font-weight:600; padding:12px 22px; border-radius:12px; border:0; background:var(--accent); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.4; cursor:default; } button.secondary { background:var(--card); color:var(--fg); border:1px solid var(--line); }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:16px 0; }
+  .opt { border:3px solid var(--line); border-radius:14px; padding:0; background:#000; cursor:pointer; overflow:hidden; position:relative; }
+  .opt img { display:block; width:100%; height:auto; }
+  .opt .tag { position:absolute; left:8px; top:6px; font-weight:700; color:#fff; text-shadow:0 0 4px #000; }
+  .opt[aria-checked=true] { border-color:var(--accent); }
+  .opt:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+  audio { width:100%; }
+  .bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; } .bar > div { height:100%; background:var(--accent); width:0; }
+  .hidden { display:none; } table { border-collapse:collapse; width:100%; font-size:14px; } td { padding:4px 6px; border-top:1px solid var(--line); }
+  @media (max-width:520px) { .grid { gap:8px; } }
+</style>
+</head>
+<body>
+<main>
+  <section id="start">
+    <h1>Match the sound to its picture</h1>
+    <p>You will hear 12 short clips of music (20 seconds each). For each clip, four pictures are shown. Each picture is a
+       "signature" generated automatically from a song's sound. Choose the picture you think belongs to the clip you heard.
+       There are no right or wrong feelings here, just your best guess. It takes about 10 minutes. Headphones are best.</p>
+    <div class="card">
+      <strong>About this study</strong>
+      <p class="dim">This is a small research test of whether people can recognise a song's visual signature. We record only your
+         choices, how long each choice took, and the two optional answers below. No name, email or audio recording is collected,
+         and nothing is sent anywhere: at the end you save a small results file and send it to the person who gave you this page.
+         Taking part is voluntary and you can stop at any time by closing this page (nothing is kept).</p>
+      <label><input type="checkbox" id="consent"> I am 18 or older and I agree to take part.</label>
+      <label for="pnum">Participant number (given to you)</label>
+      <input type="number" id="pnum" min="1" step="1" value="1">
+      <label for="age">Age band (optional)</label>
+      <select id="age"><option value="">prefer not to say</option><option>18-24</option><option>25-34</option><option>35-44</option><option>45-54</option><option>55+</option></select>
+      <label for="train">Music training (optional)</label>
+      <select id="train"><option value="">prefer not to say</option><option value="none">none</option><option value="some">some</option><option value="a lot">a lot</option></select>
+    </div>
+    <button id="go" disabled>Start</button>
+  </section>
+
+  <section id="trial" class="hidden">
+    <div class="bar" aria-hidden="true"><div id="prog"></div></div>
+    <p class="dim" id="tcount"></p>
+    <div class="card"><audio id="aud" controls preload="auto"></audio>
+      <p class="dim">Press play. You can replay the clip as often as you like.</p></div>
+    <div class="grid" id="opts" role="radiogroup" aria-label="Which picture belongs to this clip?"></div>
+    <button id="next" disabled>Next</button>
+  </section>
+
+  <section id="end" class="hidden">
+    <h1>Thank you</h1>
+    <p id="score"></p>
+    <div class="card">
+      <p>Please save your results file and send it back to the person who gave you this page.</p>
+      <button id="dl">Save results file</button>
+    </div>
+    <details class="card"><summary>Music credits</summary><div id="credits"></div></details>
+  </section>
+</main>
+
+<script>
+"use strict";
+const DATA = __DATA__;
+const $ = (id) => document.getElementById(id);
+const S = {plan: null, i: 0, rows: [], shownAt: 0, sel: -1, who: {}};
+
+$("consent").addEventListener("change", () => { $("go").disabled = !$("consent").checked; });
+$("go").addEventListener("click", () => {
+  const n = Math.max(1, Math.min(DATA.plans.length, parseInt($("pnum").value || "1", 10)));
+  S.who = {participant: n, age_band: $("age").value, training: $("train").value};
+  S.plan = DATA.plans[n - 1]; S.i = 0; S.rows = [];
+  $("start").classList.add("hidden"); $("trial").classList.remove("hidden");
+  show();
+});
+
+function show() {
+  const t = S.plan[S.i];
+  $("tcount").textContent = "Clip " + (S.i + 1) + " of " + S.plan.length;
+  $("prog").style.width = (100 * S.i / S.plan.length) + "%";
+  const a = $("aud"); a.pause(); a.src = "clips/" + t.song + ".mp3"; a.load();
+  const box = $("opts"); box.innerHTML = ""; S.sel = -1; $("next").disabled = true;
+  t.options.forEach((id, k) => {
+    const b = document.createElement("div");
+    b.className = "opt"; b.tabIndex = 0; b.setAttribute("role", "radio"); b.setAttribute("aria-checked", "false");
+    b.setAttribute("aria-label", "Picture " + "ABCD"[k]);
+    b.innerHTML = '<span class="tag">' + "ABCD"[k] + '</span><img alt="" src="sigs/' + id + '.png">';
+    const pick = () => {
+      S.sel = k; [...box.children].forEach((c, j) => c.setAttribute("aria-checked", j === k ? "true" : "false"));
+      $("next").disabled = false;
+    };
+    b.addEventListener("click", pick);
+    b.addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); pick(); } });
+    box.appendChild(b);
+  });
+  S.shownAt = performance.now();
+}
+
+$("next").addEventListener("click", () => {
+  const t = S.plan[S.i], chosen = t.options[S.sel];
+  S.rows.push({
+    participant: S.who.participant, age_band: S.who.age_band, training: S.who.training,
+    trial: S.i + 1, song_id: t.song, genre: DATA.songs[t.song].genre,
+    same_genre_foil: t.same_genre_foil ? 1 : 0, correct_pos: t.correct_pos, chosen_pos: S.sel,
+    chosen_song_id: chosen, correct: chosen === t.song ? 1 : 0, rt_ms: Math.round(performance.now() - S.shownAt),
+  });
+  S.i += 1;
+  if (S.i < S.plan.length) show(); else finish();
+});
+
+function finish() {
+  $("trial").classList.add("hidden"); $("end").classList.remove("hidden");
+  $("aud").pause();
+  const ok = S.rows.reduce((a, r) => a + r.correct, 0);
+  $("score").textContent = "You matched " + ok + " of " + S.rows.length + " clips. (By chance you would expect about " + (S.rows.length / 4) + ".)";
+  const rows = Object.keys(DATA.songs).map((id) => { const s = DATA.songs[id];
+    return "<tr><td>" + esc(s.title) + " - " + esc(s.artist) + "</td><td>" + esc(s.license) + "</td></tr>"; }).join("");
+  $("credits").innerHTML = '<p class="dim">Clips and pictures are made from these Creative Commons tracks (via Jamendo).</p><table>' + rows + "</table>";
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c])); }
+
+$("dl").addEventListener("click", () => {
+  const cols = ["participant", "age_band", "training", "trial", "song_id", "genre", "same_genre_foil",
+                "correct_pos", "chosen_pos", "chosen_song_id", "correct", "rt_ms"];
+  const csv = [cols.join(",")].concat(S.rows.map((r) => cols.map((c) => JSON.stringify(r[c] === undefined ? "" : r[c])).join(","))).join("\n") + "\n";
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"}));
+  a.download = "synesthesia_blind_" + S.who.participant + ".csv"; a.click();
+});
+</script>
+</body>
+</html>

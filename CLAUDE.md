@@ -8,9 +8,9 @@ This file is loaded every session. It holds the rules and the map of the project
 
 ## Current status
 
-- **Current milestone:** M4 (companion maps): evidence delivered 2026-10-10, awaiting owner sign-off. Gates passed: M0, M1, M2 (exceptions D-022, D-023; calibration frozen through M5, D-020), M3 (2026-10-10: 32 x 32 flat dots, click-track sync 20/20). Display is 32 x 32 flat glowing dots over the 64 x 64 analysis (D-030); node looks are swappable via `NodeStyle`. Update this line when a milestone's gate passes.
-- **M4 evidence:** `out/m4/panels/` (30 per-song panels), `out/m4/ablation.md`, D-031, 102 tests. Glass look work is parked on branch `m3-glass-look`.
-- **Next action:** owner confirms M4, then `docs/MILESTONES.md` -> M5 (blind test page + protocol; the owner recruits participants). At every gate: clean temporary files before reporting.
+- **Current milestone:** M5 (blind test): page built 2026-10-11 and waiting on participants (owner recruits >= 10; see `docs/DATA_RESEARCH.md` section 4). Gates passed: M0, M1, M2 (exceptions D-022, D-023; calibration frozen through M5, D-020), M3 (2026-10-10: 32 x 32 flat dots, click-track sync 20/20), M4 (companion maps, D-031). Display is 32 x 32 flat glowing dots over the 64 x 64 analysis (D-030); node looks are swappable via `NodeStyle`. Update this line when a milestone's gate passes.
+- **M5 evidence:** `out/blind_test/` (index.html + 12 clips + 30 signatures, 12.4 MB), 60 fixed participant plans, analysis script. Glass look work is parked on branch `m3-glass-look`.
+- **Next action:** owner shares `out/blind_test/` with >= 10 adults, collects the CSVs, then `make blind-test-analyze FOLDER=...`. Gate: mean accuracy >= 50% and p < 0.05. At every gate: clean temporary files before reporting.
 
 ## Doc map: read before you work
 
@@ -157,6 +157,8 @@ make analyze SONG=path/to/file.mp3      # → out/<song_id>/
 make render SONG_ID=<id>
 make preview SONG=file.mp3 SECONDS=20   # liquid-grid MP4 with audio (or SONG_ID=<id> AUDIO=file)
 make sync-check                         # click-track flash vs click timing on a finished MP4
+make blind-test                         # M5: build out/blind_test/ (static page, clips, signatures)
+make blind-test-analyze FOLDER=dir      # M5: analyze the participants' result CSVs
 make calibrate                          # M2: writes config/calibration.yaml
 make compare-sizes                      # M2: 32/40/64/100 contact sheets
 make api-dev                            # FastAPI on :8000

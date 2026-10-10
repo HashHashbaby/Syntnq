@@ -205,6 +205,26 @@ api:
   max_concurrent_jobs: 1
   job_timeout_s: 300
 
+blind_test:                     # M5, docs/DATA_RESEARCH.md section 4
+  songs_per_group:              # 12 stimulus songs, 2-3 per genre group
+    ambient_classical: 3
+    rock_metal: 3
+    electronic_dance: 2
+    hiphop_rnb: 2
+    folk_acoustic_jazz: 2
+  max_per_artist: 1             # one stimulus song per artist
+  clip_s: 20.0
+  clip_start_fraction: 0.40     # clip starts at 40% of the song
+  clip_fade_s: 0.5
+  clip_lufs: -23.0              # equal loudness so level is not a cue
+  clip_kbps: 128
+  n_options: 4                  # 1 correct + 3 foils
+  same_genre_trials: 6          # half the trials include one same-genre foil
+  n_participant_plans: 60       # participant numbers 1..N each get a fixed plan
+  signature_px: 480
+  gate_accuracy: 0.50           # mean accuracy needed at the gate
+  gate_alpha: 0.05              # one-sided binomial test vs chance
+
 performance:
   budget_analysis_s_per_4min: 30   # on an Apple M1 / 8 GB or comparable x86
   budget_peak_ram_gb: 1.5

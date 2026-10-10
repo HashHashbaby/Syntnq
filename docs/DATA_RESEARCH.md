@@ -42,6 +42,14 @@ Bundled samples for the app (M7): 3 tracks from this manifest with CC BY or CC B
 - **Analysis:** per-participant accuracy; overall accuracy with a 95% confidence interval; one-sided binomial test vs 0.25; accuracy on same-genre-foil trials separately (harder and more informative); per-song accuracy to find weak mappings.
 - **Gate:** ≥ 50% mean accuracy and p < 0.05. Report same-genre-foil accuracy regardless.
 
+### How it is run (implementation, D-032)
+
+- `make blind-test` builds `out/blind_test/` (git-ignored, about 12 MB): `index.html`, 12 mono 128 kbps clips of 20 s from 40% of each song (loudness-normalized to -23 LUFS with 0.5 s fades), and the 32 x 32 signatures of every song used. No server or network is needed; open `index.html` or host the folder anywhere static.
+- Stimuli: 12 songs, 3/3/2/2/2 per genre group, one per artist, chosen deterministically from the 30-track corpus. Foils come only from the other 18 songs, so a foil is never another trial's answer. Each participant number 1..60 has a fixed plan (trial order, 6 of 12 trials with one same-genre foil, the rest drawn from other groups, option positions shuffled); give each person a different number.
+- The page shows the consent text, optional age band and training, no feedback until the end, then a score and a downloadable CSV (`synesthesia_blind_<n>.csv`). Participants send the file back; the owner collects them in one folder.
+- `make blind-test-analyze FOLDER=<dir>` prints overall accuracy with a 95% Wilson interval, the one-sided exact binomial test vs 0.25, per-participant accuracy, same-genre-foil vs other trials, per-song accuracy and the gate verdict. Trials from one participant are not independent; treat the pooled binomial p as the spec's test and read it with the per-participant spread.
+- Licensing: all 30 tracks are CC BY or CC BY-SA, so clips and signatures may be redistributed with attribution; the page lists every track and license. The corpus dataset terms allow non-commercial research use only. The owner decides whether and to whom the folder is shared.
+
 ## 5. Research question and hypotheses (M11)
 
 Question: does a structured, color-coded representation of musical characteristics reveal patterns in listener preference that conventional representations do not capture as well?

@@ -342,6 +342,24 @@ class Performance(_Section):
     target_fps: int
 
 
+class BlindTest(_Section):
+    """Blind test of docs/DATA_RESEARCH.md section 4 (M5)."""
+
+    songs_per_group: dict[str, int]
+    max_per_artist: int
+    clip_s: float
+    clip_start_fraction: float
+    clip_fade_s: float
+    clip_lufs: float
+    clip_kbps: int
+    n_options: int
+    same_genre_trials: int
+    n_participant_plans: int
+    signature_px: int
+    gate_accuracy: float
+    gate_alpha: float
+
+
 class Config(_Section):
     """Full resolved configuration (schema v1)."""
 
@@ -363,6 +381,7 @@ class Config(_Section):
     preview: Preview
     api: Api
     performance: Performance
+    blind_test: BlindTest
 
     @model_validator(mode="after")
     def _check_consistency(self) -> Config:
