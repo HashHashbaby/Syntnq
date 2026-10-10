@@ -23,6 +23,10 @@ F32 = npt.NDArray[np.float32]
 
 _BLUR_SIGMA_CELLS = 0.7  # blurred copy of the cell grid used for refraction and frost
 _AA_FLOOR = 1e-4
+_FLOW_SMOOTH_CELLS = 1.2  # smoothing of the response field before taking its gradient
+_FLOW_TILT = 4.0  # normal tilt per unit gradient (cells^-1) at normal_from_response = 1
+_FLOW_REFRACT = 1.5  # sheet refraction (cells) per unit gradient
+_FLOW_SWEEP = 0.18  # sweep shift (diagonal fraction) per unit field value
 _TWO_PI = 2.0 * np.pi
 
 
@@ -58,7 +62,9 @@ def shade(
     side_px: float,
     *,
     strength_scale: float = 1.0,
-) -> F32:
+    flow: F32 | None = None,
+    return_cover: bool = False,
+) -> F32 | tuple[F32, F32]:
     """Shade pixels of a ``side_px`` frame.
 
     Args:
@@ -68,9 +74,13 @@ def shade(
         variant: ``flat``, ``beads``, ``sheet`` or ``combo``.
         side_px: frame side in pixels the coordinates refer to.
         strength_scale: extra multiplier on all decoration (used by ``combo``).
+        flow: optional ``(size, size, 3)`` float32 live surface field: channels are
+            ``(d/du, d/dv, value)`` of the smooth response field A (+ ripples), in cell units.
+            It tilts the bead normals and bends the sheet's sweep and warp (liquid feel).
+        return_cover: also return the dot coverage ``(H, W)``.
 
     Returns:
-        ``(H, W, 3)`` float32 sRGB in [0, 1] before bloom.
+        ``(H, W, 3)`` float32 sRGB in [0, 1] before bloom (and the coverage if requested).
     """
     rc, g = config.render, config.render.glass
     size = grid.shape[0]
@@ -86,11 +96,17 @@ def shade(
         dtype=np.float32,
     )
 
+    lg = config.live.glass
+    fl = _bilinear(flow, u, v) if flow is not None else None  # (H, W, 3) or None
+
     if variant == "sheet":
         # slow warp of the dots under the pane (a refractive sheet), plus a frost mix
         wl = g.sheet.warp_wavelength_cells
         wu = g.sheet.warp_amp * np.sin(_TWO_PI * (0.83 * u + 0.37 * v) / wl + 0.6)
         wv = g.sheet.warp_amp * np.sin(_TWO_PI * (0.29 * u - 0.91 * v) / wl + 2.1)
+        if fl is not None:  # the response field refracts the dots under the pane
+            wu = wu - lg.normal_from_response * _FLOW_REFRACT * fl[..., 0]
+            wv = wv - lg.normal_from_response * _FLOW_REFRACT * fl[..., 1]
         u, v = u + wu * strength, v + wv * strength
 
     col = np.clip(np.floor(u), 0, size - 1).astype(np.int32)
@@ -113,6 +129,12 @@ def shade(
         rr = np.minimum(r / radius, 1.0)
         h = np.sqrt(np.maximum(1.0 - rr * rr, 0.0))
         nx, ny, nz = px / radius * (rr < 1.0), py / radius * (rr < 1.0), h
+        if fl is not None:  # tilt the surface with the gradient of the response field
+            tilt = np.float32(lg.normal_from_response * _FLOW_TILT)
+            nx = nx - tilt * fl[..., 0] * h
+            ny = ny - tilt * fl[..., 1] * h
+            nn = np.sqrt(nx * nx + ny * ny + nz * nz) + _AA_FLOOR
+            nx, ny, nz = nx / nn, ny / nn, nz / nn
         ld = np.asarray(g.light_dir, dtype=np.float32)
         ld = ld / np.linalg.norm(ld)
         lx, ly, lz = (np.float32(c) for c in ld)
@@ -155,6 +177,8 @@ def shade(
         sc = strength_scale if variant == "combo" else 1.0
         sh = g.sheet
         t = (xs / side_px) * 0.78 + (ys / side_px) * 0.62  # diagonal, top-left -> bottom-right
+        if fl is not None:  # liquid: the sweep is pushed around by the response field
+            t = t + lg.normal_from_response * _FLOW_SWEEP * fl[..., 2]
         sweep = np.exp(-(((t - sh.sweep_pos) / sh.sweep_width) ** 2))
         sweep2 = 0.45 * np.exp(-(((t - (sh.sweep_pos + 0.42)) / (1.6 * sh.sweep_width)) ** 2))
         glare = (sweep + sweep2) * sh.sweep_strength * g.strength * sc
@@ -165,7 +189,18 @@ def shade(
         white2 = np.clip(glare + edge, 0.0, 1.0)[..., None]
         out = out + white2 * (1.0 - out)
 
-    return np.asarray(np.clip(out, 0.0, 1.0), dtype=np.float32)
+    result = np.asarray(np.clip(out, 0.0, 1.0), dtype=np.float32)
+    return (result, np.asarray(cover, dtype=np.float32)) if return_cover else result
+
+
+def flow_field(activation: npt.NDArray[np.float64], size: int, config: Config) -> F32:
+    """Build the ``(size, size, 3)`` flow texture from the per-cell activation ``clamp(A + ring)``.
+
+    Channels: ``d/du``, ``d/dv`` of a lightly smoothed field and the smoothed value itself.
+    """
+    field = gaussian_filter(activation.reshape(size, size).astype(np.float32), _FLOW_SMOOTH_CELLS)
+    gv, gu = np.gradient(field)
+    return np.stack([gu, gv, field], axis=-1).astype(np.float32)
 
 
 def bloom(img: F32, config: Config, side_px: float) -> F32:
@@ -215,7 +250,9 @@ def render_variant(
     )
     xs, ys = np.meshgrid(xs_1d, ys_1d)
     scale = config.render.glass.combo_scale if variant == "combo" else 1.0
-    img = shade(xs, ys, grid, config, variant, float(px), strength_scale=scale)
+    shaded = shade(xs, ys, grid, config, variant, float(px), strength_scale=scale)
+    assert isinstance(shaded, np.ndarray)
+    img = shaded
     # bloom radius is in nominal pixels; at zoom it grows with the zoom
     img = bloom(img, config, float(px) * zoom)
     if pad:
