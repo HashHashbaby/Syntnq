@@ -90,6 +90,10 @@ uniform vec2  uLightXY;
 uniform float uFlat, uLive, uWaveOn, uTime, uLoud, uSwirlFlow, uSwirlLoud, uDriftHz;
 uniform float uModT, uModV, uModR, uSlopeGain, uNoGlint, uOvComp, uEdgeDir;
 uniform vec3  uCrop;
+uniform float uBackK, uBackScale, uBackDrift, uTransGain, uHiK, uHiSharp, uFarK, uBandK;
+uniform vec2  uBackOff, uShadowOff;
+uniform vec3  uBg;
+uniform float uShadowK, uShadowBlur;
 ${COMMON}
 vec3 labToLin(vec3 c){
   float l_ = c.x + 0.3963377774*c.y + 0.2158037573*c.z;
@@ -124,9 +128,19 @@ vec2 swirlWarp(vec2 q, float angle0, float R){
 }
 float waveH(vec2 cellsPos){ return texture(uWave, cellsPos / uCells).r * uWaveOn; }
 
-// one chip: returns (transmittance colour, coverage); glint intensity out
-vec4 chipEval(vec2 id, vec2 f, out float glint){
-  glint = 0.0;
+// coloured light behind the panel: blurred song colours, offset so it differs from the chip body,
+// modulated by a slow cloud pattern. Used through the chips and in the gaps.
+vec3 backdropAt(vec2 pc){
+  vec3 bl = texture(uHaze, (pc + uBackOff) / uCells).rgb;
+  vec2 drift = vec2(uTime*uBackDrift, -uTime*uBackDrift*0.6);
+  float cloud = 0.55*vnoise(pc / uBackScale + drift) + 0.45*vnoise(pc / (uBackScale*0.45) - drift*1.7 + 7.3);
+  float k = 0.70 + 0.65*cloud;
+  return max(labToLin(vec3(bl.x*k, bl.yz*(1.0 + 0.35*(cloud - 0.5)))), 0.0) * uBacklight;
+}
+
+// one chip: returns (transmittance colour, coverage); glint (additive highlights) out
+vec4 chipEval(vec2 id, vec2 f, out vec3 glint){
+  glint = vec3(0.0);
   if (id.x < 0.0 || id.y < 0.0 || id.x >= uLenses || id.y >= uLenses) return vec4(1.0, 1.0, 1.0, 0.0);
   float block = uCells / uLenses;
   vec2 cc = (id + 0.5) * block;
@@ -175,6 +189,10 @@ vec4 chipEval(vec2 id, vec2 f, out float glint){
     ab *= 1.0 + uModV * hw;
   }
   vec3 col = max(labToLin(vec3(L, ab)), 0.0) * uBacklight;
+  if (uBackK > 0.0) {                                                   // light field seen through the glass
+    float thin = clamp(uBackK * (1.0 + uTransGain*(lab.x - 0.55)*2.0), 0.0, 0.6);
+    col = mix(col, backdropAt((id + 0.5 + f) * block), thin);
+  }
 
   // one small soft neutral glint, top-left; travels with the wave slope
   vec2 slope = vec2(0.0);
@@ -188,7 +206,17 @@ vec4 chipEval(vec2 id, vec2 f, out float glint){
   vec2 ldir = normalize(normalize(uLightXY) - slope * uSlopeGain * 6.0);
   float facing = max(dot(f / max(r, 1e-5), ldir), 0.0);
   float band = smoothstep(uGlintOff - uGlintSize, uGlintOff, u) * (1.0 - smoothstep(uGlintOff, uGlintOff + uGlintSize, u));
-  glint = uGlintK * (1.0 - uNoGlint) * pow(facing, 6.0) * band;
+  float gl1 = uGlintK * pow(facing, 6.0) * band;
+  vec2 ld = normalize(uLightXY);
+  float fc = max(dot(f / max(r, 1e-5), ld), 0.0);
+  float arc = pow(fc, uHiSharp) * smoothstep(0.76, 0.86, u) * (1.0 - smoothstep(0.90, 0.985, u));
+  float far = pow(max(-dot(f / max(r, 1e-5), ld), 0.0), 2.5) * smoothstep(0.58, 0.80, u) * (1.0 - smoothstep(0.86, 0.98, u));
+  vec2 qq = f / R;
+  float s1 = dot(qq, normalize(vec2(1.0, 1.0)));
+  float rb = exp(-pow((s1 + 0.34)/0.13, 2.0)) + 0.6*exp(-pow((s1 + 0.04)/0.05, 2.0));
+  rb *= (1.0 - smoothstep(0.80, 1.0, u)) * smoothstep(0.0, 0.25, u + 0.2);
+  vec3 farCol = max(labToLin(vec3(min(lab.x*1.18, 0.95), lab.yz*1.7)), 0.0);
+  glint = (1.0 - uNoGlint) * (vec3(gl1 + uHiK*arc + uBandK*rb) + uFarK*far*farCol);
   return vec4(col, cover);
 }
 
@@ -201,7 +229,7 @@ void main(){
   vec2 f = l - idx - 0.5;
   float block = uCells / uLenses;
 
-  vec3 T = vec3(1.0); float unc = 1.0; float glintSum = 0.0;
+  vec3 T = vec3(1.0); float unc = 1.0; vec3 glintSum = vec3(0.0);
   if (uFlat > 0.5) {
     // flat reference chips: plain discs of the data colour (no texture, no absorption, no glint)
     vec2 id = clamp(idx, 0.0, uLenses - 1.0);
@@ -216,26 +244,41 @@ void main(){
   } else if (uOverlap > 0.5) {
     for (int k = 0; k < 5; k++) {
       vec2 off = (k == 0) ? vec2(0.0) : (k == 1) ? vec2(1.0, 0.0) : (k == 2) ? vec2(-1.0, 0.0) : (k == 3) ? vec2(0.0, 1.0) : vec2(0.0, -1.0);
-      float gg;
+      vec3 gg;
       vec4 v = chipEval(idx + off, f - off, gg);
       T *= mix(vec3(1.0), v.rgb, clamp(v.a * 20.0, 0.0, 1.0));   // full colour once covered
       unc *= 1.0 - v.a;
       glintSum += gg * v.a;
     }
   } else {
-    float gg;
+    vec3 gg;
     vec4 v = chipEval(idx, f, gg);
     T = v.rgb; unc = 1.0 - v.a; glintSum = gg * v.a;
   }
   float covered = 1.0 - unc;
   vec3 chipRGB = T * covered;
+  vec3 base = uBg;
+  if (uShadowK > 0.0) {                       // coloured light cast onto the surface by the chips up-left
+    float sh = 0.0; vec3 tint = vec3(0.0);
+    for (int k = 0; k < 4; k++) {
+      vec2 o = vec2(float(k & 1), float(k >> 1));
+      vec2 id2 = idx - o;
+      if (id2.x < 0.0 || id2.y < 0.0 || id2.x >= uLenses || id2.y >= uLenses) continue;
+      float d = length(f + o - uShadowOff);
+      float m = 1.0 - smoothstep(uRadius - uShadowBlur, uRadius + uShadowBlur, d);
+      vec3 cl = max(labToLin(field((id2 + 0.5)*block) + texelFetch(uCorr, ivec2(id2), 0).rgb), 0.0);
+      sh += m; tint += m * cl / max(max(cl.r, max(cl.g, cl.b)), 1e-3);
+    }
+    tint /= max(sh, 1e-3);
+    base = uBg * mix(vec3(1.0), 0.60 + 0.40*tint, uShadowK * min(sh, 1.0));
+  }
   vec3 haze = vec3(0.0);
   if (uHazeK > 0.0) {
     vec2 pc = clamp(frag / P - uMargin, 0.0, uLenses) * block;
-    vec3 hl = texture(uHaze, pc / uCells).rgb;
-    haze = max(labToLin(hl), 0.0) * uHazeK;
+    if (uBackK > 0.0) haze = backdropAt(pc) * uHazeK;
+    else haze = max(labToLin(texture(uHaze, pc / uCells).rgb), 0.0) * uHazeK;
   }
-  vec3 outc = chipRGB + haze * (1.0 - 0.85*covered) + vec3(glintSum) * covered;
+  vec3 outc = base * unc + chipRGB + haze * (1.0 - 0.85*covered) + glintSum * covered;
   o = vec4(max(outc, 0.0), covered);
 }`;
 
@@ -467,6 +510,15 @@ function drawChips(o) {
   fl('uDriftHz', lg.glass.swirl_drift_hz);
   fl('uModT', f.mod_transmission); fl('uModV', f.mod_vibrance); fl('uModR', f.mod_radius);
   fl('uSlopeGain', f.slope_glint_gain); fl('uNoGlint', o.noGlint ? 1 : 0);
+  fl('uBackK', g.backdrop_strength); fl('uBackScale', g.backdrop_scale_cells); fl('uBackDrift', g.backdrop_drift_hz);
+  gl.uniform2f(U(pChip, 'uBackOff'), g.backdrop_offset_cells[0], g.backdrop_offset_cells[1]);
+  fl('uTransGain', g.transmit_lightness_gain); fl('uHiK', g.highlight_strength); fl('uHiSharp', g.highlight_sharpness);
+  fl('uFarK', g.far_caustic_strength); fl('uBandK', g.reflect_band_strength);
+  { const h = (g.surface_color || '#000000').replace('#', ''), c = [0, 2, 4].map((i) => parseInt(h.substr(i, 2), 16) / 255);
+    const lin = c.map((v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+    gl.uniform3f(U(pChip, 'uBg'), lin[0], lin[1], lin[2]); }
+  fl('uShadowK', g.shadow_strength); fl('uShadowBlur', g.shadow_blur);
+  gl.uniform2f(U(pChip, 'uShadowOff'), g.shadow_offset[0], g.shadow_offset[1]);
   fl('uOvComp', g.overlap > 0 ? g.overlap_lightness_comp : 0); fl('uEdgeDir', g.edge_directional);
   gl.bindFramebuffer(gl.FRAMEBUFFER, S.hdr.f); gl.viewport(0, 0, side, side);
   gl.drawArrays(gl.TRIANGLES, 0, 3);

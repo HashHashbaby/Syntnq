@@ -229,8 +229,21 @@ render:
     glint_size: 0.07            # sliver half-width, in chip radii
     glint_offset: 0.90          # radial position of the sliver, in chip radii
     light_dir: [-0.50, -0.65, 0.57]   # direction used for the glint (x right, y down)
+    surface_color: "#000000"    # the surface the chips sit on (piano white "#F4F3EF" in the light look)
+    shadow_strength: 0.0        # coloured light cast by each chip onto the surface (0 = none)
+    shadow_offset: [0.10, 0.14] # shadow displacement, chip pitches (away from light_dir)
+    shadow_blur: 0.12           # shadow edge softness, chip pitches
+    backdrop_strength: 0.0      # share of a coloured light field behind the panel seen through each chip
+    backdrop_scale_cells: 6.0   # size of the cloud pattern modulating that light, in analysis cells
+    backdrop_offset_cells: [2.5, 1.5]   # the backdrop is sampled this far from the chip so it differs from the body
+    backdrop_drift_hz: 0.03     # slow drift of the cloud pattern in live mode
+    transmit_lightness_gain: 0.0  # brighter chips transmit more (thin glass), dim chips stay dense
+    highlight_strength: 0.0     # curved edge highlight on the lit side
+    highlight_sharpness: 3.0    # exponent: higher = shorter arc
+    far_caustic_strength: 0.0   # coloured light exiting on the side away from the light
+    reflect_band_strength: 0.0  # faint window-pane reflection band across the chip
     exposure: 1.00
-    bloom_strength: 0.04        # backlight bloom (restrained)
+    bloom_strength: 0.04       # backlight bloom (restrained)
     bloom_sigma: 0.50           # in chip pitches
     dither: 1.0
     color_space: srgb           # srgb | display-p3

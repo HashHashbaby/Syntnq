@@ -306,6 +306,19 @@ class RenderGlass(_Section):
     glint_size: float
     glint_offset: float
     light_dir: tuple[float, float, float]
+    surface_color: str
+    shadow_strength: float
+    shadow_offset: tuple[float, float]
+    shadow_blur: float
+    backdrop_strength: float
+    backdrop_scale_cells: float
+    backdrop_offset_cells: tuple[float, float]
+    backdrop_drift_hz: float
+    transmit_lightness_gain: float
+    highlight_strength: float
+    highlight_sharpness: float
+    far_caustic_strength: float
+    reflect_band_strength: float
     exposure: float
     bloom_strength: float
     bloom_sigma: float

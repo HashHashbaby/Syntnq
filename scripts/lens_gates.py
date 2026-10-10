@@ -125,7 +125,7 @@ def main() -> int:
     gates = {"dE p95": 0.02, "L corr": 0.99, "hue mean": 3.0, "dim dL": 0.02}
     keys = ["dE mean", "dE p95", "dE max", "L corr", "hue mean", "hue p95", "dim dL", "mean dL"]
     for v in variants:
-        radius = g.overlap_radius if v == "B" else g.chip_radius
+        radius = {"P3": 0.54, "B": g.overlap_radius}.get(v, 0.44 if v[0] in "GP" else g.chip_radius)
         sys.stdout.write(f"\n=== variant {v} (prefix {prefix}) ===\n")
         sys.stdout.write(f"{'':16}" + "".join(f"{s:>13}" for s in SONGS) + "\n")
         res = {s: measure(prefix, v, s, cfg, radius, v == "B") for s in SONGS}
