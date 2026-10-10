@@ -99,8 +99,8 @@ color:
     empty_L: 0.16
     empty_chroma_factor: 0.35
   chroma:
-    min: 0.06                  # D-018 (spec 0.03)
-    max: 0.20                  # D-018 (spec 0.18)
+    min: 0.08                  # D-025 (D-018 had 0.06, spec 0.03)
+    max: 0.24                  # D-025 (D-018 had 0.20, spec 0.18)
   gamut: srgb_chroma_bisect     # reduce chroma until in sRGB, 24 bisection steps
   display_smoothing_sigma: 0.6  # light Gaussian on lightness only, in cells; 0 disables
 
@@ -145,7 +145,10 @@ live:
   diffusion_passes: 2
   glow_sigma_cells: [1.0, 3.0]  # quiet .. loud
   live_mix_max: 0.85            # max blend from static color to live color
-  live_lightness_boost: 0.30
+  live_lightness_boost: 0.18    # D-025 (spec 0.30: the bloom went white instead of colored)
+  global_mix: 0.40              # whole-grid blend toward the current frame's hue/chroma (D-025)
+  global_lightness_swing: 0.16  # whole-grid lightness swing with loudness, +- this * (loud - 0.5) * 2
+  live_chroma_gain: 1.4         # multiplies live chroma before gamut mapping (D-025)
   ripple:
     onset_threshold: 0.35       # normalized onset strength
     speed_cells_per_s: 24
@@ -156,6 +159,7 @@ live:
   trail:
     length_s: 2.0
     width_cells: 0.8
+    opacity: 0.30               # peak brightness of the BMU trail (D-025; was a fixed 0.55)
   reduced_motion:
     ripples: false
     diffusion: false

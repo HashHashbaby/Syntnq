@@ -237,6 +237,7 @@ class Ripple(_Section):
 class Trail(_Section):
     length_s: float
     width_cells: float
+    opacity: float
 
 
 class ReducedMotion(_Section):
@@ -259,6 +260,9 @@ class Live(_Section):
     glow_sigma_cells: tuple[float, float]
     live_mix_max: float
     live_lightness_boost: float
+    global_mix: float
+    global_lightness_swing: float
+    live_chroma_gain: float
     ripple: Ripple
     trail: Trail
     reduced_motion: ReducedMotion

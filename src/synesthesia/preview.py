@@ -24,7 +24,6 @@ Array = npt.NDArray[np.float64]
 
 _MAX_8BIT = 255.0
 _TRAIL_TINT = np.array([1.0, 1.0, 1.0])
-_TRAIL_PEAK = 0.55  # trail brightness at age 0
 _AA_PX = 1.0  # anti-aliasing ramp width in pixels
 _FLASH_FRACTION = 0.06  # side of the sync flash square as a fraction of the frame
 _OVERLAY_MARGIN_PX = 8
@@ -97,7 +96,7 @@ def _draw_trail(trail: Array, raster: Raster, config: Config) -> Array:
     pts = [((x + 0.5 + margin) * pitch, (y + 0.5 + margin) * pitch) for x, y, _ in trail]
     width = max(1, int(round(config.live.trail.width_cells * pitch)))
     for (p0, p1), age in zip(zip(pts[:-1], pts[1:], strict=True), trail[1:, 2], strict=True):
-        level = int(round(_MAX_8BIT * _TRAIL_PEAK * (1.0 - float(age))))
+        level = int(round(_MAX_8BIT * config.live.trail.opacity * (1.0 - float(age))))
         if level > 0 and p0 != p1:
             draw.line([p0, p1], fill=level, width=width)
     layer = layer.filter(ImageFilter.GaussianBlur(0.5 * width))

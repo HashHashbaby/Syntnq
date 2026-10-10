@@ -28,6 +28,7 @@ Array = npt.NDArray[np.float64]
 
 _BYTE_MAX = 255.0
 _MAX_LIVE_LIGHTNESS = 0.95  # docs/LIVE.md 2.7 clamp
+_MIN_LIVE_LIGHTNESS = 0.05
 _RIPPLE_END_DECAYS = 5.0  # a ripple is dropped after this many decay times
 _SWELL_MAX = 0.12  # docs/LIVE.md 2.9: dot radius swells up to +12% with A_i
 _RENORM_FLOOR = 1e-12
@@ -352,13 +353,22 @@ class LiveEngine:
         color_n = self._lerp(self.stream.color, s) / _BYTE_MAX
         live_h = cc.hue.from_deg + (cc.hue.to_deg - cc.hue.from_deg) * color_n[0]
         live_c = cc.chroma.min + (cc.chroma.max - cc.chroma.min) * color_n[3]
-        m = lv.live_mix_max * act
+        # whole-grid component: every cell follows the current frame's hue/chroma/loudness a bit
+        m = np.minimum(lv.global_mix + lv.live_mix_max * act, 1.0)
+        swing = lv.global_lightness_swing * (2.0 * float(color_n[1]) - 1.0)
         base_l, base_c, base_h = (self.static_oklch[:, i] for i in range(3))
-        arc = (live_h - base_h + 180.0) % 360.0 - 180.0  # shortest arc
+        # Hues live on the palette scale 265 -> 30 degrees (teal/green/yellow in between).
+        # Interpolating linearly on that scale keeps mixes inside the palette; the shortest
+        # arc would cut through magenta for blue <-> orange (D-025).
+        arc = live_h - base_h
         lch = np.stack(
             [
-                np.minimum(base_l + lv.live_lightness_boost * act, _MAX_LIVE_LIGHTNESS),
-                (1.0 - m) * base_c + m * live_c,
+                np.clip(
+                    base_l + lv.live_lightness_boost * act + swing,
+                    _MIN_LIVE_LIGHTNESS,
+                    _MAX_LIVE_LIGHTNESS,
+                ),
+                ((1.0 - m) * base_c + m * live_c) * lv.live_chroma_gain,
                 (base_h + m * arc) % 360.0,
             ],
             axis=-1,

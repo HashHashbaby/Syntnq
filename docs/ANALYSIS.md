@@ -110,7 +110,7 @@ Per cell, in OKLCH:
 t     = n_brightness                       # (optionally 0.8 t + 0.2 n_valence when valence_blend > 0)
 H     = 265 + (30 − 265) * t                # degrees; blue-violet → red-orange via teal, green, yellow
 L     = 0.22 + (0.86 − 0.22) * (0.6 * occ_norm + 0.4 * n_loudness)
-C     = 0.06 + (0.20 − 0.06) * n_harmonicity     # D-018; spec was 0.03 .. 0.18
+C     = 0.08 + (0.24 − 0.08) * n_harmonicity     # D-025; D-018 0.06 .. 0.20; spec 0.03 .. 0.18
 if empty: L = 0.16; C = C * 0.35
 ```
 

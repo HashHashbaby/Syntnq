@@ -64,9 +64,10 @@ Keep at most 8 ripples (drop the oldest). Add `ring_i` to the display intensity 
 ```
 live_H = hue from color_t brightness (same formula as static, docs/ANALYSIS.md §7)
 live_C = chroma from color_t harmonicity
-m      = 0.85 · clamp(A_i + ring_i, 0, 1)                  # live_mix_max
-L      = static_L + 0.30 · clamp(A_i + ring_i, 0, 1)        # live_lightness_boost, clamp ≤ 0.95
-H, C   = mix static (H, C) toward (live_H, live_C) by m     # hue mixed along the shortest arc
+g      = clamp(A_i + ring_i, 0, 1)
+m      = min(1, global_mix + 0.85 · g)                      # D-025: global_mix 0.40 moves the whole grid
+L      = static_L + 0.18 · g + 0.16 · (2·loud − 1)          # live_lightness_boost, global_lightness_swing; clamp 0.05..0.95
+H, C   = mix static (H, C) toward (live_H, live_C) by m     # hue mixed linearly on the palette scale (not the shortest arc); C × live_chroma_gain 1.4
 ```
 Convert to sRGB with the shared OKLab code (GLSL port; tests compare with Python).
 
