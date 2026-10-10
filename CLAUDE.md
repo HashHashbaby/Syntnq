@@ -8,8 +8,9 @@ This file is loaded every session. It holds the rules and the map of the project
 
 ## Current status
 
-- **Current milestone:** M3 (live reference preview), in progress. M0 gate passed 2026-10-10 (CI green on ubuntu, macos, windows). M1 gate passed 2026-10-10 (3 real tracks, topographic error 0.027-0.037, 4-minute analysis 19.3 s, determinism). M2 gate passed 2026-10-10 with two recorded exceptions: near-duplicate cross-genre pair (D-022) and thin ambient_classical group (D-023); calibration frozen through M5 (D-020); 64 x 64 confirmed (D-021). Update this line when a milestone's gate passes.
-- **Next action:** `docs/MILESTONES.md` -> M3: live.py (live stream, response field per `docs/LIVE.md`), preview.py + `syn preview` (MP4, 30 fps, 1080 px), 3 contrasting 20 s previews plus a reduced-motion one, click-track sync check.
+- **Current milestone:** M3 (live reference preview): evidence delivered 2026-10-10, awaiting owner sign-off. M0, M1 and M2 gates passed (M2 with exceptions D-022, D-023; calibration frozen through M5, D-020). Display is 32 x 32 flat glowing dots over the 64 x 64 analysis (D-030, owner-approved); node looks are swappable via `NodeStyle`. Update this line when a milestone's gate passes.
+- **M3 evidence:** `out/m3/` (3 contrasting 20 s previews + reduced-motion), `out/m3/m3_gate_frames.png`, click-track sync check PASS (20/20 flashes, 0.000 s). Glass look work is parked on branch `m3-glass-look`.
+- **Next action:** owner confirms M3, then `docs/MILESTONES.md` -> M4 (scalar fingerprint features, compare). At every gate: clean temporary files before reporting.
 
 ## Doc map: read before you work
 
