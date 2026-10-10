@@ -165,6 +165,11 @@ live:
     ripples: false
     diffusion: false
     release_ms: 500
+  glass:                        # live behavior of the glass look (used when render.glass.variant != none)
+    normal_from_response: 0.60  # how much the smooth response field A tilts the surface normal
+    ripple_bend: 0.50           # how much beat ripples bend the highlights
+    flow_light_drift: 0.04      # light direction drift (fraction of a radian) following the response
+    reduced_motion: static      # static | flat: highlights fixed (or removed) under reduced motion
 
 render:
   export_px: [2048, 4096, 8192]
@@ -175,6 +180,31 @@ render:
   glow_opacity: 0.30            # D-026 (D-018 had 0.45, D-017 0.35, spec 0.60)
   background: "#000000"
   caption: {enabled: false, font: system}
+  glass:                        # "liquid glass" look (look development; decoration only, not data)
+    variant: none               # none | beads | sheet | combo
+    strength: 1.0               # global multiplier on every decoration term below
+    light_dir: [-0.5, -0.6, 0.62]   # fixed soft light from the top-left (x right, y down, z toward viewer)
+    shade_strength: 0.30        # relative bead shading, centered so the mean lightness stays the data's
+    inner_glow: 0.30            # center of the bead glows a little more than its edge
+    spec_strength: 0.40         # neutral white specular, constant (never tinted by data)
+    spec_power: 28.0
+    rim_strength: 0.28          # thin Fresnel rim, neutral white
+    rim_width: 0.07             # in cell units
+    refraction: 0.22            # bead lens offset in cells at the rim
+    refraction_mix: 0.18        # weight of the refracted neighbor color (rim only)
+    caustic_strength: 0.20      # data-colored light under the bead, opposite the light
+    caustic_offset: 0.07        # cells
+    caustic_sigma: 0.15         # cells
+    sheet:
+      warp_amp: 0.05            # cells; slow distortion of the dots under the pane
+      warp_wavelength_cells: 9.0
+      frost: 0.15               # mix toward a blurred copy of the dots
+      sweep_strength: 0.10      # broad specular sweep, neutral white
+      sweep_pos: 0.32           # position along the top-left to bottom-right diagonal (0..1)
+      sweep_width: 0.13
+      edge_strength: 0.16       # thin edge highlight of the pane
+      edge_width: 0.005         # fraction of the frame side
+    combo_scale: 0.60           # variant combo = beads x scale + sheet sweep/edge x scale
 
 preview:
   fps: 30

@@ -267,11 +267,49 @@ class Live(_Section):
     ripple: Ripple
     trail: Trail
     reduced_motion: ReducedMotion
+    glass: LiveGlass
 
 
 class Caption(_Section):
     enabled: bool
     font: str
+
+
+class GlassSheet(_Section):
+    warp_amp: float
+    warp_wavelength_cells: float
+    frost: float
+    sweep_strength: float
+    sweep_pos: float
+    sweep_width: float
+    edge_strength: float
+    edge_width: float
+
+
+class RenderGlass(_Section):
+    variant: Literal["none", "beads", "sheet", "combo"]
+    strength: float
+    light_dir: tuple[float, float, float]
+    shade_strength: float
+    inner_glow: float
+    spec_strength: float
+    spec_power: float
+    rim_strength: float
+    rim_width: float
+    refraction: float
+    refraction_mix: float
+    caustic_strength: float
+    caustic_offset: float
+    caustic_sigma: float
+    sheet: GlassSheet
+    combo_scale: float
+
+
+class LiveGlass(_Section):
+    normal_from_response: float
+    ripple_bend: float
+    flow_light_drift: float
+    reduced_motion: Literal["static", "flat"]
 
 
 class Render(_Section):
@@ -283,6 +321,7 @@ class Render(_Section):
     glow_opacity: float
     background: str
     caption: Caption
+    glass: RenderGlass
 
 
 class Preview(_Section):

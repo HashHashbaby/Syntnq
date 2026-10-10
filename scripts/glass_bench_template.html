@@ -1,0 +1,212 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>glass bench</title>
+<style>body{background:#000;color:#ddd;font:13px/1.4 ui-monospace,Consolas,monospace;margin:12px}canvas{display:block;margin-bottom:8px;max-width:540px;height:auto}</style>
+<canvas id="c"></canvas>
+<pre id="out">running...</pre>
+<script>
+// Same analytic model as src/synesthesia/glass.py. Data: 64x64 sRGB texel per cell.
+const GRID_B64 = "__GRID_B64__";
+const SIZE = 64, SIDE = __SIDE__, MARGIN = 1.0, RADIUS = 0.34;
+const P = __PARAMS__;
+const cv = document.getElementById('c'); cv.width = SIDE; cv.height = SIDE;
+const gl = cv.getContext('webgl2', {antialias:false, preserveDrawingBuffer:false, powerPreference:'high-performance'});
+const log = (s) => { document.getElementById('out').textContent += '\n' + s; };
+document.getElementById('out').textContent = '';
+if (!gl) { log('NO WEBGL2'); throw new Error('no webgl2'); }
+const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+log('renderer: ' + (dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)));
+log('canvas: ' + SIDE + 'x' + SIDE + ' px');
+
+const raw = Uint8Array.from(atob(GRID_B64), c => c.charCodeAt(0));          // 64*64*3
+// blurred copy (gaussian sigma 0.7 cells, separable) for refraction/frost
+function blurGrid(src) {
+  const sigma = 0.7, rad = 3, k = []; let ks = 0;
+  for (let i=-rad;i<=rad;i++){ const w=Math.exp(-i*i/(2*sigma*sigma)); k.push(w); ks+=w; }
+  const tmp = new Float32Array(SIZE*SIZE*3), out = new Uint8Array(SIZE*SIZE*3);
+  for (let y=0;y<SIZE;y++) for (let x=0;x<SIZE;x++) for (let c=0;c<3;c++){
+    let a=0; for (let i=-rad;i<=rad;i++){ const xx=Math.min(SIZE-1,Math.max(0,x+i)); a+=k[i+rad]*src[(y*SIZE+xx)*3+c]; }
+    tmp[(y*SIZE+x)*3+c]=a/ks; }
+  for (let y=0;y<SIZE;y++) for (let x=0;x<SIZE;x++) for (let c=0;c<3;c++){
+    let a=0; for (let i=-rad;i<=rad;i++){ const yy=Math.min(SIZE-1,Math.max(0,y+i)); a+=k[i+rad]*tmp[(yy*SIZE+x)*3+c]; }
+    out[(y*SIZE+x)*3+c]=Math.round(a/ks); }
+  return out;
+}
+const blurred = blurGrid(raw);
+
+function tex(data, filter) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, SIZE, SIZE, 0, gl.RGB, gl.UNSIGNED_BYTE, data);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+const gridTex = tex(raw, gl.NEAREST), blurTex = tex(blurred, gl.LINEAR);
+
+const VS = `#version 300 es
+in vec2 p; out vec2 vUv; void main(){ vUv = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }`;
+
+const FS_SHADE = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o;
+uniform sampler2D uGrid, uBlur;
+uniform float uSide, uSize, uMargin, uRadius, uScale;
+uniform int uVariant; // 0 flat, 1 beads, 2 sheet, 3 combo
+uniform vec3 uLight; uniform vec4 uBead;    // shade, innerGlow, spec, specPow
+uniform vec4 uRim;                          // rim strength, rim width, refraction, refractionMix
+uniform vec4 uCaustic;                      // strength, offset, sigma, strength global
+uniform vec4 uSheetA;                       // warpAmp, wavelength, frost, sweepStrength
+uniform vec4 uSheetB;                       // sweepPos, sweepWidth, edgeStrength, edgeWidth
+vec3 fetchBlur(vec2 uv){ return texture(uBlur, uv/uSize).rgb; }
+void main(){
+  vec2 frag = vec2(vUv.x, 1.0 - vUv.y) * uSide;
+  float pitch = uSide/(uSize+2.0*uMargin);
+  float aa = 1.0/pitch;
+  vec2 uv = frag/pitch - uMargin;
+  float k = uBead.w; // unused placeholder to keep uniforms alive
+  float strength = uCaustic.w * uScale;
+  if (uVariant == 2) {
+    float wl = uSheetA.y;
+    uv += strength * uSheetA.x * vec2(sin(6.2831853*(0.83*uv.x+0.37*uv.y)/wl+0.6), sin(6.2831853*(0.29*uv.x-0.91*uv.y)/wl+2.1));
+  }
+  vec2 cell = clamp(floor(uv), 0.0, uSize-1.0);
+  bool inside = all(greaterThanEqual(uv, vec2(0.0))) && all(lessThan(uv, vec2(uSize)));
+  vec2 p = uv - cell - 0.5;
+  float r = length(p);
+  float cover = clamp((uRadius - r)/aa + 0.5, 0.0, 1.0) * (inside ? 1.0 : 0.0);
+  vec3 data = texture(uGrid, (cell+0.5)/uSize).rgb;
+  vec3 col;
+  if (uVariant == 0 || uVariant == 2) {
+    vec3 body = data;
+    if (uVariant == 2) body = mix(data, fetchBlur(uv), uSheetA.z*strength);
+    col = body*cover;
+  } else {
+    float rr = min(r/uRadius, 1.0);
+    float h = sqrt(max(1.0-rr*rr, 0.0));
+    vec3 n = vec3(rr<1.0 ? p/uRadius : vec2(0.0), h);
+    vec3 L = normalize(uLight);
+    float ndl = dot(n, L);
+    vec3 body = data * ((1.0 + strength*uBead.x*(ndl - L.z)) * (1.0 + strength*uBead.y*(h-0.6)));
+    vec3 refr = fetchBlur(uv - n.xy*uRim.z*strength);
+    body = mix(body, refr, uRim.w*strength*(1.0-h));
+    vec3 H = normalize(L + vec3(0.,0.,1.));
+    float spec = pow(max(dot(n,H),0.0), uBead.w) * uBead.z * strength;
+    float rim = smoothstep(uRadius-uRim.y, uRadius-0.5*aa, r) * uRim.x * strength * (0.65+0.35*clamp(-dot(p, L.xy)/(r+1e-4), -1.0, 1.0));
+    float white = clamp(spec+rim, 0.0, 1.0);
+    col = clamp(body,0.0,1.0)*cover;
+    col += vec3(white)*cover*(1.0-col);
+    vec2 o2 = -normalize(L.xy)*uCaustic.y;
+    vec2 d = p - o2;
+    float win = 1.0 - smoothstep(0.36, 0.5, max(abs(p.x), abs(p.y)));
+    float blob = exp(-dot(d,d)/(2.0*uCaustic.z*uCaustic.z)) * uCaustic.x * strength * win;
+    col += data*blob*(1.0-cover)*(inside?1.0:0.0);
+  }
+  if (uVariant >= 2) {
+    float sc = (uVariant==3) ? uScale : 1.0;
+    float t = (frag.x/uSide)*0.78 + (frag.y/uSide)*0.62;
+    float s1 = exp(-pow((t-uSheetB.x)/uSheetB.y, 2.0));
+    float s2 = 0.45*exp(-pow((t-(uSheetB.x+0.42))/(1.6*uSheetB.y), 2.0));
+    float e = min(min(frag.x, frag.y), min(uSide-frag.x, uSide-frag.y))/uSide;
+    float edge = exp(-pow((e-1.5*uSheetB.w)/uSheetB.w, 2.0)) * uSheetB.z * uCaustic.w * sc * (0.55+0.45*clamp(1.0-(frag.x+frag.y)/uSide,0.0,1.0));
+    float w2 = clamp((s1+s2)*uSheetA.w*uCaustic.w*sc + edge, 0.0, 1.0);
+    col += vec3(w2)*(1.0-col);
+  }
+  o = vec4(clamp(col,0.0,1.0), 1.0);
+}`;
+
+const FS_BLUR = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o; uniform sampler2D uT; uniform vec2 uDir;
+void main(){
+  float w[5] = float[](0.2270270270, 0.1945945946, 0.1216216216, 0.0540540541, 0.0162162162);
+  vec3 c = texture(uT, vUv).rgb * w[0];
+  for (int i=1;i<5;i++){ c += texture(uT, vUv + uDir*float(i)).rgb*w[i]; c += texture(uT, vUv - uDir*float(i)).rgb*w[i]; }
+  o = vec4(c,1.0);
+}`;
+const FS_COMP = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o; uniform sampler2D uBase, uGlow; uniform float uOpacity;
+void main(){ vec3 a = texture(uBase, vUv).rgb, g = texture(uGlow, vUv).rgb; o = vec4(1.0-(1.0-a)*(1.0-g*uOpacity), 1.0); }`;
+
+function prog(fs) {
+  const mk = (t, s) => { const sh = gl.createShader(t); gl.shaderSource(sh, s); gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); return sh; };
+  const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, VS)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs));
+  gl.bindAttribLocation(p, 0, 'p'); gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p;
+}
+const pShade = prog(FS_SHADE), pBlur = prog(FS_BLUR), pComp = prog(FS_COMP);
+const vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+function target(w, h) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+  return {t, f, w, h};
+}
+const HALF = SIDE >> 1;
+const full = target(SIDE, SIDE), half1 = target(HALF, HALF), half2 = target(HALF, HALF);
+const pitch = SIDE / (SIZE + 2*MARGIN), sigmaPx = P.glow_sigma_ratio * pitch;
+
+function bindTex(unit, t) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); }
+function frame(variant, scale, withBloom) {
+  gl.useProgram(pShade);
+  const U = (n) => gl.getUniformLocation(pShade, n);
+  bindTex(0, gridTex); bindTex(1, blurTex);
+  gl.uniform1i(U('uGrid'), 0); gl.uniform1i(U('uBlur'), 1);
+  gl.uniform1f(U('uSide'), SIDE); gl.uniform1f(U('uSize'), SIZE); gl.uniform1f(U('uMargin'), MARGIN); gl.uniform1f(U('uRadius'), RADIUS);
+  gl.uniform1f(U('uScale'), scale); gl.uniform1i(U('uVariant'), variant);
+  gl.uniform3f(U('uLight'), P.light[0], P.light[1], P.light[2]);
+  gl.uniform4f(U('uBead'), P.shade, P.inner, P.spec, P.spec_power);
+  gl.uniform4f(U('uRim'), P.rim, P.rim_width, P.refraction, P.refraction_mix);
+  gl.uniform4f(U('uCaustic'), P.caustic, P.caustic_offset, P.caustic_sigma, P.strength);
+  gl.uniform4f(U('uSheetA'), P.warp_amp, P.warp_wl, P.frost, P.sweep);
+  gl.uniform4f(U('uSheetB'), P.sweep_pos, P.sweep_w, P.edge, P.edge_w);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, withBloom ? full.f : null); gl.viewport(0, 0, SIDE, SIDE);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  if (!withBloom) return;
+  gl.useProgram(pBlur);
+  const sc = sigmaPx / 1.6; // 9-tap kernel spans ~ +-4 texels; texel step scaled to the target sigma
+  gl.uniform1i(gl.getUniformLocation(pBlur, 'uT'), 0);
+  bindTex(0, full.t); gl.bindFramebuffer(gl.FRAMEBUFFER, half1.f); gl.viewport(0, 0, HALF, HALF);
+  gl.uniform2f(gl.getUniformLocation(pBlur, 'uDir'), sc / SIDE, 0); gl.drawArrays(gl.TRIANGLES, 0, 3);
+  bindTex(0, half1.t); gl.bindFramebuffer(gl.FRAMEBUFFER, half2.f);
+  gl.uniform2f(gl.getUniformLocation(pBlur, 'uDir'), 0, sc / SIDE); gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.useProgram(pComp);
+  bindTex(0, full.t); bindTex(1, half2.t);
+  gl.uniform1i(gl.getUniformLocation(pComp, 'uBase'), 0); gl.uniform1i(gl.getUniformLocation(pComp, 'uGlow'), 1);
+  gl.uniform1f(gl.getUniformLocation(pComp, 'uOpacity'), P.glow_opacity);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, SIDE, SIDE); gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+const names = ['flat', 'beads', 'sheet', 'combo'];
+const scales = [1, 1, 1, P.combo_scale];
+const px = new Uint8Array(4);
+async function bench(variant, bloom, frames) {
+  for (let i = 0; i < 10; i++) frame(variant, scales[variant], bloom);        // warm up
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);                  // sync
+  const t0 = performance.now();
+  for (let i = 0; i < frames; i++) frame(variant, scales[variant], bloom);
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);                  // forces GPU completion
+  return (performance.now() - t0) / frames;
+}
+(async () => {
+  const res = {renderer: gl.getParameter(gl.RENDERER), side: SIDE, results: {}};
+  for (const bloom of [false, true]) {
+    for (let v = 0; v < 4; v++) {
+      const ms = await bench(v, bloom, 120);
+      res.results[names[v] + (bloom ? '+bloom' : '')] = ms;
+      log(names[v].padEnd(8) + (bloom ? ' +bloom' : '       ') + '  ' + ms.toFixed(2) + ' ms/frame  (' + (1000/ms).toFixed(0) + ' fps ceiling)');
+    }
+  }
+  // leave the combo frame visible
+  frame(3, scales[3], true);
+  window.__bench = res; log('DONE');
+})();
+</script>
