@@ -226,7 +226,7 @@ Readers check `schema_version` and refuse unknown majors.
 - Canvas `px` (1024 preview; 2048/4096/8192 export), background `#000000`.
 - Margin = `margin_cells` × pitch; pitch = `px / (64 + 2·margin_cells)`.
 - Each cell: a filled circle of radius `0.34 · pitch` at its center in `color_srgb`, anti-aliased (render at 2× and downsample with Lanczos).
-- Glow: copy of the dot layer blurred with σ = `0.5 · pitch`, composited with screen blend at 0.6 opacity.
+- Glow: copy of the dot layer blurred with σ = `0.25 · pitch`, composited with screen blend at 0.35 opacity (D-017; the original 0.5 / 0.6 filled the gaps between dots and mixed neighboring colors).
 - Export PNG with an embedded text chunk: song ID, pipeline version, config hash. Same input → same bytes (fix Pillow compression level; no timestamps).
 - SVG export: 4,096 `<circle>` elements plus an SVG Gaussian blur filter for the glow.
 - Contact sheets (`contact_sheet.py`): N signatures in a grid with file name and genre labels, for review.

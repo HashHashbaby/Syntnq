@@ -162,8 +162,8 @@ render:
   preview_px: 1024
   margin_cells: 1.0
   dot_radius_ratio: 0.34        # dot radius / cell pitch
-  glow_sigma_ratio: 0.50        # glow blur sigma / cell pitch
-  glow_opacity: 0.60
+  glow_sigma_ratio: 0.25        # glow blur sigma / cell pitch (D-017; was 0.50)
+  glow_opacity: 0.35            # was 0.60 (D-017)
   background: "#000000"
   caption: {enabled: false, font: system}
 
