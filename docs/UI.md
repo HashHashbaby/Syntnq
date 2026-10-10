@@ -23,11 +23,12 @@ Dark is the default appearance; light follows `prefers-color-scheme` and the in-
   --bg-2: #1C1C1E;
   --bg-3: #2C2C2E;
   --fill: rgba(120,120,128,0.36);
-  --label: #FFFFFF;
+  --label: #F5F5F7;             /* near-white on black (docs/REFERENCES.md) */
   --label-2: rgba(235,235,245,0.60);
   --label-3: rgba(235,235,245,0.30);
   --separator: rgba(84,84,88,0.65);
   --accent: #0A84FF;
+  --link: #2997FF;              /* text links on dark */
   --danger: #FF453A;
   --material: rgba(30,30,32,0.62);
   --material-border: rgba(255,255,255,0.10);
@@ -38,25 +39,28 @@ Dark is the default appearance; light follows `prefers-color-scheme` and the in-
 
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
   --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
-  --radius-control: 12px; --radius-card: 20px; --radius-sheet: 24px;
+  --radius-small: 6px; --radius-control: 12px; --radius-card: 20px; --radius-sheet: 24px;
+  --radius-pill: 980px;
   --hit: 44px;
 
-  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
-  --dur-fast: 200ms; --dur: 350ms; --dur-slow: 500ms;
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);       /* sheets, segmented control */
+  --ease-standard: cubic-bezier(0.4, 0, 0.6, 1);       /* ordinary state changes */
+  --ease-stage: cubic-bezier(0.65, 0.05, 0, 1);        /* stage-level transitions only */
+  --dur-fast: 200ms; --dur-ui: 240ms; --dur: 350ms; --dur-slow: 500ms; --dur-stage: 700ms;
 }
 /* light: explicit override */
 :root[data-theme="light"] {
   --bg: #F2F2F7; --bg-2: #FFFFFF; --bg-3: #F2F2F7;
-  --label: #000000; --label-2: rgba(60,60,67,0.60); --label-3: rgba(60,60,67,0.30);
-  --separator: rgba(60,60,67,0.29); --accent: #007AFF; --danger: #FF3B30;
+  --label: #1D1D1F; --label-2: rgba(60,60,67,0.60); --label-3: rgba(60,60,67,0.30);
+  --separator: rgba(60,60,67,0.29); --accent: #007AFF; --link: #0071E3; --danger: #FF3B30;
   --material: rgba(255,255,255,0.72); --material-border: rgba(0,0,0,0.08);
 }
 /* light: automatic, unless the user forced dark */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --bg: #F2F2F7; --bg-2: #FFFFFF; --bg-3: #F2F2F7;
-    --label: #000000; --label-2: rgba(60,60,67,0.60); --label-3: rgba(60,60,67,0.30);
-    --separator: rgba(60,60,67,0.29); --accent: #007AFF; --danger: #FF3B30;
+    --label: #1D1D1F; --label-2: rgba(60,60,67,0.60); --label-3: rgba(60,60,67,0.30);
+    --separator: rgba(60,60,67,0.29); --accent: #007AFF; --link: #0071E3; --danger: #FF3B30;
     --material: rgba(255,255,255,0.72); --material-border: rgba(0,0,0,0.08);
   }
 }
@@ -70,6 +74,7 @@ System stack only (renders SF Pro on Apple devices, no font files bundled). Size
 
 | Style | Size / line (px) | Weight | Use |
 | --- | --- | --- | --- |
+| Display | 48 / 52 at >= 1069 px, 40 / 44 below | 600 | Landing scene title only |
 | Large Title | 34 / 41 | 700 | Library title on phone |
 | Title 1 | 28 / 34 | 700 | Screen titles |
 | Title 2 | 22 / 28 | 700 | Section titles |
@@ -79,6 +84,8 @@ System stack only (renders SF Pro on Apple devices, no font files bundled). Size
 | Subheadline | 15 / 20 | 400 | Artist, secondary info |
 | Footnote | 13 / 18 | 400 | Metadata, help |
 | Caption | 12 / 16 | 400 | Axis labels on maps |
+
+Tracking (letter-spacing) tightens with size, as measured on Apple's pages: Body -0.374 px, Subheadline -0.24 px, Footnote -0.08 px, Caption -0.12 px, Display -0.14 px. UI uses two weights, 400 and 600 (700 stays for titles).
 
 Numbers in the inspector use `font-variant-numeric: tabular-nums`. Minimum 11 px anywhere.
 
@@ -97,14 +104,16 @@ Fallback to a solid `--bg-2` when `backdrop-filter` is unsupported or `prefers-r
 
 The signature is always square (`aspect-ratio: 1`), centered, never cropped, scaled to the largest square that fits.
 
-**Phone (< 768 px wide)**
+Breakpoints (D-033): phone <= 734 px, tablet 735-1068, desktop 1069-1440, wide >= 1441; reading column max 980 px.
+
+**Phone (<= 734 px wide)**
 - Library: Large Title "Library", inset grouped list of songs (thumbnail = tiny signature, title, artist, duration), floating "+" (Add song) as the one filled button.
 - Signature screen: full-width square canvas within safe-area insets (`env(safe-area-inset-*)`); floating player bar at the bottom (title, artist, play/pause, thin scrubber). Tapping the bar opens a sheet (medium and large detents) with: map switcher (segmented), song details, Export, Compare (M9).
 - Map switcher in the sheet: Sound · Features · Structure · Rhythm · Dynamics. "Features" shows a second segmented control: Brightness · Loudness · Noise · Harmony · Change.
 
-**Tablet and desktop (≥ 768 px)**
+**Tablet and desktop (≥ 735 px)**
 - Split view: sidebar 320 px (library list, search field, "+" button) and detail area.
-- Detail: toolbar at top (song title, segmented map switcher, Export button, more menu); canvas centered; inspector panel on the right (280 px) on ≥ 1200 px wide, otherwise a popover.
+- Detail: toolbar at top (song title, segmented map switcher, Export button, more menu); canvas centered; inspector panel on the right (280 px) on ≥ 1069 px wide, otherwise a popover.
 - Player bar docked at the bottom of the detail area.
 
 **Keyboard (desktop)**
@@ -112,6 +121,7 @@ Space play/pause · ←/→ seek 5 s · Shift+←/→ seek 30 s · 1-5 map views
 
 ## 6. Screens and states
 
+0. **First landing (scroll stage, first visit only):** a single scroll-driven stage shown the first time a person opens the app, before the library. A sticky square canvas whose state is a pure function of scroll progress: static signature, then the liquid state, then a companion map; transitions use `--ease-stage` / `--dur-stage`. It ends in the "Add a song" action. After it is completed or skipped once ("Skip" always visible), it is never shown again, including at later app launches; Settings has "Replay intro". Reduced motion: no pinning, a plain sequence of three static steps. It is not used in the library, inspector, sheets or any other screen (D-033).
 1. **First launch / empty library:** centered short text "Add a song to see its signature." plus the filled "Add Song" button and "Try a sample" link (bundled Creative Commons samples, M7).
 2. **Add song:** file picker or drag-and-drop anywhere on the window (drop overlay with dashed rounded rectangle, label "Drop to analyze").
 3. **Analyzing:** a progress view on the canvas area with stage labels from the API (`Reading audio`, `Listening`, `Mapping sounds`, `Coloring`, `Drawing maps`) and a determinate bar; cancel button. The grid fades in cell by cell (≤ 600 ms) when done; reduced motion → simple fade.
@@ -137,12 +147,15 @@ Space play/pause · ←/→ seek 5 s · Shift+←/→ seek 30 s · 1-5 map views
 | Toolbar | Height 52 px, material, items 44 px hit targets |
 | Progress | Linear 4 px bar, radius 2, accent |
 | Toast | Top-center capsule, material, auto-dismiss 3 s |
+| Stage (first landing only) | Sticky square canvas; state = f(scroll progress 0..1); `--ease-stage`, `--dur-stage`; pinning removed under reduced motion; Skip always visible; shown once |
 
 All interactive elements have ≥ 44×44 px hit areas, visible focus rings (2 px `--focus-ring`, 2 px offset), and hover states only on pointer devices (`@media (hover: hover)`).
 
 ## 8. Motion
 
-- UI transitions: `--ease-spring`, 350 ms (sheets 500 ms), interruptible (CSS transitions or Web Animations; no blocking JS animations).
+- Ordinary state changes (hover, toggles, fades): `--ease-standard`, `--dur-ui` (240 ms).
+- Sheets, segmented control, popovers: `--ease-spring`, 350 ms (sheets 500 ms), interruptible (CSS transitions or Web Animations; no blocking JS animations).
+- Stage transitions on the first landing only: `--ease-stage`, `--dur-stage` (700 ms), scroll-linked; removed under reduced motion.
 - Screen changes on phone: push/pop slide 350 ms; desktop: cross-fade 200 ms.
 - Reduced motion: replace slides with 200 ms cross-fades; liquid grid per `docs/LIVE.md §3`.
 
@@ -186,6 +199,7 @@ Never bundle SF Symbols. Use **Lucide** (ISC license, similar line weight), stro
 - The resources page does not state license terms. As understood, SF fonts and SF Symbols are licensed for Apple-platform apps and mockups; confirm before ever bundling them. The system font stack lets Apple devices render SF with nothing bundled.
 - No Apple logos, device bezels, Apple product names (for example "Apple Music") or any implied affiliation. SYNESTHESIA keeps its own brand.
 - Apple's UI kits may be used to make mockups in Figma; do not copy kit artwork into the product.
+- Other design inspiration is recorded in `docs/REFERENCES.md`: principles only, no assets, text, code or fonts copied.
 
 ## 13. Workflow and review
 

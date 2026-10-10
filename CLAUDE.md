@@ -19,6 +19,7 @@ This file is loaded every session. It holds the rules and the map of the project
 | Audio ingest, features, SOM, color, companion maps, fingerprint, output files | `docs/ANALYSIS.md` |
 | Live liquid grid (Python preview or WebGL shader) | `docs/LIVE.md` |
 | Any UI, styling, screens, components, accessibility | `docs/UI.md` |
+| Design inspiration, measured reference values, proposed UI token changes | `docs/REFERENCES.md` |
 | Backend API, jobs, storage, binary formats | `docs/API.md` |
 | What to build next, task lists, acceptance gates | `docs/MILESTONES.md` |
 | Datasets, test tracks, blind test, research, licensing | `docs/DATA_RESEARCH.md` |
