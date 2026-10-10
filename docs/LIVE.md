@@ -35,8 +35,9 @@ d²_i = ||x − w_i||²
 r_i  = exp(−d²_i / (2 τ²))
 r_i  = r_i / max_j r_j            # the best match is always 1
 ```
+`τ` is chosen per song (D-024): at the median of ~1,024 sampled frames, `live.tau_target_share` (4%) of the cells have `r ≥ 0.5`, i.e. `τ = tau_scale · sqrt(median(d²_k − d²_min) / (2 ln 2))` with `k = share · 4096`. (The original `tau_scale · median BMU distance` varied 4-5× between songs and either lit one cell or the whole map.)
 
-**2.3 Loudness-dependent glow width.** Blur `r` on the grid with Gaussian σ = `lerp(1.0, 3.0, loud)` cells (separable, two passes). Quiet passages give a tight point of light, loud passages a wide bloom.
+**2.3 Loudness-dependent glow width.** Blur `r` on the grid with Gaussian σ = `lerp(1.0, 3.0, loud)` cells (separable, two passes). Quiet passages give a tight point of light, loud passages a wide bloom. With `live.blur_renormalize` (on, D-024) the blurred field is rescaled so its peak stays 1; without it the blur divides a sharp peak by up to ~50 and the layer is nearly invisible.
 
 **2.4 Temporal smoothing (asymmetric).** With display step `Δ` seconds:
 ```
@@ -52,7 +53,7 @@ A_i ← (1 − 0.20) · A_i + 0.20 · mean(A over the 8 neighbors of i)
 ```
 This is what makes color flow like a liquid instead of jumping.
 
-**2.6 Beat ripples.** At each beat time crossed since the last display frame, if `onset ≥ 0.35`, spawn a ripple at the current BMU cell with amplitude `0.5 · onset`. Each ripple is a ring:
+**2.6 Beat ripples.** A beat belongs to the display frame nearest to it (window `(s − Δ/2, s + Δ/2]`, so a beat fires at most half a frame early rather than up to a full frame late). Beat times are the onset-envelope peaks, parabola-refined to sub-frame precision and shifted by `live.beat_latency_s` (20 ms, the measured lag of flux peaks behind sharp clicks). At each such beat, if `onset ≥ 0.35`, spawn a ripple at the current BMU cell with amplitude `0.5 · onset`. Each ripple is a ring:
 ```
 radius(t) = 24 · (t − t_spawn)              # cells
 ring_i    = amp · exp(−(dist_i − radius)² / (2·1.5²)) · exp(−(t − t_spawn)/0.6)
@@ -71,7 +72,7 @@ Convert to sRGB with the shared OKLab code (GLSL port; tests compare with Python
 
 **2.8 Trail.** Draw the BMU path over the last 2.0 s as a soft line (width 0.8 cells) through cell centers, fading with age. Trail drawn under the dots, above the background.
 
-**2.9 Dot drawing.** Same geometry as the static render (radius 0.34 · pitch, glow σ `render.glow_sigma_ratio` · pitch (0.25, D-017)), but radius may swell by up to +12% with `A_i`.
+**2.9 Dot drawing.** Same geometry as the static render (radius 0.34 · pitch, glow σ `render.glow_sigma_ratio` · pitch (0.30, D-018)), but radius may swell by up to +12% with `A_i`.
 
 ## 3. Reduced motion
 
@@ -99,8 +100,9 @@ When `prefers-reduced-motion` is set (or the in-app override is on): no ripples,
 ## 6. Python reference preview (`preview.py`)
 
 ```
-syn preview <song_id> --seconds 20 --start 30 --fps 30 --px 1080
+syn preview <audio file | song_id> [--audio FILE] --seconds 20 --start 30 --fps 30 --px 1080 [--reduced-motion] [--overlay]
 ```
+Given an audio file the command analyzes it first (writing `out/<song_id>/` including `live.bin` and `proto.bin`); given a song ID it reads those files and needs `--audio`. Analysis time `s` is source-file time `s + audio_offset_s` (leading silence trimmed at ingest). `scripts/sync_check.py` renders the 120 BPM click track with `--overlay` and measures flash-versus-click time in the finished MP4.
 - Recomputes §2 at 30 fps on the CPU (numpy), renders each frame with `render.py` primitives, pipes raw frames to `ffmpeg` (H.264, CRF 18, yuv420p), muxes the matching audio segment (AAC 192 kb/s).
 - Writes `out/<song_id>/preview_<start>_<seconds>.mp4`.
 - Used for the M3 gate and as the visual reference the WebGL renderer must match (side-by-side screenshot comparison at 5 timestamps; mean per-pixel difference ≤ 6/255 after both use identical parameters, ripples disabled).

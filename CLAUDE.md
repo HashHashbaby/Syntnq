@@ -8,8 +8,8 @@ This file is loaded every session. It holds the rules and the map of the project
 
 ## Current status
 
-- **Current milestone:** M1 (analysis core), in progress. M0 gate passed 2026-10-10 (CI green on ubuntu, macos, windows). Update this line when a milestone's gate passes.
-- **Next action:** finish the `docs/MILESTONES.md` → M1 gate: sound maps for 3 real tracks, real-track topographic error < 0.15, 4-minute profile on a real track.
+- **Current milestone:** M3 (live reference preview), in progress. M0 gate passed 2026-10-10 (CI green on ubuntu, macos, windows). M1 gate passed 2026-10-10 (3 real tracks, topographic error 0.027-0.037, 4-minute analysis 19.3 s, determinism). M2 gate passed 2026-10-10 with two recorded exceptions: near-duplicate cross-genre pair (D-022) and thin ambient_classical group (D-023); calibration frozen through M5 (D-020); 64 x 64 confirmed (D-021). Update this line when a milestone's gate passes.
+- **Next action:** `docs/MILESTONES.md` -> M3: live.py (live stream, response field per `docs/LIVE.md`), preview.py + `syn preview` (MP4, 30 fps, 1080 px), 3 contrasting 20 s previews plus a reduced-motion one, click-track sync check.
 
 ## Doc map: read before you work
 
@@ -151,7 +151,8 @@ make test           # pytest (unit + integration + golden)
 make test-determinism
 make analyze SONG=path/to/file.mp3      # → out/<song_id>/
 make render SONG_ID=<id>
-make preview SONG_ID=<id> SECONDS=20    # liquid-grid MP4 with audio
+make preview SONG=file.mp3 SECONDS=20   # liquid-grid MP4 with audio (or SONG_ID=<id> AUDIO=file)
+make sync-check                         # click-track flash vs click timing on a finished MP4
 make calibrate                          # M2: writes config/calibration.yaml
 make compare-sizes                      # M2: 32/40/64/100 contact sheets
 make api-dev                            # FastAPI on :8000

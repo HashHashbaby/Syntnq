@@ -17,9 +17,11 @@ Figures marked **checked** were confirmed on the dataset's own page on 2026-10-1
 Created in M2 (before downloading, show the list to the user).
 
 - 30 tracks from MTG-Jamendo, 5 genre groups × 6 tracks: ambient/classical, rock/metal, electronic/dance, hip-hop/R&B, folk/acoustic/jazz.
-- Selection: deterministic. Filter the metadata to tracks 120-420 s long with a single top-level genre tag in the group; sort by track ID; take the first 6 per group whose license allows redistribution of renders with attribution (CC BY, CC BY-SA; avoid ND/NC for anything shown publicly).
+- Selection: deterministic. Filter the metadata to tracks 120-420 s long with a single top-level genre tag in the group; sort by track ID; take the first 6 per group whose license allows redistribution of renders with attribution (CC BY, CC BY-SA; avoid ND/NC for anything shown publicly), with at most 2 tracks per artist (D-019) and only tracks whose Jamendo download answers (HEAD check). `scripts/build_manifest.py` reproduces the list; `scripts/fetch_manifest_tracks.py --yes` downloads it.
 - Columns: `track_id, title, artist, genre_group, duration_s, license, license_url, source_url, sha256`.
 - Audio stored in `data/audio/prototype_30/` (git-ignored); only the manifest is committed.
+- Source: MTG-Jamendo ships audio only as multi-GB TAR folders, so single tracks are fetched from Jamendo's own per-track download URL (`https://mp3d.jamendo.com/download/track/<id>/mp32/`, about 155 MB for the 30). Metadata (`autotagging_genre.tsv`, `raw.meta.tsv`, `audio_licenses.txt`) comes from the dataset repository; per-track licenses are parsed from `audio_licenses.txt`.
+- Dataset terms (README of MTG-Jamendo): made available solely for non-commercial research and academic use; metadata CC BY-NC-SA 4.0; audio under per-track Creative Commons licenses. Use the corpus for research evaluation only; anything shown publicly needs the per-track attribution and must respect its license.
 - Attribution for any render shown publicly: "Title — Artist (License)".
 
 Bundled samples for the app (M7): 3 tracks from this manifest with CC BY or CC BY-SA licenses, contrasting in character.

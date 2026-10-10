@@ -1,0 +1,24 @@
+calibration_meta:
+  manifest_sha256: 898478143a832a2fcc4564579539af651f32d10d09b065f6c2bf404f11c0ece9
+  n_frames: 286876
+  n_tracks: 30
+  percentiles:
+  - 2.0
+  - 98.0
+color:
+  ranges:
+    centroid_log10_hz:
+    - 2.6084
+    - 3.6116
+    change_z:
+    - 0.5815
+    - 5.3853
+    harmonicity:
+    - 0.1074
+    - 0.969
+    loudness_dbfs:
+    - -46.3236
+    - -17.5607
+    noisiness_log10:
+    - -5.9643
+    - -1.1914

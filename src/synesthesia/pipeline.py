@@ -70,6 +70,41 @@ def analyze_audio(
     """
     timings: dict[str, float] = {}
     clock = time.perf_counter()
+    with single_thread():
+        y, info = normalize(audio, config)
+        sid = song_id(y)
+        timings["normalize"] = time.perf_counter() - clock
+        clock = time.perf_counter()
+        feats = extract_features(y, config)
+        timings["features"] = time.perf_counter() - clock
+        return analyze_features(
+            feats,
+            info,
+            sid,
+            config,
+            source_name=source_name,
+            calibration_hash=calibration_hash,
+            timings=timings,
+        )
+
+
+def analyze_features(
+    feats: FrameFeatures,
+    info: IngestInfo,
+    sid: str,
+    config: Config,
+    *,
+    source_name: str = "",
+    calibration_hash: str | None = None,
+    timings: dict[str, float] | None = None,
+) -> SongResult:
+    """Everything after feature extraction: layout, SOM, orientation, colors, fingerprint.
+
+    Split out so calibration and grid-size experiments can reuse one feature extraction.
+    The caller is responsible for running inside ``single_thread()`` when determinism matters.
+    """
+    timings = {} if timings is None else timings
+    clock = time.perf_counter()
 
     def lap(name: str) -> None:
         nonlocal clock
@@ -78,13 +113,6 @@ def analyze_audio(
         clock = now
 
     with single_thread():
-        y, info = normalize(audio, config)
-        sid = song_id(y)
-        lap("normalize")
-
-        feats = extract_features(y, config)
-        lap("features")
-
         space = build_layout(feats.layout_raw(), config)
         lap("standardize")
 

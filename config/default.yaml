@@ -99,8 +99,8 @@ color:
     empty_L: 0.16
     empty_chroma_factor: 0.35
   chroma:
-    min: 0.03
-    max: 0.18
+    min: 0.06                  # D-018 (spec 0.03)
+    max: 0.20                  # D-018 (spec 0.18)
   gamut: srgb_chroma_bisect     # reduce chroma until in sRGB, 24 bisection steps
   display_smoothing_sigma: 0.6  # light Gaussian on lightness only, in cells; 0 disables
 
@@ -134,7 +134,11 @@ fingerprint:
 
 live:
   fps: 43.066                   # = sample_rate / hop
-  tau_scale: 1.0                # tau = tau_scale * median BMU distance of the song
+  tau_target_share: 0.04        # tau so that, at the median frame, this share of cells has r >= 0.5 (D-024)
+  tau_sample_frames: 1024       # frames sampled (deterministic stride) to estimate tau
+  tau_scale: 1.0                # multiplier on that tau (spec: tau = tau_scale * median BMU distance)
+  beat_latency_s: 0.020         # onset-envelope peaks trail sharp clicks by ~20 ms (measured, M3)
+  blur_renormalize: true        # rescale the loudness blur so its peak stays 1 (D-024; spec: off)
   attack_ms: 40
   release_ms: 250
   diffusion_rate: 0.20
@@ -162,16 +166,18 @@ render:
   preview_px: 1024
   margin_cells: 1.0
   dot_radius_ratio: 0.34        # dot radius / cell pitch
-  glow_sigma_ratio: 0.25        # glow blur sigma / cell pitch (D-017; was 0.50)
-  glow_opacity: 0.35            # was 0.60 (D-017)
+  glow_sigma_ratio: 0.30        # glow blur sigma / cell pitch (D-018; D-017 had 0.25, spec 0.50)
+  glow_opacity: 0.45            # D-018 (D-017 had 0.35, spec 0.60)
   background: "#000000"
   caption: {enabled: false, font: system}
 
 preview:
   fps: 30
+  px: 1080                      # output side in pixels (docs/LIVE.md section 6)
   default_seconds: 20
   codec: h264
   crf: 18
+  audio_kbps: 192
 
 api:
   storage_dir: storage
