@@ -8,9 +8,9 @@ This file is loaded every session. It holds the rules and the map of the project
 
 ## Current status
 
-- **Current milestone:** M5 (blind test): page built 2026-10-11 and waiting on participants (owner recruits >= 10; see `docs/DATA_RESEARCH.md` section 4). Gates passed: M0, M1, M2 (exceptions D-022, D-023; calibration frozen through M5, D-020), M3 (2026-10-10: 32 x 32 flat dots, click-track sync 20/20), M4 (companion maps, D-031). Display is 32 x 32 flat glowing dots over the 64 x 64 analysis (D-030); node looks are swappable via `NodeStyle`. Update this line when a milestone's gate passes.
-- **M5 evidence:** `out/blind_test/` (index.html + 12 clips + 30 signatures, 12.4 MB), 60 fixed participant plans, analysis script. Glass look work is parked on branch `m3-glass-look`.
-- **Next action:** owner shares `out/blind_test/` with >= 10 adults, collects the CSVs, then `make blind-test-analyze FOLDER=...`. Gate: mean accuracy >= 50% and p < 0.05. At every gate: clean temporary files before reporting.
+- **Current milestone:** M5 (blind test): **gate not met** (2026-10-11: 28.3% vs 25% chance, p = 0.23; D-034). The ideal-observer check shows the information is in the signatures (98.6%), so the issue is legibility. Remedy pending owner decision; no M6 / web work until a re-test passes. Gates passed: M0, M1, M2 (exceptions D-022, D-023; calibration frozen through M5, D-020), M3 (2026-10-10: 32 x 32 flat dots, click-track sync 20/20), M4 (companion maps, D-031). Display is 32 x 32 flat glowing dots over the 64 x 64 analysis (D-030); node looks are swappable via `NodeStyle`. Update this line when a milestone's gate passes.
+- **M5 evidence:** `out/blind_test_results/` (10 CSVs), `scripts/blind_test/analyze.py` and `diagnose.py`, D-034. Glass look work is parked on branch `m3-glass-look`.
+- **Next action:** owner picks a remedy for D-034 (e.g. add a key and practice trials, or change the colour mapping with a documented decision), then re-test with >= 10 new participants. Gate: mean accuracy >= 50% and p < 0.05. At every gate: clean temporary files before reporting.
 
 ## Doc map: read before you work
 
