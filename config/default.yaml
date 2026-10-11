@@ -103,6 +103,11 @@ color:
     min: 0.08                  # D-025 (D-018 had 0.06, spec 0.03)
     max: 0.24                  # D-025 (D-018 had 0.20, spec 0.18)
   gamut: srgb_chroma_bisect     # reduce chroma until in sRGB, 24 bisection steps
+  emotion:                      # D-036: per-song valence / arousal offsets (model: config/emotion_model.json)
+    enabled: false
+    gain_lightness: 0.0         # lightness += gain * valence
+    gain_chroma: 0.0            # chroma += gain * (valence + arousal) / 2
+    gain_hue: 0.0               # palette position += gain * valence (toward warm for positive)
   display_smoothing_sigma: 0.6  # light Gaussian on lightness only, in cells; 0 disables
 
 maps:

@@ -141,6 +141,12 @@ def write_result(result: SongResult, out_dir: Path, config: Config) -> Path:
     (song_dir / "proto.bin").write_bytes(encode_proto_bin(result.prototypes, grid_size))
     sig = signature_dict(result, grid_size)
     sig["live"] = {"tau": stream.tau, "audio_offset_s": stream.audio_offset_s}
+    if result.emotion is not None:
+        sig["emotion"] = {
+            "valence": result.emotion[0],
+            "arousal": result.emotion[1],
+            "model_hash": f"sha256:{result.emotion_model_hash}",
+        }
     (song_dir / "signature.json").write_text(
         json.dumps(sig, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )

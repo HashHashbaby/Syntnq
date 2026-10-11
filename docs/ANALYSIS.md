@@ -122,6 +122,8 @@ Then:
 
 The same OKLab code is ported to GLSL for the live layer (`docs/LIVE.md`); unit tests compare the two on 1,000 random colors (max error 1/255).
 
+**What the colours are (D-035, D-037).** Signature colour is a deterministic, feature-driven summary of the sound (brightness, loudness and occupancy, harmonicity). It is not a prediction of how listeners colour music: against the Moodo human colour choices the mean lightness, chroma and hue correlate -0.01, +0.08 and +0.03 with the human means (human split-half ceilings 0.90, 0.77, 0.67), and a first emotion term trained on 100 clips did not clear the pre-registered bar. An optional emotion offset exists (`color.emotion`, off by default, `emotion.py`).
+
 ## 8. Companion maps (`maps/`)
 
 All maps have fixed shapes regardless of song length.

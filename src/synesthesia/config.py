@@ -158,6 +158,15 @@ class Hue(_Section):
     valence_blend: float
 
 
+class EmotionTerm(_Section):
+    """Per-song emotion offsets of the colour mapping (D-036)."""
+
+    enabled: bool
+    gain_lightness: float
+    gain_chroma: float
+    gain_hue: float
+
+
 class Lightness(_Section):
     min: float
     max: float
@@ -173,6 +182,7 @@ class Chroma(_Section):
 
 
 class Color(_Section):
+    emotion: EmotionTerm
     space: str
     ranges: ColorRanges
     hue: Hue

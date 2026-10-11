@@ -13,6 +13,7 @@ from synesthesia import PIPELINE_VERSION
 from synesthesia.color import SignatureColors, map_colors
 from synesthesia.config import Config
 from synesthesia.determinism import single_thread
+from synesthesia.emotion import EMOTION_MODEL_FILENAME, clip_features, load_model, model_hash
 from synesthesia.features import FrameFeatures, extract_features
 from synesthesia.fingerprint import compute_fingerprint, fingerprint_scalars
 from synesthesia.ingest import DecodedAudio, IngestInfo, decode_file, normalize, song_id
@@ -50,6 +51,8 @@ class SongResult:
     fingerprint: npt.NDArray[np.float32]
     fingerprint_complete: bool
     features: FrameFeatures
+    emotion: tuple[float, float] | None = None  # predicted (valence, arousal), D-036
+    emotion_model_hash: str | None = None
     timings: dict[str, float] = field(default_factory=dict)
 
 
@@ -139,7 +142,17 @@ def analyze_features(
         stats = cell_statistics(oriented.bmu, f_color, proto_color, config)
         lap("occupancy")
 
-        colors = map_colors(stats.cell_features, stats.occ_norm, stats.empty, config)
+        emotion: tuple[float, float] | None = None
+        model_path_hash: str | None = None
+        if config.color.emotion.enabled:
+            from synesthesia.config import DEFAULT_CONFIG_PATH
+
+            model_path = DEFAULT_CONFIG_PATH.parent / EMOTION_MODEL_FILENAME
+            va = load_model(model_path).predict(clip_features(feats))
+            emotion, model_path_hash = (float(va[0]), float(va[1])), model_hash(model_path)
+        colors = map_colors(
+            stats.cell_features, stats.occ_norm, stats.empty, config, emotion=emotion
+        )
         grids = feature_grids(colors.normalized, config)
         lap("color")
 
@@ -174,6 +187,8 @@ def analyze_features(
         colors=colors,
         feature_grids=grids,
         maps=maps,
+        emotion=emotion,
+        emotion_model_hash=model_path_hash,
         fingerprint=fingerprint,
         fingerprint_complete=True,
         features=feats,

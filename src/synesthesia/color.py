@@ -163,6 +163,7 @@ def map_colors(
     empty: npt.NDArray[np.bool_],
     config: Config,
     valence: Array | None = None,
+    emotion: tuple[float, float] | None = None,
 ) -> SignatureColors:
     """Map per-cell features to colors.
 
@@ -174,6 +175,8 @@ def map_colors(
         empty: ``(K,)`` empty-cell mask.
         config: resolved configuration.
         valence: optional ``(K,)`` normalized valence, used only when ``valence_blend > 0``.
+        emotion: optional song-level ``(valence, arousal)`` in [-1, 1]; applied when
+            ``color.emotion.enabled`` (D-036). Empty cells are not changed.
 
     Returns:
         :class:`SignatureColors`.
@@ -187,12 +190,21 @@ def map_colors(
         if valence is None:
             raise ValueError("color.hue.valence_blend > 0 requires valence")
         t = (1.0 - cc.hue.valence_blend) * t + cc.hue.valence_blend * valence
+    em = cc.emotion
+    use_emotion = em.enabled and emotion is not None
+    if use_emotion:
+        assert emotion is not None
+        t = np.clip(t + em.gain_hue * emotion[0], 0.0, 1.0)
     hue = cc.hue.from_deg + (cc.hue.to_deg - cc.hue.from_deg) * t
     lt, ch = cc.lightness, cc.chroma
     light = lt.min + (lt.max - lt.min) * (
         lt.occupancy_weight * occ_norm + lt.loudness_weight * n[1]
     )
     chroma = ch.min + (ch.max - ch.min) * n[3]
+    if use_emotion:
+        assert emotion is not None
+        light = np.clip(light + em.gain_lightness * emotion[0], lt.min, lt.max)
+        chroma = np.clip(chroma + em.gain_chroma * 0.5 * (emotion[0] + emotion[1]), 0.0, ch.max)
     light = np.where(empty, lt.empty_L, light)
     chroma = np.where(empty, chroma * lt.empty_chroma_factor, chroma)
 
