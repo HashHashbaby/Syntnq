@@ -14,6 +14,7 @@ Work strictly in order. Each milestone lists tasks, deliverables and a **gate**.
 | M7 | Web app MVP | Apple-style app with live liquid grid |
 | M8 | Export | Poster-grade PNG/SVG, share |
 | M9 | Collection and comparison | Library, compare view, ratings |
+| B | Music Atlas (placeholder) | Fingerprint projection map; details to plan |
 | M10 | Emotion model | DEAM-trained valence/arousal, emotion map |
 | M11 | Research | Preference pilot and baselines |
 
@@ -135,6 +136,8 @@ Work strictly in order. Each milestone lists tasks, deliverables and a **gate**.
 6. PWA manifest and service worker.
 7. Tests: vitest (loaders, OKLab GLSL vs JS parity via a readback test, clock math); Playwright screenshots per `docs/UI.md §13`; FPS measurement script; 5-minute drift test.
 8. WebGL vs Python preview comparison at 5 timestamps (`docs/LIVE.md §6`).
+9. Forward-compatible metadata (D-041): song records carry optional `genre`, `release_year`, `source`, `chart_peak`, `chart_weeks` (all nullable) through `signature.json`, the API and the web library. No UI for them yet beyond showing title and artist; no new features.
+10. Library data layer for scale (D-041): each song's fingerprint is stored with its record; list and search use paged queries (`limit`/`offset`, newest or title order, `X-Total-Count`) and a virtualised list, tested with several hundred synthetic songs. No new screens beyond the library list.
 
 **Gate:** UI checklist passes on screenshots at all three sizes, light and dark, reduced motion and transparency; 60 fps on M1 Air and iPhone 13 (or the closest devices the user has); drift ≤ 1 analysis frame over 5 minutes; WebGL matches the reference within tolerance.
 
@@ -163,6 +166,12 @@ Work strictly in order. Each milestone lists tasks, deliverables and a **gate**.
 
 ---
 
+## B. Music Atlas (placeholder, after M9)
+
+A map of a library (or a corpus) where each song is a point placed by its fingerprint (projection method, neighbours, filters by the optional metadata and click-through to the signature view). **Details to plan**; nothing is built or scheduled. It relies on the fingerprints and metadata the library already stores (D-041).
+
+---
+
 ## M10 Emotion model
 
 **Tasks**
@@ -187,4 +196,4 @@ See `docs/DATA_RESEARCH.md §5-6`. Pre-register the analysis plan in `docs/DECIS
 
 ## Later (not scheduled)
 
-Poster printing service · yearly mosaic of a listener's songs · live microphone input (`docs/LIVE.md §9`) · harmony map · native SwiftUI + Metal app · shared public signature links · commercial-success exploration (HSP-S, feature-only baseline, clearly labeled exploratory).
+**A. Hit Song Lab** (next to D-014: exploratory only, never a headline claim; uses `chart_peak` / `chart_weeks` metadata, HSP-S features and clearly labelled baselines) · Poster printing service · yearly mosaic of a listener's songs · live microphone input (`docs/LIVE.md §9`) · harmony map · native SwiftUI + Metal app · shared public signature links · commercial-success exploration (HSP-S, feature-only baseline, clearly labeled exploratory).

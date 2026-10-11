@@ -11,7 +11,6 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
 
 from fastapi import APIRouter, FastAPI, File, Form, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +23,7 @@ from synesthesia.api.storage import Storage, valid_job_id, valid_song_id
 from synesthesia.config import Config, load_config
 from synesthesia.errors import ErrorCode, SynError
 from synesthesia.ingest import decode_file, normalize, song_id
+from synesthesia.metadata import SongMetadata
 
 _BYTES_PER_MB = 1024 * 1024
 _SECONDS_PER_HOUR = 3600.0
@@ -108,7 +108,27 @@ def create_app(config: Config | None = None, storage_root: Path | None = None) -
         file: UploadFile = File(...),  # noqa: B008
         title: str | None = Form(None),  # noqa: B008
         artist: str | None = Form(None),  # noqa: B008
+        genre: str | None = Form(None),  # noqa: B008
+        release_year: str | None = Form(None),  # noqa: B008
+        source: str | None = Form(None),  # noqa: B008
+        chart_peak: str | None = Form(None),  # noqa: B008
+        chart_weeks: str | None = Form(None),  # noqa: B008
     ) -> Response:
+        try:
+            metadata = SongMetadata.parse(
+                {
+                    "title": title,
+                    "artist": artist,
+                    "genre": genre,
+                    "release_year": release_year,
+                    "source": source,
+                    "chart_peak": chart_peak,
+                    "chart_weeks": chart_weeks,
+                },
+                cfg,
+            )
+        except ValueError as exc:
+            return _error(400, "E_BAD_REQUEST", str(exc))
         client = request.client.host if request.client else "unknown"
         if not bucket.allow(client):
             return _error(429, "E_RATE_LIMIT", "Too many analyses. Please try again later.")
@@ -149,7 +169,7 @@ def create_app(config: Config | None = None, storage_root: Path | None = None) -
             if not cfg.api.keep_audio:
                 storage.delete_upload(path)
             return JSONResponse({"job_id": None, "song_id": sid}, status_code=200)
-        jobs.submit(job_id, path, title, artist)
+        jobs.submit(job_id, path, metadata)
         return JSONResponse({"job_id": job_id, "song_id": None}, status_code=202)
 
     @api.get("/jobs/{job_id}", response_model=None)
@@ -165,18 +185,23 @@ def create_app(config: Config | None = None, storage_root: Path | None = None) -
             return _error(404, "E_NOT_FOUND", "Unknown job.")
         return Response(status_code=204)
 
-    @api.get("/songs")
-    def list_songs() -> list[dict[str, Any]]:
-        return [
-            {
-                "song_id": m.song_id,
-                "title": m.title,
-                "artist": m.artist,
-                "duration_s": m.duration_s,
-                "created_at": m.created_at,
-            }
-            for m in storage.list_songs()
-        ]
+    @api.get("/songs", response_model=None)
+    def list_songs(
+        limit: int | None = None,
+        offset: int = 0,
+        q: str | None = None,
+        sort: str = "recent",
+        include: str | None = None,
+    ) -> Response:
+        size = min(cfg.api.page_size_default, cfg.api.page_size_max) if limit is None else limit
+        if not 1 <= size <= cfg.api.page_size_max or offset < 0 or sort not in ("recent", "title"):
+            return _error(400, "E_BAD_REQUEST", "Invalid paging parameters.")
+        items, total = storage.page(limit=size, offset=offset, query=q, sort=sort)
+        with_fp = include == "fingerprint"
+        return JSONResponse(
+            [m.as_dict(include_fingerprint=with_fp) for m in items],
+            headers={"X-Total-Count": str(total)},
+        )
 
     def _song_file(song: str, name: str) -> Path | None:
         if not valid_song_id(song):

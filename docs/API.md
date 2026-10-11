@@ -7,10 +7,10 @@ MVP: a single FastAPI process with an in-process job worker, local filesystem st
 | Method | Path | Purpose | Response |
 | --- | --- | --- | --- |
 | `GET` | `/health` | liveness | `{"status":"ok","pipeline_version":"<PIPELINE_VERSION>"}` |
-| `POST` | `/analyze` | multipart upload (`file`, optional `title`, `artist`) | `202 {"job_id": "...", "song_id": null}`; if the same audio was already analyzed with the same config: `200 {"job_id": null, "song_id": "..."}` |
+| `POST` | `/analyze` | multipart upload (`file`; optional `title`, `artist`, `genre`, `release_year`, `source`, `chart_peak`, `chart_weeks`) | `202 {"job_id": "...", "song_id": null}`; if the same audio was already analyzed with the same config: `200 {"job_id": null, "song_id": "..."}` |
 | `GET` | `/jobs/{job_id}` | job status | `{"state": "...", "stage": "...", "progress": 0.0-1.0, "song_id": "...|null", "error": {"code","message"}|null}` |
 | `DELETE` | `/jobs/{job_id}` | cancel | `204` |
-| `GET` | `/songs` | list analyzed songs | `[{"song_id","title","artist","duration_s","created_at"}]` |
+| `GET` | `/songs?limit=&offset=&q=&sort=recent\|title&include=fingerprint` | paged library (default 100, max 500); `X-Total-Count` header | `[{"song_id","title","artist","genre","release_year","source","chart_peak","chart_weeks","duration_s","created_at","fingerprint?"}]` |
 | `GET` | `/songs/{id}/signature.json` | metadata | JSON (`docs/ANALYSIS.md §11`) |
 | `GET` | `/songs/{id}/static.bin` | static colors, occupancy, feature grids | binary (§3) |
 | `GET` | `/songs/{id}/maps.bin` | structure, tempogram, dynamics | binary (§3) |
@@ -76,6 +76,10 @@ storage/
 - ffmpeg runs with a timeout and no network protocols (`-protocol_whitelist file,pipe`).
 - CORS: allow the web app origin only (configurable).
 - Rate limit: 10 analyses per hour per IP (simple in-memory token bucket) in the MVP.
+
+## 5a. Song metadata (D-041)
+
+Optional, nullable, never affects any array: `title`, `artist`, `genre`, `release_year` (1900-2100), `source` (free text, e.g. "Jamendo", "user upload"), `chart_peak` (>= 1), `chart_weeks` (>= 0). `chart_*` exist for the exploratory research of D-014 only. They are validated at upload (400 `E_BAD_REQUEST`), stored in the song's `meta.json` and in `signature.json` under `song`, and returned by `GET /songs`. The fingerprint (133 floats) is stored with the library entry so lists, similarity and later map views need no extra requests; the web library keeps it too.
 
 ## 5b. Implementation notes (M6)
 

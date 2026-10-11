@@ -23,6 +23,7 @@ from synesthesia.io import (
     encode_maps_bin,
     encode_static_bin,
 )
+from synesthesia.metadata import SongMetadata
 from synesthesia.pipeline import SongResult
 
 POLL_TIMEOUT_S = 180.0
@@ -189,7 +190,7 @@ def test_retention_removes_old_songs(
     st = Storage(tmp_path, config.hash()[:12])
     r = results["chord"]
     write_result_to(r, st.song_dir(r.song_id), config)
-    st.write_meta(r.song_id, "t", "a", r.ingest.duration_s)
+    st.write_meta(r.song_id, SongMetadata(title="t", artist="a"), r.ingest.duration_s)
     assert st.has_song(r.song_id)
     assert st.cleanup(30, now=time.time()) == []
     day = 86400.0
@@ -226,3 +227,76 @@ def test_four_minute_upload_is_done_within_the_latency_budget(tmp_path: Path) ->
         elapsed = time.monotonic() - t0
     assert job["state"] == "done"
     assert elapsed <= 40.0, f"4-minute upload took {elapsed:.1f} s (budget 40 s)"
+
+
+def test_metadata_fields_flow_through_signature_and_library(
+    wavs: dict[str, Path], tmp_path: Path
+) -> None:
+    form = {
+        "title": "Test", "artist": "Synth", "genre": "electronic", "release_year": "1999",
+        "source": "Jamendo", "chart_peak": "3", "chart_weeks": "12",
+    }  # fmt: skip
+    with _client(tmp_path) as c:
+        r = _upload(c, wavs["chord"], **form)
+        job = _wait(c, r.json()["job_id"])
+        assert job["state"] == "done"
+        sid = job["song_id"]
+        song = c.get(f"/api/songs/{sid}/signature.json").json()["song"]
+        assert song["genre"] == "electronic" and song["release_year"] == 1999
+        assert song["source"] == "Jamendo" and song["chart_peak"] == 3 and song["chart_weeks"] == 12
+        item = c.get("/api/songs").json()[0]
+        assert (
+            item["genre"] == "electronic"
+            and item["chart_weeks"] == 12
+            and "fingerprint" not in item
+        )
+        fp = c.get("/api/songs", params={"include": "fingerprint"}).json()[0]["fingerprint"]
+        assert len(fp) == 133
+
+        # absent fields stay null
+        job2 = _wait(c, _upload(c, wavs["sine_sweep"]).json()["job_id"])
+        song2 = c.get(f"/api/songs/{job2['song_id']}/signature.json").json()["song"]
+        assert (
+            song2["genre"] is None and song2["release_year"] is None and song2["chart_peak"] is None
+        )
+
+
+def test_invalid_metadata_is_rejected(wavs: dict[str, Path], tmp_path: Path) -> None:
+    with _client(tmp_path) as c:
+        for bad in ({"release_year": "abc"}, {"release_year": "1200"}, {"chart_peak": "0"},
+                    {"chart_weeks": "-1"}, {"genre": "x" * 500}):  # fmt: skip
+            r = _upload(c, wavs["chord"], **bad)
+            assert r.status_code == 400 and r.json()["error"]["code"] == "E_BAD_REQUEST", bad
+        assert list((tmp_path / "storage" / "uploads").iterdir()) == []
+
+
+def test_library_listing_is_paged_searchable_and_sortable(
+    results: dict[str, SongResult], config: Config, tmp_path: Path
+) -> None:
+    from synesthesia.io import write_result_to
+
+    cfg = load_config(overrides={"api": {"rate_limit_per_hour": 1000, "page_size_max": 3}})
+    store = Storage(tmp_path / "storage", cfg.hash()[:12])
+    names = [("chord", "Charlie"), ("sine_sweep", "alpha"), ("aba_song", "Bravo"),
+             ("white_noise", "delta"), ("pink_noise", "Echo")]  # fmt: skip
+    for key, title in names:
+        r = results[key]
+        meta = SongMetadata(title=title, artist="X", genre="rock" if key == "aba_song" else "pop")
+        write_result_to(r, store.song_dir(r.song_id), cfg, meta)
+        store.write_meta(r.song_id, meta, r.ingest.duration_s, [float(v) for v in r.fingerprint])
+        time.sleep(0.01)  # distinct created_at
+    with TestClient(create_app(cfg, storage_root=tmp_path / "storage")) as c:
+        page1 = c.get("/api/songs", params={"limit": 2, "offset": 0})
+        assert page1.headers["X-Total-Count"] == "5" and len(page1.json()) == 2
+        assert page1.json()[0]["title"] == "Echo"  # newest first
+        page3 = c.get("/api/songs", params={"limit": 2, "offset": 4}).json()
+        assert [s["title"] for s in page3] == ["Charlie"]
+        by_title = c.get("/api/songs", params={"sort": "title", "limit": 3}).json()
+        assert [s["title"] for s in by_title] == ["alpha", "Bravo", "Charlie"]
+        found = c.get("/api/songs", params={"q": "ROCK"})
+        assert [s["title"] for s in found.json()] == ["Bravo"] and found.headers[
+            "X-Total-Count"
+        ] == "1"
+        assert c.get("/api/songs", params={"limit": 0}).status_code == 400
+        assert c.get("/api/songs", params={"limit": 4}).status_code == 400  # above page_size_max
+        assert c.get("/api/songs", params={"sort": "nope"}).status_code == 400

@@ -206,6 +206,8 @@ out/<song_id>/
   "config_hash": "sha256:...",
   "calibration_hash": "sha256:... | null",
   "song": {"id": "3f2a9c1e5b7d4e8a", "title": null, "artist": null,
+           "genre": null, "release_year": null, "source": null,
+           "chart_peak": null, "chart_weeks": null,
            "duration_s": 213.4, "source_name": "file.mp3",
            "measured_lufs": -9.8, "applied_gain_db": -13.2},
   "grid": {"size": 64, "orientation": "rot90", "frames": 9190, "fps": 43.066},
@@ -217,7 +219,7 @@ out/<song_id>/
 }
 ```
 
-Title and artist come from tags or user input and never affect arrays.
+Title, artist and the other descriptive fields (`genre`, `release_year`, `source`, `chart_peak`, `chart_weeks`; all optional, D-041) come from tags or user input and never affect arrays. Readers ignore unknown or null fields, so `schema_version` stays 1.
 
 `arrays.npz` keys: `prototypes (4096,17) f32`, `std_mean (17,) f64`, `std_scale (17,) f64`, `block_weights (17,) f64`, `hits (4096,) u32`, `occ_norm (4096,) f32`, `cell_features (5,4096) f32`, `color_oklch (4096,3) f32`, `color_srgb (4096,3) u8`, `feature_grids (5,64,64) f32`, `structure (256,256) f16`, `tempogram (128,256) f16`, `beat_times (n,) f32`, `dyn_envelope (1024,) f32`, `dyn_hist (40,) f32`, `fingerprint (133,) f32`.
 

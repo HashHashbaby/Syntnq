@@ -213,6 +213,10 @@ api:
   rate_limit_per_hour: 10       # analyses per client per hour (token bucket)
   cors_origins: ["http://localhost:5173", "http://127.0.0.1:5173"]
   upload_chunk_kb: 256
+  metadata_max_len: 200         # characters per text field (title, artist, genre, source)
+  metadata_year_range: [1900, 2100]
+  page_size_default: 100        # GET /songs
+  page_size_max: 500
 
 blind_test:                     # M5, docs/DATA_RESEARCH.md section 4
   songs_per_group:              # 12 stimulus songs, 2-3 per genre group

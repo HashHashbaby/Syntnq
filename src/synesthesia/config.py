@@ -348,6 +348,10 @@ class Api(_Section):
     rate_limit_per_hour: int
     cors_origins: list[str]
     upload_chunk_kb: int
+    metadata_max_len: int
+    metadata_year_range: tuple[int, int]
+    page_size_default: int
+    page_size_max: int
 
 
 class Performance(_Section):

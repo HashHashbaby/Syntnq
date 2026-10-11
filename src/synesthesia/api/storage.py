@@ -15,6 +15,9 @@ import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+
+from synesthesia.metadata import SongMetadata
 
 _SONG_ID = re.compile(r"^[0-9a-f]{16}$")
 _JOB_ID = re.compile(r"^[0-9a-f]{32}$")
@@ -33,11 +36,24 @@ def valid_job_id(job_id: str) -> bool:
 
 @dataclass(frozen=True)
 class SongMeta:
+    """Library entry: descriptive metadata plus the fingerprint (docs/API.md section 1)."""
+
     song_id: str
-    title: str | None
-    artist: str | None
+    metadata: SongMetadata
     duration_s: float
     created_at: float
+    fingerprint: list[float] | None = None
+
+    def as_dict(self, *, include_fingerprint: bool = False) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "song_id": self.song_id,
+            **self.metadata.as_dict(),
+            "duration_s": self.duration_s,
+            "created_at": self.created_at,
+        }
+        if include_fingerprint:
+            d["fingerprint"] = self.fingerprint
+        return d
 
 
 class Storage:
@@ -63,14 +79,18 @@ class Storage:
         return valid_song_id(song_id) and (self.song_dir(song_id) / "signature.json").is_file()
 
     def write_meta(
-        self, song_id: str, title: str | None, artist: str | None, duration_s: float
+        self,
+        song_id: str,
+        metadata: SongMetadata,
+        duration_s: float,
+        fingerprint: list[float] | None = None,
     ) -> None:
         doc = {
             "song_id": song_id,
-            "title": title,
-            "artist": artist,
+            **metadata.as_dict(),
             "duration_s": duration_s,
             "created_at": time.time(),
+            "fingerprint": fingerprint,
         }
         (self.song_dir(song_id) / _META_NAME).write_text(json.dumps(doc), encoding="utf-8")
 
@@ -80,11 +100,11 @@ class Storage:
             return None
         d = json.loads(path.read_text(encoding="utf-8"))
         return SongMeta(
-            d["song_id"],
-            d.get("title"),
-            d.get("artist"),
-            float(d["duration_s"]),
-            float(d["created_at"]),
+            song_id=d["song_id"],
+            metadata=SongMetadata.from_dict(d),
+            duration_s=float(d["duration_s"]),
+            created_at=float(d["created_at"]),
+            fingerprint=d.get("fingerprint"),
         )
 
     def list_songs(self) -> list[SongMeta]:
@@ -95,6 +115,32 @@ class Storage:
                 if meta is not None:
                     out.append(meta)
         return sorted(out, key=lambda m: m.created_at, reverse=True)
+
+    def page(
+        self, *, limit: int, offset: int, query: str | None = None, sort: str = "recent"
+    ) -> tuple[list[SongMeta], int]:
+        """One page of the library and the total number of matches.
+
+        Args:
+            limit: page size.
+            offset: first item.
+            query: case-insensitive substring over title, artist and genre.
+            sort: ``recent`` (newest first) or ``title``.
+        """
+        items = self.list_songs()
+        if query:
+            q = query.lower()
+            items = [
+                m
+                for m in items
+                if any(
+                    q in (v or "").lower()
+                    for v in (m.metadata.title, m.metadata.artist, m.metadata.genre)
+                )
+            ]
+        if sort == "title":
+            items.sort(key=lambda m: ((m.metadata.title or "").lower(), m.song_id))
+        return items[offset : offset + limit], len(items)
 
     def delete_song(self, song_id: str) -> bool:
         """Delete every output of a song (all config hashes). Returns whether anything existed."""

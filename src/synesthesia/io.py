@@ -19,6 +19,7 @@ import numpy as np
 import numpy.typing as npt
 
 from synesthesia.config import Config
+from synesthesia.metadata import SongMetadata
 from synesthesia.pipeline import SongResult
 
 if TYPE_CHECKING:
@@ -67,7 +68,9 @@ def result_arrays(result: SongResult) -> dict[str, npt.NDArray[Any]]:
     }
 
 
-def signature_dict(result: SongResult, config_grid_size: int) -> dict[str, Any]:
+def signature_dict(
+    result: SongResult, config_grid_size: int, metadata: SongMetadata | None = None
+) -> dict[str, Any]:
     """The ``signature.json`` document (no timing fields; those live in ``log.json``)."""
     info = result.ingest
     return {
@@ -79,8 +82,7 @@ def signature_dict(result: SongResult, config_grid_size: int) -> dict[str, Any]:
         ),
         "song": {
             "id": result.song_id,
-            "title": None,
-            "artist": None,
+            **(metadata or SongMetadata()).as_dict(),
             "duration_s": info.duration_s,
             "source_name": result.source_name,
             "measured_lufs": info.measured_lufs,
@@ -133,7 +135,9 @@ def write_result(result: SongResult, out_dir: Path, config: Config) -> Path:
     return write_result_to(result, out_dir / result.song_id, config)
 
 
-def write_result_to(result: SongResult, song_dir: Path, config: Config) -> Path:
+def write_result_to(
+    result: SongResult, song_dir: Path, config: Config, metadata: SongMetadata | None = None
+) -> Path:
     """Write signature.json, arrays.npz, the binary files and log.json into ``song_dir``."""
     grid_size = config.grid.size
     song_dir.mkdir(parents=True, exist_ok=True)
@@ -145,7 +149,7 @@ def write_result_to(result: SongResult, song_dir: Path, config: Config) -> Path:
     (song_dir / "proto.bin").write_bytes(encode_proto_bin(result.prototypes, grid_size))
     (song_dir / "static.bin").write_bytes(encode_static_bin(result, grid_size))
     (song_dir / "maps.bin").write_bytes(encode_maps_bin(result, grid_size))
-    sig = signature_dict(result, grid_size)
+    sig = signature_dict(result, grid_size, metadata)
     sig["live"] = {"tau": stream.tau, "audio_offset_s": stream.audio_offset_s}
     if result.emotion is not None:
         sig["emotion"] = {

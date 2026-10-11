@@ -7,6 +7,7 @@ checked at stage boundaries (the pipeline's ``on_stage`` callback); a job exceed
 
 from __future__ import annotations
 
+import json
 import queue
 import sqlite3
 import threading
@@ -21,6 +22,7 @@ from synesthesia.config import Config
 from synesthesia.errors import USER_MESSAGES, ErrorCode, SynError
 from synesthesia.ingest import decode_file
 from synesthesia.io import write_result_to
+from synesthesia.metadata import SongMetadata
 from synesthesia.pipeline import analyze_audio
 
 STAGES = ("reading", "listening", "mapping", "coloring", "maps", "writing")
@@ -39,6 +41,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     upload_path TEXT,
     title TEXT,
     artist TEXT,
+    meta_json TEXT,
     created_at REAL NOT NULL,
     cancel INTEGER NOT NULL DEFAULT 0
 )
@@ -81,6 +84,9 @@ class JobManager:
         self._thread: threading.Thread | None = None
         with self._lock:
             self._db.execute(_SCHEMA)
+            cols = {r[1] for r in self._db.execute("PRAGMA table_info(jobs)")}
+            if "meta_json" not in cols:  # databases created before song metadata existed
+                self._db.execute("ALTER TABLE jobs ADD COLUMN meta_json TEXT")
             # a restart drops in-flight work: mark it failed so clients stop polling
             self._db.execute(
                 "UPDATE jobs SET state='failed', error_code=?, error_message=? "
@@ -104,13 +110,21 @@ class JobManager:
             self._db.close()
 
     # -- public API ------------------------------------------------------------------------------
-    def submit(self, job_id: str, upload_path: Path, title: str | None, artist: str | None) -> None:
+    def submit(self, job_id: str, upload_path: Path, metadata: SongMetadata) -> None:
         with self._lock:
             self._db.execute(
                 "INSERT INTO jobs "
-                "(job_id, state, stage, progress, upload_path, title, artist, created_at) "
-                "VALUES (?, 'queued', NULL, 0, ?, ?, ?, ?)",
-                (job_id, str(upload_path), title, artist, time.time()),
+                "(job_id, state, stage, progress, upload_path, title, artist, "
+                "meta_json, created_at) "
+                "VALUES (?, 'queued', NULL, 0, ?, ?, ?, ?, ?)",
+                (
+                    job_id,
+                    str(upload_path),
+                    metadata.title,
+                    metadata.artist,
+                    json.dumps(metadata.as_dict()),
+                    time.time(),
+                ),
             )
             self._db.commit()
         self._queue.put(job_id)
@@ -209,9 +223,13 @@ class JobManager:
             )
             self._stage(job_id, "writing", started)
             song_dir = self._storage.song_dir(result.song_id)
-            write_result_to(result, song_dir, self._config)
+            metadata = SongMetadata.from_dict(json.loads(row["meta_json"] or "{}"))
+            write_result_to(result, song_dir, self._config, metadata)
             self._storage.write_meta(
-                result.song_id, row["title"], row["artist"], result.ingest.duration_s
+                result.song_id,
+                metadata,
+                result.ingest.duration_s,
+                [float(v) for v in result.fingerprint],
             )
             self._update(
                 job_id, state="done", stage="writing", progress=1.0, song_id=result.song_id
