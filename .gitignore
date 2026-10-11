@@ -28,3 +28,6 @@ web/dist/
 Thumbs.db
 .idea/
 .vscode/
+
+# third-party datasets (licence terms apply; never commit)
+dataset_moodoo/

@@ -10,6 +10,7 @@ Figures marked **checked** were confirmed on the dataset's own page on 2026-10-1
 | DEAM (https://cvml.unige.ch/databases/DEAM/) | Train/validate the emotion model (M10) | Checked: 1,802 excerpts and full songs, per-second valence and arousal, Creative Commons audio (1.3 GB), openSMILE features. Clips mostly short (about 45 s, from memory), so not used for structure. |
 | PMEmo (https://github.com/HuiZhangDB/PMEmo) | Independent emotion validation (M10) | Unchecked: 794 songs, labels every 0.5 s, chorus excerpts only (copyright). |
 | SiTunes (https://github.com/JiayuLi-997/SiTunes_dataset) | Optional preference sanity check | Unchecked: 30 participants, 307 tracks, 2,006 logs; too small for general claims; audio availability unknown. |
+| Moodo (local folder `dataset_moodoo/moodo_dataset`, git-ignored) | M5c human-alignment check | Owner-supplied: 200 clips (14-25 s, ID-only names), 741 raters, 7,186 song-colour choices from a 49-colour HSV palette, plus perceived/induced valence-arousal. **Licence, citation and redistribution terms are not in the folder and are unverified**; owner to supply before any result is published. Audio and data are never committed or redistributed. |
 | HSP-S / HSP-L (https://zenodo.org/records/5383858) | Later, exploratory commercial-success baseline | Checked: AcousticBrainz features, Last.fm counts, Billboard for half of HSP-S, CC BY 4.0. Files are features, not audio, so signatures cannot be built from them. |
 
 ## 2. Prototype corpus: `data/manifests/prototype_30.csv`
