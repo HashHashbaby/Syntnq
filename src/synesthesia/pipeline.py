@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -25,6 +26,15 @@ from synesthesia.som import SomResult, train_som
 from synesthesia.standardize import LayoutSpace, build_layout, layout_columns, to_physical
 
 Array = npt.NDArray[np.float64]
+
+StageCallback = Callable[[str], None]
+"""Called with a stage name (reading, listening, mapping, coloring, maps) as each begins;
+may raise to cancel the analysis (docs/API.md section 2)."""
+
+
+def _notify(cb: StageCallback | None, stage: str) -> None:
+    if cb is not None:
+        cb(stage)
 
 
 @dataclass(frozen=True)
@@ -62,6 +72,7 @@ def analyze_audio(
     *,
     source_name: str = "",
     calibration_hash: str | None = None,
+    on_stage: StageCallback | None = None,
 ) -> SongResult:
     """Analyze already-decoded audio. Same samples + config + version -> identical arrays.
 
@@ -81,6 +92,7 @@ def analyze_audio(
         sid = song_id(y)
         timings["normalize"] = time.perf_counter() - clock
         clock = time.perf_counter()
+        _notify(on_stage, "listening")
         feats = extract_features(y, config)
         timings["features"] = time.perf_counter() - clock
         return analyze_features(
@@ -91,6 +103,7 @@ def analyze_audio(
             source_name=source_name,
             calibration_hash=calibration_hash,
             timings=timings,
+            on_stage=on_stage,
         )
 
 
@@ -103,6 +116,7 @@ def analyze_features(
     source_name: str = "",
     calibration_hash: str | None = None,
     timings: dict[str, float] | None = None,
+    on_stage: StageCallback | None = None,
 ) -> SongResult:
     """Everything after feature extraction: layout, SOM, orientation, colors, fingerprint.
 
@@ -119,6 +133,7 @@ def analyze_features(
         clock = now
 
     with single_thread():
+        _notify(on_stage, "mapping")
         space = build_layout(feats.layout_raw(), config)
         lap("standardize")
 
@@ -128,6 +143,7 @@ def analyze_features(
         oriented = orient(som.prototypes, som.bmu, space, config)
         lap("orient")
 
+        _notify(on_stage, "coloring")
         f_color = feats.color_matrix()
         cols = layout_columns(config)
         physical = to_physical(oriented.prototypes, space)
@@ -156,6 +172,7 @@ def analyze_features(
         grids = feature_grids(colors.normalized, config)
         lap("color")
 
+        _notify(on_stage, "maps")
         maps = compute_companion_maps(feats, config)
         lap("maps")
 
@@ -196,7 +213,13 @@ def analyze_features(
     )
 
 
-def analyze(path: Path, config: Config, *, calibration_hash: str | None = None) -> SongResult:
+def analyze(
+    path: Path,
+    config: Config,
+    *,
+    calibration_hash: str | None = None,
+    on_stage: StageCallback | None = None,
+) -> SongResult:
     """Decode and analyze an audio file.
 
     Args:
@@ -210,11 +233,16 @@ def analyze(path: Path, config: Config, *, calibration_hash: str | None = None) 
     Raises:
         SynError: with a code from docs/ANALYSIS.md section 13.
     """
+    _notify(on_stage, "reading")
     t0 = time.perf_counter()
     audio = decode_file(Path(path), config)
     decode_s = time.perf_counter() - t0
     result = analyze_audio(
-        audio, config, source_name=Path(path).name, calibration_hash=calibration_hash
+        audio,
+        config,
+        source_name=Path(path).name,
+        calibration_hash=calibration_hash,
+        on_stage=on_stage,
     )
     result.timings["decode"] = decode_s
     return result

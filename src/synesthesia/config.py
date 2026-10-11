@@ -40,6 +40,7 @@ class Ingest(_Section):
     min_duration_s: float
     max_duration_s: float
     max_file_mb: int
+    decode_timeout_s: float
     silent_lufs: float
     formats: list[str]
 
@@ -344,6 +345,9 @@ class Api(_Section):
     retention_days: int
     max_concurrent_jobs: int
     job_timeout_s: float
+    rate_limit_per_hour: int
+    cors_origins: list[str]
+    upload_chunk_kb: int
 
 
 class Performance(_Section):

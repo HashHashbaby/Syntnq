@@ -38,6 +38,18 @@ def render_sound_map(
     return get_node_style(config).render_static(nodes, config.render.display_grid, side)
 
 
+def png_bytes(image: Image.Image, metadata: dict[str, str]) -> bytes:
+    """PNG bytes with text chunks and no timestamp (deterministic)."""
+    import io
+
+    info = PngInfo()
+    for key in sorted(metadata):
+        info.add_text(key, metadata[key])
+    buf = io.BytesIO()
+    image.save(buf, format="PNG", pnginfo=info, compress_level=_PNG_COMPRESS_LEVEL, optimize=False)
+    return buf.getvalue()
+
+
 def save_png(image: Image.Image, path: Path, metadata: dict[str, str]) -> None:
     """Write a PNG with text chunks and no timestamp (deterministic bytes)."""
     info = PngInfo()

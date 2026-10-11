@@ -6,7 +6,7 @@ MVP: a single FastAPI process with an in-process job worker, local filesystem st
 
 | Method | Path | Purpose | Response |
 | --- | --- | --- | --- |
-| `GET` | `/health` | liveness | `{"status":"ok","pipeline_version":"0.1.0"}` |
+| `GET` | `/health` | liveness | `{"status":"ok","pipeline_version":"<PIPELINE_VERSION>"}` |
 | `POST` | `/analyze` | multipart upload (`file`, optional `title`, `artist`) | `202 {"job_id": "...", "song_id": null}`; if the same audio was already analyzed with the same config: `200 {"job_id": null, "song_id": "..."}` |
 | `GET` | `/jobs/{job_id}` | job status | `{"state": "...", "stage": "...", "progress": 0.0-1.0, "song_id": "...|null", "error": {"code","message"}|null}` |
 | `DELETE` | `/jobs/{job_id}` | cancel | `204` |
@@ -76,6 +76,16 @@ storage/
 - ffmpeg runs with a timeout and no network protocols (`-protocol_whitelist file,pipe`).
 - CORS: allow the web app origin only (configurable).
 - Rate limit: 10 analyses per hour per IP (simple in-memory token bucket) in the MVP.
+
+## 5b. Implementation notes (M6)
+
+- Run: `make api-dev` (uvicorn factory `synesthesia.api.app:create_app`, 127.0.0.1:8000). `create_app(config, storage_root)` is also what the tests use.
+- `POST /analyze` decodes and normalizes the upload in the request to get the song ID, so decode errors return 400/413 immediately and an already-analyzed song returns `200` without a job. The worker decodes again (cheap) and runs the pipeline with stage callbacks (`reading`, `listening`, `mapping`, `coloring`, `maps`, `writing`).
+- Progress is stage index / 6 (SOM epochs do not report sub-progress yet). Cancellation and the 300 s timeout are checked at stage boundaries, not mid-stage.
+- Extra error codes outside `docs/ANALYSIS.md` section 13: `E_NOT_FOUND` (404), `E_BAD_REQUEST` (400), `E_RATE_LIMIT` (429), `E_NOT_IMPLEMENTED` (501, compare and rating until M9).
+- `export` supports `caption=0` only until the caption renderer exists. Rate limit is per client IP, in memory.
+- ffmpeg and ffprobe run with `-protocol_whitelist file,pipe` and a timeout (`ingest.decode_timeout_s`).
+- Fixtures for the web loaders: `scripts/make_format_fixtures.py`.
 
 ## 6. Tests
 

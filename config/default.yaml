@@ -16,6 +16,7 @@ ingest:
   min_duration_s: 20.0
   max_duration_s: 720.0         # 12 minutes
   max_file_mb: 100
+  decode_timeout_s: 120.0       # ffmpeg / ffprobe subprocess timeout
   silent_lufs: -60.0            # below this integrated loudness -> E_SILENT
   formats: [wav, flac, mp3, m4a, aac, ogg, opus]
 
@@ -209,6 +210,9 @@ api:
   retention_days: 30            # analysis outputs of anonymous uploads
   max_concurrent_jobs: 1
   job_timeout_s: 300
+  rate_limit_per_hour: 10       # analyses per client per hour (token bucket)
+  cors_origins: ["http://localhost:5173", "http://127.0.0.1:5173"]
+  upload_chunk_kb: 256
 
 blind_test:                     # M5, docs/DATA_RESEARCH.md section 4
   songs_per_group:              # 12 stimulus songs, 2-3 per genre group

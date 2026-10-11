@@ -104,6 +104,8 @@ Work strictly in order. Each milestone lists tasks, deliverables and a **gate**.
 2. Protocol and consent text in `docs/DATA_RESEARCH.md §4`.
 3. Run with ≥ 10 participants (user recruits); analyze accuracy, per-song difficulty, binomial test vs 25% chance.
 
+**Outcome (2026-10-11):** gate not met (28.3%, D-034); waived by the owner with conditions (D-038). M6 and M7 proceed; the colour claims are limited and the mapping is explained in the app.
+
 **Gate:** mean accuracy ≥ 50% and significantly above chance (p < 0.05). If not met: diagnose with the per-song results, adjust the color mapping, re-run M2 metrics, then re-test. Do not build the web app on unrecognizable signatures.
 
 ---
@@ -117,6 +119,8 @@ Work strictly in order. Each milestone lists tasks, deliverables and a **gate**.
 4. Integration tests and latency test.
 
 **Gate:** all API tests pass; 4-minute track upload to `done` ≤ 40 s; formats round-trip.
+
+**Evidence (2026-10-11):** `tests/integration/test_api.py` (11 tests; 121 in the suite). 4-minute synthetic upload to `done` in about 25 s on the development machine (budget 40 s); static and maps formats round-trip; dedup, error mapping, `keep_audio`, retention, rate limit and cancellation covered. `docs/API.md` section 5b lists what is simplified.
 
 ---
 

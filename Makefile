@@ -50,7 +50,7 @@ compare-sizes:
 	uv run python scripts/compare_sizes.py
 
 api-dev:
-	@echo "make api-dev arrives in M6 (FastAPI service)" && exit 1
+	uv run uvicorn synesthesia.api.app:create_app --factory --host 127.0.0.1 --port 8000 --reload
 
 web-dev:
 	@echo "make web-dev arrives in M7 (web app)" && exit 1

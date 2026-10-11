@@ -125,13 +125,17 @@ def _lib_versions() -> dict[str, str]:
 
 
 def write_result(result: SongResult, out_dir: Path, config: Config) -> Path:
-    """Write ``signature.json``, ``arrays.npz`` and ``log.json`` into ``out_dir/<song_id>/``.
+    """Write all outputs into ``out_dir/<song_id>/``.
 
     Returns:
         The song directory.
     """
+    return write_result_to(result, out_dir / result.song_id, config)
+
+
+def write_result_to(result: SongResult, song_dir: Path, config: Config) -> Path:
+    """Write signature.json, arrays.npz, the binary files and log.json into ``song_dir``."""
     grid_size = config.grid.size
-    song_dir = out_dir / result.song_id
     song_dir.mkdir(parents=True, exist_ok=True)
     write_npz_deterministic(song_dir / "arrays.npz", result_arrays(result))
     from synesthesia.live import build_live_stream
@@ -139,6 +143,8 @@ def write_result(result: SongResult, out_dir: Path, config: Config) -> Path:
     stream = build_live_stream(result, config)
     (song_dir / "live.bin").write_bytes(encode_live_bin(stream, grid_size))
     (song_dir / "proto.bin").write_bytes(encode_proto_bin(result.prototypes, grid_size))
+    (song_dir / "static.bin").write_bytes(encode_static_bin(result, grid_size))
+    (song_dir / "maps.bin").write_bytes(encode_maps_bin(result, grid_size))
     sig = signature_dict(result, grid_size)
     sig["live"] = {"tau": stream.tau, "audio_offset_s": stream.audio_offset_s}
     if result.emotion is not None:
@@ -252,6 +258,78 @@ def encode_proto_bin(prototypes: npt.NDArray[np.float64], grid_size: int) -> byt
         + struct.pack("<HH", d, 0)
         + np.ascontiguousarray(prototypes, dtype="<f2").tobytes()
     )
+
+
+def encode_static_bin(result: SongResult, grid_size: int) -> bytes:
+    """Serialize ``static.bin`` (``SYNS``): colors, occupancy, hits, feature grids."""
+    k = result.colors.srgb.shape[0]
+    out = io.BytesIO()
+    out.write(_header(b"SYNS", grid_size, k))
+    out.write(np.ascontiguousarray(result.colors.srgb, dtype=np.uint8).tobytes())
+    out.write(np.ascontiguousarray(result.colors.oklch, dtype="<f4").tobytes())
+    out.write(np.ascontiguousarray(result.stats.occ_norm, dtype="<f4").tobytes())
+    out.write(np.ascontiguousarray(result.stats.hits, dtype="<u4").tobytes())
+    out.write(np.ascontiguousarray(result.feature_grids.reshape(5, k), dtype="<f4").tobytes())
+    return out.getvalue()
+
+
+def decode_static_bin(buf: bytes) -> dict[str, npt.NDArray[Any]]:
+    """Parse ``static.bin`` into ``color_srgb (K,3) u8``, ``color_oklch (K,3) f32``, ``occ_norm``,
+    ``hits`` and ``feature_grids (5,K) f32``."""
+    _, k = _check_header(buf, b"SYNS")
+    pos = _HEADER.size
+    out: dict[str, npt.NDArray[Any]] = {}
+    for name, dtype, shape in (
+        ("color_srgb", "u1", (k, 3)),
+        ("color_oklch", "<f4", (k, 3)),
+        ("occ_norm", "<f4", (k,)),
+        ("hits", "<u4", (k,)),
+        ("feature_grids", "<f4", (5, k)),
+    ):
+        n = int(np.prod(shape))
+        arr = np.frombuffer(buf, dtype=dtype, count=n, offset=pos).reshape(shape)
+        pos += arr.nbytes
+        out[name] = arr
+    return out
+
+
+def encode_maps_bin(result: SongResult, grid_size: int) -> bytes:
+    """Serialize ``maps.bin`` (``SYNM``): structure, tempogram, dynamics, beat times."""
+    maps = result.maps
+    out = io.BytesIO()
+    out.write(_header(b"SYNM", grid_size, result.colors.srgb.shape[0]))
+    out.write(np.ascontiguousarray(maps.structure, dtype="<f2").tobytes())
+    out.write(np.ascontiguousarray(maps.rhythm.tempogram, dtype="<f2").tobytes())
+    out.write(np.ascontiguousarray(maps.dynamics.envelope, dtype="<f4").tobytes())
+    out.write(np.ascontiguousarray(maps.dynamics.hist, dtype="<f4").tobytes())
+    beats = maps.rhythm.beat_times_s
+    out.write(struct.pack("<I", beats.size))
+    out.write(np.ascontiguousarray(beats, dtype="<f4").tobytes())
+    return out.getvalue()
+
+
+def decode_maps_bin(
+    buf: bytes, *, structure: int = 256, tempo_rows: int = 128, tempo_cols: int = 256,
+    envelope: int = 1024, hist: int = 40,
+) -> dict[str, npt.NDArray[Any]]:  # fmt: skip
+    """Parse ``maps.bin``; shapes default to the spec (docs/API.md section 3)."""
+    _check_header(buf, b"SYNM")
+    pos = _HEADER.size
+    out: dict[str, npt.NDArray[Any]] = {}
+    for name, dtype, shape in (
+        ("structure", "<f2", (structure, structure)),
+        ("tempogram", "<f2", (tempo_rows, tempo_cols)),
+        ("dyn_envelope", "<f4", (envelope,)),
+        ("dyn_hist", "<f4", (hist,)),
+    ):
+        n = int(np.prod(shape))
+        arr = np.frombuffer(buf, dtype=dtype, count=n, offset=pos).reshape(shape)
+        pos += arr.nbytes
+        out[name] = arr
+    (n_beats,) = struct.unpack_from("<I", buf, pos)
+    pos += 4
+    out["beat_times"] = np.frombuffer(buf, dtype="<f4", count=n_beats, offset=pos)
+    return out
 
 
 def decode_proto_bin(buf: bytes) -> npt.NDArray[np.float16]:

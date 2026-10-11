@@ -73,7 +73,7 @@ def _ffmpeg_version() -> str:
     return out.stdout.splitlines()[0] if out.stdout else "unknown"
 
 
-def _decode_ffmpeg(path: Path) -> DecodedAudio:
+def _decode_ffmpeg(path: Path, timeout_s: float) -> DecodedAudio:
     version = _ffmpeg_version()
     probe = shutil.which("ffprobe")
     exe = shutil.which("ffmpeg")
@@ -84,6 +84,8 @@ def _decode_ffmpeg(path: Path) -> DecodedAudio:
             probe,
             "-v",
             "error",
+            "-protocol_whitelist",
+            "file,pipe",
             "-select_streams",
             "a:0",
             "-show_entries",
@@ -95,6 +97,7 @@ def _decode_ffmpeg(path: Path) -> DecodedAudio:
         capture_output=True,
         text=True,
         check=False,
+        timeout=timeout_s,
     )
     try:
         stream = json.loads(info.stdout)["streams"][0]
@@ -108,6 +111,8 @@ def _decode_ffmpeg(path: Path) -> DecodedAudio:
             "-v",
             "error",
             "-nostdin",
+            "-protocol_whitelist",
+            "file,pipe",
             "-i",
             str(path),
             "-vn",
@@ -119,6 +124,7 @@ def _decode_ffmpeg(path: Path) -> DecodedAudio:
         ],
         capture_output=True,
         check=False,
+        timeout=timeout_s,
     )
     if proc.returncode != 0 or not proc.stdout:
         raise SynError(ErrorCode.E_DECODE, proc.stderr.decode("utf-8", "replace")[:200])
@@ -159,7 +165,10 @@ def decode_file(path: Path, config: Config) -> DecodedAudio:
     if path.stat().st_size > config.ingest.max_file_mb * _BYTES_PER_MB:
         raise SynError(ErrorCode.E_SIZE, f"{path.stat().st_size} bytes")
     if suffix in _FFMPEG_SUFFIXES:
-        return _decode_ffmpeg(path)
+        try:
+            return _decode_ffmpeg(path, config.ingest.decode_timeout_s)
+        except subprocess.TimeoutExpired as exc:
+            raise SynError(ErrorCode.E_DECODE, "decoder timed out") from exc
     return _decode_soundfile(path)
 
 
