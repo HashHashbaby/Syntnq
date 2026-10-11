@@ -88,6 +88,8 @@ When `prefers-reduced-motion` is set (or the in-app override is on): no ripples,
 - **Pass 4 (composite):** full-screen quad; for each pixel find its cell, draw the anti-aliased dot with color from §2.7, add ripples (uniform array of ≤ 8 ripples), trail (uniform array of recent cell positions).
 - **Pass 5 (bloom):** half-resolution two-pass Gaussian blur of pass 4, screen-blended at 0.6.
 - **Fallback:** Canvas2D at 30 fps computing the same math on the CPU in a Web Worker if WebGL2 is unavailable.
+
+**As built (M7, D-042).** The response field, smoothing, diffusion, ripples, trail and per-cell colour run on the CPU in `web/src/engine/live.ts` (typed arrays, no per-frame allocation, about 4 ms per frame; a number-for-number port of `live.py`, tested against it). Gamut mapping uses a (lightness x hue) table plus a 9-step exact refinement. The GPU (`web/src/gl/`) draws the pooled 32 x 32 nodes: trail pass, dot pass, half-resolution Gaussian glow and a screen composite; shaders are `shaders/*.glsl`. The Canvas2D fallback draws the same pooled frame on the main thread (no worker needed at this cost). Parity with the Python preview: mean per-pixel difference 1.9-3.2 / 255 at five timestamps (budget 6).
 - Use `devicePixelRatio` up to 2 (cap at 2 for performance); resize on `ResizeObserver`.
 
 ## 5. Audio sync

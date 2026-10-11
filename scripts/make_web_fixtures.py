@@ -59,6 +59,12 @@ def export_params() -> None:
             "background": cfg.render.background,
             "node": cfg.render.node.model_dump(),
         },
+        "ranges": cfg.color.ranges.model_dump(),
+        "maps": {
+            "feature_grids": cfg.maps.feature_grids,
+            "ramp_hues": {k: v.hue_deg for k, v in cfg.maps.ramp_hues.items()},
+            "ramp": cfg.maps.ramp.model_dump(),
+        },
         "preview": {"fps": cfg.preview.fps},
         "api": {
             "page_size_default": cfg.api.page_size_default,

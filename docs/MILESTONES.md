@@ -141,6 +141,8 @@ Work strictly in order. Each milestone lists tasks, deliverables and a **gate**.
 
 **Gate:** UI checklist passes on screenshots at all three sizes, light and dark, reduced motion and transparency; 60 fps on M1 Air and iPhone 13 (or the closest devices the user has); drift ≤ 1 analysis frame over 5 minutes; WebGL matches the reference within tolerance.
 
+**Evidence (2026-10-11):** `web/` (React + Vite + raw WebGL2, `make web-dev`, `make web-test`). Vitest 19 tests (engine, pooling, colour, formats, library with 600 songs, clock); Playwright 58 tests: app flow, upload through the API with dedup, WebGL vs Python at 5 timestamps (mean 1.9-3.2 / 255, budget 6), Canvas2D fallback (2.05 / 255 vs WebGL), and the UI checklist in 48 contexts (3 sizes x light/dark x reduced motion x reduced transparency; 264 screenshots in `web/test-results/screens/`). Measured on an RTX 3050 laptop GPU: 60.0 fps, frame p95 16.7 ms (30 s of playback); visual versus audible clock worst 15.6 ms = 0.67 analysis frames over 5 minutes. **Not verified:** M1 MacBook Air and iPhone 13 (no devices); Safari. First landing, mapping key and tasks 9-10 (metadata, fingerprint-backed paged library) are in. Decisions D-042, D-043.
+
 ---
 
 ## M8 Export

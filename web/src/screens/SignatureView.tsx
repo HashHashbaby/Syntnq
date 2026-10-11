@@ -1,0 +1,278 @@
+// Signature screen (docs/UI.md section 6.5-6.7): the stage, player bar, map switcher, inspector.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AudioPlayer } from "../audio/player";
+import { GridCanvas } from "../components/GridCanvas";
+import { CAPTIONS, DynamicsView, FEATURES, FeatureGridView, RhythmView, StructureView, type FeatureName, type MapView } from "../components/MapViews";
+import { Icon, Segmented, formatTime } from "../components/parts";
+import { params } from "../params";
+import { motionReduced, useSettings } from "../state/settings";
+import { useApp, type OpenSong } from "../state/store";
+import { ExportSheet } from "./ExportSheet";
+
+const VIEWS: { value: MapView; label: string }[] = [
+  { value: "sound", label: "Sound" },
+  { value: "features", label: "Features" },
+  { value: "structure", label: "Structure" },
+  { value: "rhythm", label: "Rhythm" },
+  { value: "dynamics", label: "Dynamics" },
+];
+const FEATURE_LABELS: Record<FeatureName, string> = { brightness: "Brightness", loudness: "Loudness", noisiness: "Noise", harmonicity: "Harmony", change: "Change" };
+const SEEK_SHORT_S = 5;
+const SEEK_LONG_S = 30;
+
+interface NodeInfo {
+  row: number;
+  col: number;
+  share: number;
+  brightnessHz: number;
+  loudnessDb: number;
+  noisiness: number;
+  harmonicity: number;
+  change: number;
+  playing: boolean;
+}
+
+function nodeInfo(open: OpenSong, row: number, col: number, bmu: number | null): NodeInfo {
+  const size = params.grid.size;
+  const block = size / params.render.display_grid;
+  const st = open.stat;
+  const acc = [0, 0, 0, 0, 0];
+  let hits = 0;
+  let playing = false;
+  for (let dy = 0; dy < block; dy++) {
+    for (let dx = 0; dx < block; dx++) {
+      const c = (row * block + dy) * size + col * block + dx;
+      for (let f = 0; f < 5; f++) acc[f] += st.featureGrids[f * st.cells + c];
+      hits += st.hits[c];
+      if (bmu === c) playing = true;
+    }
+  }
+  const per = block * block;
+  const total = st.hits.reduce((a, b) => a + b, 0) || 1;
+  const r = params.ranges;
+  const lerp = (rng: [number, number], t: number): number => rng[0] + (rng[1] - rng[0]) * t;
+  return {
+    row,
+    col,
+    share: hits / total,
+    brightnessHz: Math.pow(10, lerp(r.centroid_log10_hz, acc[0] / per)),
+    loudnessDb: lerp(r.loudness_dbfs, acc[1] / per),
+    noisiness: acc[2] / per,
+    harmonicity: lerp(r.harmonicity, acc[3] / per),
+    change: acc[4] / per,
+    playing,
+  };
+}
+
+function InspectorBody({ info }: { info: NodeInfo | null }) {
+  if (!info) return <p className="t-sub secondary">Hover a dot to see what it is.</p>;
+  return (
+    <div className="kv t-sub tabular">
+      <span className="secondary">Position</span><span>row {info.row + 1}, col {info.col + 1}</span>
+      <span className="secondary">Share of song</span><span>{(info.share * 100).toFixed(1)}%</span>
+      <span className="secondary">Brightness</span><span>{Math.round(info.brightnessHz)} Hz</span>
+      <span className="secondary">Loudness</span><span>{info.loudnessDb.toFixed(0)} dBFS</span>
+      <span className="secondary">Noisiness</span><span>{Math.round(info.noisiness * 100)}%</span>
+      <span className="secondary">Harmonic</span><span>{Math.round(info.harmonicity * 100)}%</span>
+      <span className="secondary">Change</span><span>{Math.round(info.change * 100)}%</span>
+      <span className="secondary">Now</span><span>{info.playing ? "playing this sound" : "-"}</span>
+    </div>
+  );
+}
+
+export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => void }) {
+  const settings = useSettings();
+  const lib = useApp((s) => s.lib);
+  const removeSong = useApp((s) => s.removeSong);
+  const showToast = useApp((s) => s.showToast);
+  const reduced = motionReduced(settings);
+  const [view, setView] = useState<MapView>("sound");
+  const [feature, setFeature] = useState<FeatureName>("brightness");
+  const [sheet, setSheet] = useState(false);
+  const [hover, setHover] = useState<{ info: NodeInfo; x: number; y: number } | null>(null);
+  const [bmu, setBmu] = useState<number | null>(null);
+  const [pos, setPos] = useState(0);
+  const [, force] = useState(0);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
+
+  const player = useMemo(() => new AudioPlayer(), [open.record.songId]);
+  useEffect(() => {
+    const off = player.onChange(() => force((n) => n + 1));
+    if (open.audio) void player.load(open.audio);
+    return () => {
+      off();
+      player.dispose();
+    };
+  }, [player, open.audio]);
+
+  useEffect(() => {
+    let raf = 0;
+    let last = 0;
+    const tick = (now: number): void => {
+      if (now - last > 100) {
+        last = now;
+        setPos(player.position());
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [player]);
+
+  const toggle = useCallback(() => {
+    if (player.state === "playing") player.pause();
+    else void player.play();
+  }, [player]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const t = e.target as HTMLElement;
+      if (t.tagName === "INPUT" && (t as HTMLInputElement).type !== "range") return;
+      if (e.key === " " && t.tagName !== "BUTTON") {
+        e.preventDefault();
+        toggle();
+      } else if (e.key === "ArrowRight" && t.tagName !== "INPUT") player.seek(player.position() + (e.shiftKey ? SEEK_LONG_S : SEEK_SHORT_S));
+      else if (e.key === "ArrowLeft" && t.tagName !== "INPUT") player.seek(player.position() - (e.shiftKey ? SEEK_LONG_S : SEEK_SHORT_S));
+      else if (/^[1-5]$/.test(e.key) && !e.metaKey && !e.ctrlKey) setView(VIEWS[Number(e.key) - 1].value);
+      else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "e") {
+        e.preventDefault();
+        setSheet(true);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [player, toggle]);
+
+  const onPointer = (e: React.PointerEvent): void => {
+    const el = stageRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const n = params.render.display_grid;
+    const pitch = r.width / (n + 2 * params.render.margin_cells);
+    const col = Math.floor((e.clientX - r.left) / pitch - params.render.margin_cells);
+    const row = Math.floor((e.clientY - r.top) / pitch - params.render.margin_cells);
+    if (col < 0 || row < 0 || col >= n || row >= n) setHover(null);
+    else setHover({ info: nodeInfo(open, row, col, bmu), x: e.clientX, y: e.clientY });
+  };
+
+  const addAudio = async (f: File | undefined): Promise<void> => {
+    if (!f || !lib) return;
+    await lib.putAudio(open.record.songId, f);
+    await useApp.getState().selectSong(open.record.songId);
+    showToast("Audio added on this device.");
+  };
+
+  const title = open.record.title ?? "Untitled";
+  const duration = player.duration || open.record.durationS;
+  const ariaLabel = `Signature of ${title}`;
+  const caption = view === "features" ? `${CAPTIONS.features} Showing ${FEATURE_LABELS[feature].toLowerCase()}.` : CAPTIONS[view];
+
+  return (
+    <>
+      <div className="toolbar material">
+        <button className="btn btn-icon only-phone" onClick={onBack} aria-label="Back to library">
+          <Icon name="chevron.left" />
+        </button>
+        <div className="grow">
+          <h1 className="t-headline truncate">{title}</h1>
+          <p className="t-foot secondary truncate">{open.record.artist ?? open.attribution ?? ""}</p>
+        </div>
+        <button className="btn btn-icon" onClick={() => setSheet(true)} aria-label="Export">
+          <Icon name="square.and.arrow.up" />
+        </button>
+        <button
+          className="btn btn-icon"
+          aria-label="Delete song"
+          onClick={() => {
+            if (confirm(`Delete "${title}" from this device?`)) void removeSong(open.record.songId).then(onBack);
+          }}
+        >
+          <Icon name="trash" />
+        </button>
+      </div>
+
+      <div className="view" data-inspector="true">
+        <div className="view-body">
+          <Segmented
+            label="Map view"
+            value={view}
+            options={VIEWS.map((v, i) => ({ ...v, ariaLabel: `${v.label} (${i + 1})` }))}
+            onChange={setView}
+          />
+          {view === "features" && (
+            <Segmented
+              label="Feature"
+              value={feature}
+              options={FEATURES.map((f) => ({ value: f, label: FEATURE_LABELS[f] }))}
+              onChange={setFeature}
+            />
+          )}
+
+          {view === "sound" ? (
+            <div
+              ref={stageRef}
+              className="stage-card"
+              onPointerMove={onPointer}
+              onPointerLeave={() => setHover(null)}
+              data-testid="stage"
+            >
+              <GridCanvas open={open} player={player} reduced={reduced} onBmu={setBmu} ariaLabel={ariaLabel} />
+            </div>
+          ) : (
+            <div className="maps-card" data-testid="map-card">
+              {view === "features" && <FeatureGridView stat={open.stat} feature={feature} />}
+              {view === "structure" && <StructureView maps={open.maps} />}
+              {view === "rhythm" && <RhythmView maps={open.maps} />}
+              {view === "dynamics" && <DynamicsView maps={open.maps} />}
+            </div>
+          )}
+          <p className="caption t-sub secondary">{caption}</p>
+
+          <div className="player material" role="group" aria-label="Playback">
+            <button className="btn btn-icon btn-filled" onClick={toggle} disabled={!open.audio || player.state === "idle"} aria-label={player.state === "playing" ? "Pause" : "Play"}>
+              <Icon name={player.state === "playing" ? "pause.fill" : "play.fill"} />
+            </button>
+            <input
+              className="scrub"
+              type="range"
+              min={0}
+              max={Math.max(duration, 1)}
+              step={0.1}
+              value={Math.min(pos, duration)}
+              disabled={!open.audio || player.state === "idle"}
+              onChange={(e) => player.seek(Number(e.target.value))}
+              aria-label="Seek"
+              aria-valuetext={`${formatTime(pos)} of ${formatTime(duration)}`}
+            />
+            <span className="t-foot tabular secondary">
+              {formatTime(pos)} / {formatTime(duration)}
+            </span>
+          </div>
+          {!open.audio && (
+            <div className="toolbar" style={{ justifyContent: "center" }}>
+              <p className="t-sub secondary">Re-add audio to play.</p>
+              <button className="btn btn-plain" onClick={() => picker.current?.click()}>
+                Choose file
+              </button>
+              <input ref={picker} type="file" accept="audio/*" hidden onChange={(e) => void addAudio(e.target.files?.[0])} />
+            </div>
+          )}
+          {open.attribution && <p className="t-foot secondary caption">{open.attribution}</p>}
+        </div>
+
+        <aside className="inspector" aria-label="Inspector">
+          <h2 className="t-headline">Inspector</h2>
+          <InspectorBody info={hover?.info ?? null} />
+        </aside>
+      </div>
+
+      {hover && (
+        <div className="popover material" style={{ left: hover.x + 14, top: hover.y + 14 }} role="status">
+          <InspectorBody info={hover.info} />
+        </div>
+      )}
+      {sheet && <ExportSheet open={open} onClose={() => setSheet(false)} />}
+    </>
+  );
+}

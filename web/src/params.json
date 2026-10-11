@@ -65,8 +65,53 @@
       "width_cells": 0.8
     }
   },
+  "maps": {
+    "feature_grids": [
+      "brightness",
+      "loudness",
+      "noisiness",
+      "harmonicity",
+      "change"
+    ],
+    "ramp": {
+      "chroma": 0.13,
+      "lightness": [
+        0.18,
+        0.86
+      ]
+    },
+    "ramp_hues": {
+      "brightness": 60.0,
+      "change": 20.0,
+      "harmonicity": 150.0,
+      "loudness": 330.0,
+      "noisiness": 200.0
+    }
+  },
   "preview": {
     "fps": 30
+  },
+  "ranges": {
+    "centroid_log10_hz": [
+      2.6084,
+      3.6116
+    ],
+    "change_z": [
+      0.5815,
+      5.3853
+    ],
+    "harmonicity": [
+      0.1074,
+      0.969
+    ],
+    "loudness_dbfs": [
+      -46.3236,
+      -17.5607
+    ],
+    "noisiness_log10": [
+      -5.9643,
+      -1.1914
+    ]
   },
   "render": {
     "background": "#000000",

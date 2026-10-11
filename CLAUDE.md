@@ -8,10 +8,10 @@ This file is loaded every session. It holds the rules and the map of the project
 
 ## Current status
 
-- **Current milestone:** M7 (web app). M6 passed 2026-10-11 (14 API tests; 4-minute upload to done about 25 s; formats round-trip; D-041 metadata + paged library backend). M5 blind test gate **not met** (28.3% vs 25% chance, D-034) and **waived by the owner with conditions** (D-038: no human-recognition claim, mapping explained in the app, re-test inside M7 descriptively). The DEAM-based emotion test (D-039) finished and was **not adopted** (D-040: Moodo validation r +0.04 valence / +0.44 arousal; held-out colour r +0.16 / +0.18 / -0.31); colour stays a feature-driven summary. Gates passed: M0, M1, M2 (exceptions D-022, D-023; calibration frozen through M5, D-020), M3 (2026-10-10: 32 x 32 flat dots, click-track sync 20/20), M4 (companion maps, D-031). Display is 32 x 32 flat glowing dots over the 64 x 64 analysis (D-030); node looks are swappable via `NodeStyle`. Update this line when a milestone's gate passes.
+- **Current milestone:** M7 (web app): evidence delivered 2026-10-11, awaiting owner sign-off (see `docs/MILESTONES.md` M7 evidence; D-042, D-043). M6 passed 2026-10-11 (14 API tests; 4-minute upload to done about 25 s; formats round-trip; D-041 metadata + paged library backend). M5 blind test gate **not met** (28.3% vs 25% chance, D-034) and **waived by the owner with conditions** (D-038: no human-recognition claim, mapping explained in the app, re-test inside M7 descriptively). The DEAM-based emotion test (D-039) finished and was **not adopted** (D-040: Moodo validation r +0.04 valence / +0.44 arousal; held-out colour r +0.16 / +0.18 / -0.31); colour stays a feature-driven summary. Gates passed: M0, M1, M2 (exceptions D-022, D-023; calibration frozen through M5, D-020), M3 (2026-10-10: 32 x 32 flat dots, click-track sync 20/20), M4 (companion maps, D-031). Display is 32 x 32 flat glowing dots over the 64 x 64 analysis (D-030); node looks are swappable via `NodeStyle`. Update this line when a milestone's gate passes.
 - **M5 evidence:** `out/blind_test_results/` (10 CSVs), `scripts/blind_test/analyze.py` and `diagnose.py`, D-034. Glass look work is parked on branch `m3-glass-look`.
 - **M5c:** human-alignment check run (D-035): signature vs human mean colour r = -0.01 / +0.08 / +0.03 (lightness / chroma / hue) against ceilings 0.90 / 0.77 / 0.67. Pre-registered emotion term (D-036) evaluated on the held-out half and **not adopted** (D-037: held-out r +0.19 / +0.16 / -0.31, bar 0.40 / 0.40 / 0.30); code kept, disabled. Colour claims: feature-driven summary only.
-- **Next action:** M7 per `docs/MILESTONES.md` (React + Vite + WebGL2 grid, mapping key on the first landing, `docs/UI.md`, `docs/REFERENCES.md`), including tasks 9-10 (metadata fields, fingerprint-backed paged library). At every gate: clean temporary files before reporting.
+- **Next action:** owner confirms M7 (looks, behaviour, device caveats), then M8 export (`docs/MILESTONES.md`). At every gate: clean temporary files before reporting.
 
 ## Doc map: read before you work
 
@@ -164,8 +164,10 @@ make blind-test-analyze FOLDER=dir      # M5: analyze the participants' result C
 make calibrate                          # M2: writes config/calibration.yaml
 make compare-sizes                      # M2: 32/40/64/100 contact sheets
 make api-dev                            # FastAPI on :8000
-make web-dev                            # Vite on :5173
-make web-test                           # vitest + playwright screenshots
+make web-fixtures                       # M7: params.json + Python parity fixtures for the web tests
+make web-samples                        # M7: bundled sample excerpts (needs corpus audio) -> web/public/samples
+make web-dev                            # Vite on :5173 (proxies /api to :8000)
+make web-test                           # tsc + vitest + playwright (parity, fallback, UI checklist, perf)
 ```
 
 Create these targets in M0; keep this list in sync with the Makefile.

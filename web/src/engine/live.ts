@@ -1,7 +1,7 @@
 // Liquid-grid state machine: a port of LiveEngine in src/synesthesia/live.py (docs/LIVE.md
 // section 2). The response field, smoothing, diffusion, ripples, trail and per-cell colour all
 // run here on preallocated typed arrays; the GPU only composites the pooled result.
-import { oklchToSrgb8 } from "../color/oklab";
+import { oklchToSrgb8Fast } from "../color/oklab";
 import type { LiveStream, Prototypes } from "../data/formats";
 import type { LiveParams, Params } from "../params";
 
@@ -350,7 +350,7 @@ export class LiveEngine {
       const C = ((1 - m) * baseC + m * liveC) * lv.live_chroma_gain;
       let H = (baseH + m * arc) % 360;
       if (H < 0) H += 360;
-      oklchToSrgb8(L, C, H, out, i * 3);
+      oklchToSrgb8Fast(L, C, H, out, i * 3);
     }
   }
 }

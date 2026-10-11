@@ -28,6 +28,7 @@ Dark is the default appearance; light follows `prefers-color-scheme` and the in-
   --label-3: rgba(235,235,245,0.30);
   --separator: rgba(84,84,88,0.65);
   --accent: #0A84FF;
+  --accent-fill: #0071E3;       /* filled buttons: white text >= 4.5:1 (D-043) */
   --link: #2997FF;              /* text links on dark */
   --danger: #FF453A;
   --material: rgba(30,30,32,0.62);
@@ -51,8 +52,8 @@ Dark is the default appearance; light follows `prefers-color-scheme` and the in-
 /* light: explicit override */
 :root[data-theme="light"] {
   --bg: #F2F2F7; --bg-2: #FFFFFF; --bg-3: #F2F2F7;
-  --label: #1D1D1F; --label-2: rgba(60,60,67,0.60); --label-3: rgba(60,60,67,0.30);
-  --separator: rgba(60,60,67,0.29); --accent: #007AFF; --link: #0071E3; --danger: #FF3B30;
+  --label: #1D1D1F; --label-2: rgba(60,60,67,0.78); --label-3: rgba(60,60,67,0.30);
+  --separator: rgba(60,60,67,0.29); --accent: #007AFF; --accent-fill: #0066CC; --link: #0066CC; --danger: #FF3B30;
   --material: rgba(255,255,255,0.72); --material-border: rgba(0,0,0,0.08);
 }
 /* light: automatic, unless the user forced dark */
@@ -138,7 +139,7 @@ Space play/pause · ←/→ seek 5 s · Shift+←/→ seek 30 s · 1-5 map views
 | Component | Spec |
 | --- | --- |
 | Segmented control | Height 32 px, radius 9, fill `--fill`, selected segment `--bg-3` (dark) / white (light) with a subtle shadow; slides with `--ease-spring` 250 ms |
-| Button (filled) | Height 50 px on phone / 32 on desktop, radius 12, `--accent` fill, white Headline text; one per screen |
+| Button (filled) | Height 50 px on phone / 32 on desktop (44 px minimum hit area), radius 12, `--accent-fill`, white Headline text; one per pane |
 | Button (plain/tinted) | Text in `--accent`; tinted = accent at 15% opacity fill |
 | List (inset grouped) | Rows 60 px, radius 12 group corners, separators inset 16 px, swipe-to-delete on touch, context menu on long-press/right-click |
 | Sheet | Radius 24 top corners, grabber 36×5 px, detents medium (50%) and large (92%), drag to dismiss, backdrop dim 40% |
@@ -206,7 +207,7 @@ Never bundle SF Symbols. Use **Lucide** (ISC license, similar line weight), stro
 1. Mock each key screen (Library, Signature, Sheet, Export, Compare) in Figma with the iOS and iPadOS 27 and macOS 27 UI kits before building it; save links in `docs/DECISIONS.md`.
 2. Build with tokens only (no raw colors or sizes in components).
 3. Playwright screenshots at 390×844, 820×1180 and 1440×900, light and dark, reduced motion and reduced transparency on and off.
-4. Review against this checklist:
+4. The checklist is automated in `web/tests/e2e/screens.spec.ts` (48 contexts: 3 sizes x light/dark x reduced motion x reduced transparency; screenshots in `web/test-results/screens/`): no horizontal overflow, 44 px hit targets on touch sizes, visible 2 px focus ring, text contrast >= 4.5:1 (3:1 large), signature is the largest element, one filled button per pane, solid materials under reduced transparency, 200% text size without overflow. Review against this checklist:
    - [ ] Signature is the dominant element on every main screen
    - [ ] One filled button per screen
    - [ ] All hit targets ≥ 44 px; visible focus rings

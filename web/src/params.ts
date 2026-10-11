@@ -45,6 +45,14 @@ export interface Params {
     background: string;
     node: { style: string; dot: { radius_ratio: number; glow_sigma_ratio: number; glow_opacity: number } };
   };
+  ranges: {
+    centroid_log10_hz: [number, number];
+    loudness_dbfs: [number, number];
+    noisiness_log10: [number, number];
+    harmonicity: [number, number];
+    change_z: [number, number];
+  };
+  maps: { feature_grids: string[]; ramp_hues: Record<string, number>; ramp: { lightness: [number, number]; chroma: number } };
   preview: { fps: number };
   api: { page_size_default: number; page_size_max: number };
 }

@@ -1,7 +1,7 @@
 # SYNESTHESIA developer commands. Keep in sync with the "Commands" list in CLAUDE.md.
 # Requires uv (https://docs.astral.sh/uv/). Targets for later milestones fail with a clear message.
 
-.PHONY: setup lint test test-determinism analyze render preview sync-check blind-test blind-test-analyze calibrate fetch-corpus corpus-report compare-sizes api-dev web-dev web-test
+.PHONY: setup lint test test-determinism analyze render preview sync-check blind-test blind-test-analyze calibrate fetch-corpus corpus-report compare-sizes api-dev web-dev web-fixtures web-samples web-test
 
 setup:
 	uv sync
@@ -52,8 +52,14 @@ compare-sizes:
 api-dev:
 	uv run uvicorn synesthesia.api.app:create_app --factory --host 127.0.0.1 --port 8000 --reload
 
-web-dev:
-	@echo "make web-dev arrives in M7 (web app)" && exit 1
+web-fixtures:
+	uv run python scripts/make_web_fixtures.py
 
-web-test:
-	@echo "make web-test arrives in M7 (web app)" && exit 1
+web-samples:
+	uv run python scripts/make_web_samples.py
+
+web-dev:
+	cd web && npm install --no-audit --no-fund && npx vite
+
+web-test: web-fixtures
+	cd web && npm install --no-audit --no-fund && npx tsc --noEmit && npx vitest run && npx playwright test
