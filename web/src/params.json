@@ -1,0 +1,84 @@
+{
+  "api": {
+    "page_size_default": 100,
+    "page_size_max": 500
+  },
+  "color": {
+    "chroma": {
+      "max": 0.24,
+      "min": 0.08
+    },
+    "hue": {
+      "from_deg": 265.0,
+      "to_deg": 30.0,
+      "valence_blend": 0.0
+    },
+    "lightness": {
+      "empty_L": 0.16,
+      "empty_chroma_factor": 0.35,
+      "loudness_weight": 0.4,
+      "max": 0.82,
+      "min": 0.22,
+      "occupancy_weight": 0.6
+    }
+  },
+  "grid": {
+    "size": 64
+  },
+  "live": {
+    "attack_ms": 40.0,
+    "beat_latency_s": 0.02,
+    "blur_renormalize": true,
+    "diffusion_passes": 2,
+    "diffusion_rate": 0.2,
+    "fps": 43.066,
+    "global_lightness_swing": 0.16,
+    "global_mix": 0.4,
+    "glow_sigma_cells": [
+      1.0,
+      3.0
+    ],
+    "live_chroma_gain": 1.4,
+    "live_lightness_boost": 0.18,
+    "live_mix_max": 0.85,
+    "max_lightness": 0.86,
+    "reduced_motion": {
+      "diffusion": false,
+      "release_ms": 500.0,
+      "ripples": false
+    },
+    "release_ms": 250.0,
+    "ripple": {
+      "amplitude": 0.5,
+      "decay_s": 0.6,
+      "max_concurrent": 8,
+      "onset_threshold": 0.35,
+      "speed_cells_per_s": 24.0,
+      "width_cells": 1.5
+    },
+    "tau_sample_frames": 1024,
+    "tau_scale": 1.0,
+    "tau_target_share": 0.04,
+    "trail": {
+      "length_s": 2.0,
+      "opacity": 0.3,
+      "width_cells": 0.8
+    }
+  },
+  "preview": {
+    "fps": 30
+  },
+  "render": {
+    "background": "#000000",
+    "display_grid": 32,
+    "margin_cells": 1.0,
+    "node": {
+      "dot": {
+        "glow_opacity": 0.3,
+        "glow_sigma_ratio": 0.3,
+        "radius_ratio": 0.34
+      },
+      "style": "dot"
+    }
+  }
+}

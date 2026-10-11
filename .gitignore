@@ -31,3 +31,9 @@ Thumbs.db
 
 # third-party datasets (licence terms apply; never commit)
 dataset_moodoo/
+
+# generated web test fixtures
+web/tests/fixtures/
+web/public/samples/
+web/test-results/
+web/playwright-report/
