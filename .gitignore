@@ -37,3 +37,10 @@ web/tests/fixtures/
 web/public/samples/
 web/test-results/
 web/playwright-report/
+
+# third-party agent skills (reinstall with the command in README; skills-lock.json is committed)
+.agents/
+.claude/skills/
+
+# design inspiration recordings and guides (never commit)
+ui_example/
