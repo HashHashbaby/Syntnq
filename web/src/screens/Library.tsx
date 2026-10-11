@@ -55,12 +55,12 @@ export function Library({ onAdd, onSettings }: { onAdd: () => void; onSettings: 
       {jobs.map((j) => (
         <div key={j.id} className="row" style={{ cursor: "default", height: "auto", padding: "var(--space-3) var(--space-4)", gridTemplateColumns: "1fr auto" }} role="status">
           <div>
-            <p className="t-headline truncate">{j.title}</p>
+            <p className="t-headline truncate" title={j.title} dir="auto">{j.title}</p>
             {j.state === "running" ? (
               <>
                 <p className="t-foot secondary">{STAGE_LABELS[j.stage ?? "reading"] ?? "Working"}...</p>
                 <div className="progress" role="progressbar" aria-valuenow={Math.round(j.progress * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Analysis progress">
-                  <div style={{ width: `${Math.max(4, j.progress * 100)}%` }} />
+                  <div style={{ transform: `scaleX(${Math.max(0.04, j.progress)})` }} />
                 </div>
               </>
             ) : (
@@ -103,11 +103,11 @@ export function Library({ onAdd, onSettings }: { onAdd: () => void; onSettings: 
             <button className="row" role="option" aria-selected={s.songId === selectedId} onClick={() => void selectSong(s.songId)}>
               <Thumb bytes={s.thumb} />
               <span style={{ minWidth: 0 }}>
-                <span className="t-headline truncate" style={{ display: "block" }}>
-                  {s.title ?? "Untitled"}
+                <span className="t-headline truncate" style={{ display: "block" }} title={s.title?.trim() || "Untitled"} dir="auto">
+                  {s.title?.trim() || "Untitled"}
                 </span>
-                <span className="t-sub secondary truncate" style={{ display: "block" }}>
-                  {s.artist ?? " "}
+                <span className="t-sub secondary truncate" style={{ display: "block" }} title={s.artist?.trim() || undefined} dir="auto">
+                  {s.artist?.trim() || " "}
                 </span>
               </span>
               <span className="t-foot tabular secondary">{formatTime(s.durationS)}</span>

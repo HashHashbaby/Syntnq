@@ -14,6 +14,7 @@ D-030) is always the focus; everything here is judged by whether it helps that.
   (the hero photo area is blank), and with a desktop user agent at 390 px the page shows its hero rather
   than the "rotate your device" gate seen under phone emulation. Neither site blocked capture.
 - Reference 3 and the "don't like" lists were left as `[...]` in the brief; they are marked **TODO**.
+- Motion measured from screen recordings and the resulting decisions: `docs/UI_REFERENCES.md` (D-044).
 
 ---
 

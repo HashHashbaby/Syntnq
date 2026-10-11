@@ -37,14 +37,26 @@
   --radius-pill: 980px;
   --hit: 44px;
 
+  /* Motion tokens (docs/UI.md section 8, D-044). Mirrored in src/motion/tokens.ts and checked by a test. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* enter, exit, reveal, press release */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* on-screen movement */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* sheets, carousels */
   --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
-  --ease-standard: cubic-bezier(0.4, 0, 0.6, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.6, 1); /* hover and colour only */
   --ease-stage: cubic-bezier(0.65, 0.05, 0, 1);
+  --dur-press: 120ms;
   --dur-fast: 200ms;
   --dur-ui: 240ms;
+  --dur-push: 300ms;
   --dur: 350ms;
+  --dur-sheet: 400ms;
+  --dur-reveal: 450ms;
+  --dur-handoff: 450ms;
   --dur-slow: 500ms;
   --dur-stage: 700ms;
+  --dip-out: 250ms;
+  --dip-rest: 100ms;
+  --dip-in: 350ms;
 
   --sidebar-w: 320px;
   --inspector-w: 280px;

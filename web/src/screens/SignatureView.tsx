@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioPlayer } from "../audio/player";
 import { GridCanvas } from "../components/GridCanvas";
 import { CAPTIONS, DynamicsView, FEATURES, FeatureGridView, RhythmView, StructureView, type FeatureName, type MapView } from "../components/MapViews";
-import { Icon, Segmented, formatTime } from "../components/parts";
+import { Icon, Segmented, formatTime, usePhone } from "../components/parts";
+import { keyboardDriven, reduced as motionNow } from "../motion/tokens";
 import { params } from "../params";
 import { motionReduced, useSettings } from "../state/settings";
 import { useApp, type OpenSong } from "../state/store";
@@ -93,8 +94,51 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
   const [bmu, setBmu] = useState<number | null>(null);
   const [pos, setPos] = useState(0);
   const [, force] = useState(0);
+  const phone = usePhone();
+  const fresh = useApp((s) => s.fresh === open.record.songId);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const programmatic = useRef<{ target: number; t: number } | null>(null);
+  const settle = useRef<number | undefined>(undefined);
   const stageRef = useRef<HTMLDivElement>(null);
   const picker = useRef<HTMLInputElement>(null);
+
+  // the reveal plays once, on the first view after an analysis finishes
+  useEffect(() => {
+    if (fresh) useApp.setState({ fresh: null });
+  }, []);
+
+  // phone: bring the card for the chosen map into view (instant for keyboard and reduced motion)
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!phone || !el) return;
+    const card = el.children[VIEWS.findIndex((v) => v.value === view)] as HTMLElement | undefined;
+    if (!card) return;
+    const left = card.offsetLeft - parseFloat(getComputedStyle(el).paddingLeft);
+    if (Math.abs(el.scrollLeft - left) < 2) return;
+    programmatic.current = { target: left, t: performance.now() };
+    el.scrollTo({ left, behavior: keyboardDriven() || motionNow() ? "auto" : "smooth" });
+  }, [view, phone]);
+
+  // phone: a swipe that comes to rest on another card selects that map
+  const onTrackScroll = (): void => {
+    const el0 = trackRef.current;
+    const mine0 = programmatic.current;
+    if (el0 && mine0 && Math.abs(el0.scrollLeft - mine0.target) < 2) programmatic.current = null; // arrived
+    window.clearTimeout(settle.current);
+    settle.current = window.setTimeout(() => {
+      const el = trackRef.current;
+      if (!el || el.children.length < 2) return;
+      const mine = programmatic.current;
+      if (mine) {
+        // our own scrollTo still travelling: wait for it to arrive (or 700 ms to pass)
+        if (performance.now() - mine.t < 700) return;
+        programmatic.current = null;
+      }
+      const pitch = (el.children[1] as HTMLElement).offsetLeft - (el.children[0] as HTMLElement).offsetLeft;
+      const i = Math.min(VIEWS.length - 1, Math.max(0, Math.round(el.scrollLeft / pitch)));
+      if (VIEWS[i].value !== view) setView(VIEWS[i].value);
+    }, 90);
+  };
 
   const player = useMemo(() => new AudioPlayer(), [open.record.songId]);
   useEffect(() => {
@@ -163,7 +207,16 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
     showToast("Audio added on this device.");
   };
 
-  const title = open.record.title ?? "Untitled";
+  const renderMap = (v: MapView): JSX.Element | null => {
+    if (v === "features") return <FeatureGridView stat={open.stat} feature={feature} />;
+    if (v === "structure") return <StructureView maps={open.maps} />;
+    if (v === "rhythm") return <RhythmView maps={open.maps} />;
+    if (v === "dynamics") return <DynamicsView maps={open.maps} />;
+    return null;
+  };
+
+  const title = open.record.title?.trim() || "Untitled";
+  const byline = open.record.artist?.trim() || open.attribution || "";
   const duration = player.duration || open.record.durationS;
   const ariaLabel = `Signature of ${title}`;
   const caption = view === "features" ? `${CAPTIONS.features} Showing ${FEATURE_LABELS[feature].toLowerCase()}.` : CAPTIONS[view];
@@ -175,8 +228,8 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
           <Icon name="chevron.left" />
         </button>
         <div className="grow">
-          <h1 className="t-headline truncate">{title}</h1>
-          <p className="t-foot secondary truncate">{open.record.artist ?? open.attribution ?? ""}</p>
+          <h1 className="t-headline truncate" title={title} dir="auto">{title}</h1>
+          <p className="t-foot secondary truncate" title={byline} dir="auto">{byline}</p>
         </div>
         <button className="btn btn-icon" onClick={() => setSheet(true)} aria-label="Export">
           <Icon name="square.and.arrow.up" />
@@ -209,7 +262,36 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
             />
           )}
 
-          {view === "sound" ? (
+          {phone ? (
+            <>
+              <div className="carousel" ref={trackRef} onScroll={onTrackScroll} role="group" aria-label="Maps">
+                {VIEWS.map((v) => (
+                  <div key={v.value} className="carousel-card" aria-hidden={v.value !== view} data-view={v.value}>
+                    {v.value === "sound" ? (
+                      <div
+                        ref={stageRef}
+                        className="stage-card"
+                        onPointerMove={onPointer}
+                        onPointerLeave={() => setHover(null)}
+                        data-testid={view === "sound" ? "stage" : undefined}
+                      >
+                        <GridCanvas open={open} player={player} reduced={reduced} reveal={fresh} onBmu={setBmu} ariaLabel={ariaLabel} />
+                      </div>
+                    ) : (
+                      <div className="maps-card" data-testid={v.value === view ? "map-card" : undefined}>
+                        {renderMap(v.value)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="dots" aria-hidden="true">
+                {VIEWS.map((v) => (
+                  <span key={v.value} data-active={v.value === view} />
+                ))}
+              </div>
+            </>
+          ) : view === "sound" ? (
             <div
               ref={stageRef}
               className="stage-card"
@@ -217,14 +299,11 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
               onPointerLeave={() => setHover(null)}
               data-testid="stage"
             >
-              <GridCanvas open={open} player={player} reduced={reduced} onBmu={setBmu} ariaLabel={ariaLabel} />
+              <GridCanvas open={open} player={player} reduced={reduced} reveal={fresh} onBmu={setBmu} ariaLabel={ariaLabel} />
             </div>
           ) : (
             <div className="maps-card" data-testid="map-card">
-              {view === "features" && <FeatureGridView stat={open.stat} feature={feature} />}
-              {view === "structure" && <StructureView maps={open.maps} />}
-              {view === "rhythm" && <RhythmView maps={open.maps} />}
-              {view === "dynamics" && <DynamicsView maps={open.maps} />}
+              {renderMap(view)}
             </div>
           )}
           <p className="caption t-sub secondary">{caption}</p>

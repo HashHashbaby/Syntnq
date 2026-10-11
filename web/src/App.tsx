@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DevToggle } from "./dev/DevToggle";
 import { FirstLanding } from "./screens/FirstLanding";
 import { Library } from "./screens/Library";
 import { Settings } from "./screens/Settings";
@@ -13,6 +14,9 @@ export function App() {
   const { open, selectedId, toast, total, jobs } = useApp();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [landingLive, setLandingLive] = useState(false);
+  const [navigated, setNavigated] = useState(false);
+  const firstPane = useRef<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -75,11 +79,20 @@ export function App() {
   }, [addFiles, choose]);
 
   const pane = open || selectedId ? "detail" : "library";
-  const showLanding = !settings.landingDone && total === 0 && jobs.length === 0;
+  const wantLanding = !settings.landingDone && total === 0 && jobs.length === 0;
+  // once shown, the landing stays mounted until its exit animation has finished
+  useEffect(() => {
+    if (wantLanding) setLandingLive(true);
+  }, [wantLanding]);
+  const showLanding = wantLanding || landingLive;
+  useEffect(() => {
+    if (firstPane.current === null) firstPane.current = pane;
+    else if (pane !== firstPane.current) setNavigated(true);
+  }, [pane]);
 
   return (
     <>
-      <div className="app" data-pane={pane}>
+      <div className="app" data-pane={pane} data-animate={navigated && !showLanding}>
         <nav className="sidebar" aria-label="Library">
           <Library onAdd={choose} onSettings={() => setSettingsOpen(true)} />
         </nav>
@@ -111,13 +124,14 @@ export function App() {
           <p className="t-title-1">Drop to analyze</p>
         </div>
       )}
+      <DevToggle />
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
       {toast && (
         <div className="toast material t-sub" role="status">
           {toast}
         </div>
       )}
-      {showLanding && <FirstLanding onDone={() => undefined} onAdd={choose} />}
+      {showLanding && <FirstLanding onDone={() => setLandingLive(false)} onAdd={choose} />}
     </>
   );
 }

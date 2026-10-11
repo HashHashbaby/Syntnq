@@ -44,10 +44,15 @@ Dark is the default appearance; light follows `prefers-color-scheme` and the in-
   --radius-pill: 980px;
   --hit: 44px;
 
-  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);       /* sheets, segmented control */
-  --ease-standard: cubic-bezier(0.4, 0, 0.6, 1);       /* ordinary state changes */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);          /* enter, exit, reveal, press release (D-044) */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);      /* movement of something already on screen */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);       /* sheets, carousels, segmented pill */
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);       /* alias of --ease-drawer */
+  --ease-standard: cubic-bezier(0.4, 0, 0.6, 1);       /* hover and colour only */
   --ease-stage: cubic-bezier(0.65, 0.05, 0, 1);        /* stage-level transitions only */
-  --dur-fast: 200ms; --dur-ui: 240ms; --dur: 350ms; --dur-slow: 500ms; --dur-stage: 700ms;
+  --dur-press: 120ms; --dur-fast: 200ms; --dur-ui: 240ms; --dur-push: 300ms; --dur: 350ms;
+  --dur-sheet: 400ms; --dur-reveal: 450ms; --dur-handoff: 450ms; --dur-slow: 500ms; --dur-stage: 700ms;
+  --dip-out: 250ms; --dip-rest: 100ms; --dip-in: 350ms;
 }
 /* light: explicit override */
 :root[data-theme="light"] {
@@ -109,7 +114,7 @@ Breakpoints (D-033): phone <= 734 px, tablet 735-1068, desktop 1069-1440, wide >
 
 **Phone (<= 734 px wide)**
 - Library: Large Title "Library", inset grouped list of songs (thumbnail = tiny signature, title, artist, duration), floating "+" (Add song) as the one filled button.
-- Signature screen: full-width square canvas within safe-area insets (`env(safe-area-inset-*)`); floating player bar at the bottom (title, artist, play/pause, thin scrubber). Tapping the bar opens a sheet (medium and large detents) with: map switcher (segmented), song details, Export, Compare (M9).
+- Signature screen: full-width square canvas within safe-area insets (`env(safe-area-inset-*)`); floating player bar at the bottom (title, artist, play/pause, thin scrubber). The five maps are a horizontal snap carousel under the segmented control: the next map peeks about 32 px at the edge, small pagination dots show the position, a swipe that rests on a card selects that map, and the segmented control and keys 1-5 move the carousel (instantly for keys). Tapping the bar opens a sheet (medium and large detents) with: song details, Export, Compare (M9).
 - Map switcher in the sheet: Sound · Features · Structure · Rhythm · Dynamics. "Features" shows a second segmented control: Brightness · Loudness · Noise · Harmony · Change.
 
 **Tablet and desktop (≥ 735 px)**
@@ -123,6 +128,9 @@ Space play/pause · ←/→ seek 5 s · Shift+←/→ seek 30 s · 1-5 map views
 ## 6. Screens and states
 
 0. **First landing (scroll stage, first visit only):** a single scroll-driven stage shown the first time a person opens the app, before the library. A sticky square canvas whose state is a pure function of scroll progress: static signature, then the liquid state, then a companion map; transitions use `--ease-stage` / `--dur-stage`. It ends in the "Add a song" action. After it is completed or skipped once ("Skip" always visible), it is never shown again, including at later app launches; Settings has "Replay intro". Reduced motion: no pinning, a plain sequence of three static steps. It is not used in the library, inspector, sheets or any other screen (D-033).
+   - **Beats** dip through dark (D-044): the old line fades and lifts out (250 ms), the stage rests (100 ms), the new line arrives (350 ms); the two are never on screen together and the signature stays put.
+   - **End state:** the pinned track ends and the mapping key and the actions ("Add a song", "Try a sample") scroll into view below the stage; both are on screen at the end of the scroll.
+   - **Leaving:** "Try a sample" hands the live canvas over to the signature card (it travels and scales to the card's rectangle in 450 ms with `--ease-stage` while the chrome fades; from the map beat the map fades to the signature on the way). Skip and "Add a song" fade the whole landing out in 250 ms. Reduced motion: a 200 ms fade, no travel.
 1. **First launch / empty library:** centered short text "Add a song to see its signature." plus the filled "Add Song" button and "Try a sample" link (bundled Creative Commons samples, M7).
 2. **Add song:** file picker or drag-and-drop anywhere on the window (drop overlay with dashed rounded rectangle, label "Drop to analyze").
 3. **Analyzing:** a progress view on the canvas area with stage labels from the API (`Reading audio`, `Listening`, `Mapping sounds`, `Coloring`, `Drawing maps`) and a determinate bar; cancel button. The grid fades in cell by cell (≤ 600 ms) when done; reduced motion → simple fade.
@@ -139,11 +147,12 @@ Space play/pause · ←/→ seek 5 s · Shift+←/→ seek 30 s · 1-5 map views
 | Component | Spec |
 | --- | --- |
 | Segmented control | Height 32 px, radius 9, fill `--fill`, selected segment `--bg-3` (dark) / white (light) with a subtle shadow; slides with `--ease-spring` 250 ms |
-| Button (filled) | Height 50 px on phone / 32 on desktop (44 px minimum hit area), radius 12, `--accent-fill`, white Headline text; one per pane |
+| Button (filled) | Height 50 px on phone / 32 on desktop (44 px minimum hit area), radius 12, `--accent-fill`, white Headline text; one per pane. Every pressable (buttons, segments, list rows) scales to 0.97 on pointer-down and returns on release (`--dur-press`, `--ease-out`); reduced motion dims by 15 % instead |
 | Button (plain/tinted) | Text in `--accent`; tinted = accent at 15% opacity fill |
 | List (inset grouped) | Rows 60 px, radius 12 group corners, separators inset 16 px, swipe-to-delete on touch, context menu on long-press/right-click |
-| Sheet | Radius 24 top corners, grabber 36×5 px, detents medium (50%) and large (92%), drag to dismiss, backdrop dim 40% |
-| Popover | Radius 14, material, arrow 12 px |
+| Sheet | Radius 24 top corners, grabber 36×5 px (28 px tall hit area), detents medium (50%) and large (92%), backdrop dim 40% that fades with the drag. Drag follows the pointer 1:1 and resists upward with rubber-banding; release velocity above 0.11 px/ms or a pull past 30 % of the height dismisses, otherwise a spring returns it |
+| Popover | Radius 14, material, arrow 12 px; scales from its trigger (`transform-origin` at the trigger), modals stay centred |
+| Map carousel (phone) | Snap-x track of five cards, each `100% - 28 px` wide with a 12 px gap so the next card peeks; dots 6 px, active 18 px wide |
 | Slider (scrubber) | Track 4 px (6 px while dragging), thumb hidden until hover/drag, elapsed and remaining time in Footnote tabular numbers |
 | Toolbar | Height 52 px, material, items 44 px hit targets |
 | Progress | Linear 4 px bar, radius 2, accent |
@@ -154,11 +163,29 @@ All interactive elements have ≥ 44×44 px hit areas, visible focus rings (2 px
 
 ## 8. Motion
 
-- Ordinary state changes (hover, toggles, fades): `--ease-standard`, `--dur-ui` (240 ms).
-- Sheets, segmented control, popovers: `--ease-spring`, 350 ms (sheets 500 ms), interruptible (CSS transitions or Web Animations; no blocking JS animations).
-- Stage transitions on the first landing only: `--ease-stage`, `--dur-stage` (700 ms), scroll-linked; removed under reduced motion.
-- Screen changes on phone: push/pop slide 350 ms; desktop: cross-fade 200 ms.
-- Reduced motion: replace slides with 200 ms cross-fades; liquid grid per `docs/LIVE.md §3`.
+Rules (D-044): animate `transform` and `opacity` (plus small colour/filter changes); never `transition: all`; hover motion only behind `@media (hover: hover)`; durations stay at or under 500 ms except the scroll-linked landing stage; keyboard-initiated and high-frequency actions are instant; enter and exit follow the same path, exit faster than enter; springs only where a person can grab or flick an element (sheets), CSS transitions everywhere else so they stay interruptible. Terms follow the animation vocabulary.
+
+| Interaction | Term | Properties | Duration | Easing / spring | Reduced motion | Keyboard |
+| --- | --- | --- | --- | --- | --- | --- |
+| Press on buttons, segments, rows | Press / tap feedback | `transform: scale(0.97)` | 120 ms, in on pointer-down, out on release | `--ease-out` | no scale, brightness 0.85 | n/a |
+| Hover, toggles, colour | Hover effect | `filter`, `background` | 240 ms | `--ease-standard` | none | none |
+| Segmented selection | Layout animation (pill) | `background` | 200 ms | `--ease-drawer` | none | none |
+| Sheet open | Slide in (drawer) | `transform` from 100 % | 400 ms | `--ease-drawer` | appears instantly | none |
+| Sheet close, pointer | Slide out, spring | `transform` | spring, response 0.3 s, damping 1 | critically damped | 200 ms fade | none (instant) |
+| Sheet drag | Drag, momentum, rubber-banding | `transform` set directly | 1:1 with the pointer | release: response 0.4 s, damping 1; after a flick 0.85 | follows pointer, releases without spring | n/a |
+| Phone push / pop | Direction-aware transition | `opacity`, `transform` 24 px | 300 ms | `--ease-out` | none | n/a |
+| Phone map carousel | Scroll snap with peeking neighbours | `scrollLeft` | browser smooth scroll, about 300-400 ms | snap | jumps | jumps (keys 1-5) |
+| Landing beats | Orchestration: fade out, rest, fade in (dip) | `opacity`, `translateY` 8 px | 250 + 100 + 350 ms | `--ease-out` | static stack | n/a |
+| Landing stage (scroll) | Scroll-driven animation | canvas state = f(scroll) | 700 ms for chrome | `--ease-stage` | no pinning | n/a |
+| Landing to signature card | Shared element transition | `transform` of the live canvas | 450 ms | `--ease-stage` | 200 ms fade | n/a |
+| Landing exit (skip, add) | Fade out | `opacity` | 250 ms | `--ease-out` | 200 ms | n/a |
+| Analysis finished | Reveal: a diagonal wave of scale-in cells | dot radius | 450 ms, wave width 35 % | ease-out cubic | 450 ms fade from black | n/a |
+| Pause | Ease back to the static signature | live layer blend | 400 ms smoothstep | smoothstep | instant | n/a |
+| Toast | Fade in with a small lift | `opacity`, `transform` 8 px | 240 ms | `--ease-out` | fade only | n/a |
+| Map pagination dots | State indication | `width`, `background` | 200 ms | `--ease-out` | none | none |
+| Inspector popover | follows the pointer, no animation (high frequency) | none | 0 | none | none | none |
+
+Inputs: the app records the last input modality on `<html data-input="keyboard|pointer">`; every rule marked "Keyboard: none / instant" is a CSS rule under `:root[data-input="keyboard"]` or a check of that flag in code. Values are mirrored in `web/src/motion/tokens.ts` and a unit test keeps them equal to `tokens.css`.
 
 ## 9. Icons
 

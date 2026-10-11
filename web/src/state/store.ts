@@ -1,5 +1,6 @@
 // App state: library list (paged from IndexedDB), the open song, analysis jobs and toasts.
 import { create } from "zustand";
+import { dataMode, isSynthetic, shapePage, syntheticMeta } from "../dev/worstcase";
 import * as api from "../data/api";
 import { parseLive, parseMaps, parseProto, parseStatic, type LiveStream, type MapsData, type Prototypes, type StaticData } from "../data/formats";
 import { Library, type SortKey } from "../data/library";
@@ -52,6 +53,8 @@ interface AppState {
   sort: SortKey;
   selectedId: string | null;
   open: OpenSong | null;
+  /** Song id whose analysis just finished: its first view plays the reveal. */
+  fresh: string | null;
   jobs: Job[];
   toast: string | null;
   samples: SampleInfo[];
@@ -85,6 +88,7 @@ export const useApp = create<AppState>((set, get) => ({
   sort: "recent",
   selectedId: null,
   open: null,
+  fresh: null,
   jobs: [],
   toast: null,
   samples: [],
@@ -105,7 +109,8 @@ export const useApp = create<AppState>((set, get) => ({
     const { lib, query, sort, items } = get();
     if (!lib) return;
     const offset = opts?.append ? items.length : 0;
-    const page = await lib.page({ limit: PAGE_SIZE, offset, query, sort });
+    const real = await lib.page({ limit: PAGE_SIZE, offset, query, sort });
+    const page = shapePage(dataMode(), offset, PAGE_SIZE) ?? real; // dev-only worst-case data
     set({ items: opts?.append ? [...items, ...page.items] : page.items, total: page.total });
   },
 
@@ -125,15 +130,28 @@ export const useApp = create<AppState>((set, get) => ({
       set({ selectedId: null, open: null });
       return;
     }
-    const record = await lib.get(id);
-    const data = await lib.getData(id);
+    let realId = id;
+    let override: ReturnType<typeof syntheticMeta> | null = null;
+    if (isSynthetic(id)) {
+      // dev-only: a worst-case row opens the first real song under its awkward title
+      const first = await lib.page({ limit: 1, offset: 0, query: "", sort: "recent" });
+      if (!first.items[0]) {
+        get().showToast("Add a song first: worst-case rows borrow a real song's data.");
+        return;
+      }
+      realId = first.items[0].songId;
+      override = syntheticMeta(id);
+    }
+    const stored = await lib.get(realId);
+    const record = stored && override ? { ...stored, title: override.title, artist: override.artist } : stored;
+    const data = await lib.getData(realId);
     if (!record || !data) {
       get().showToast("This song's data is not on this device.");
       return;
     }
-    const audio = (await lib.getAudio(id)) ?? null;
-    const sample = get().samples.find((s) => s.song_id === id);
-    set({ selectedId: id, open: parseData(record, data, audio, sample?.attribution) });
+    const audio = (await lib.getAudio(realId)) ?? null;
+    const sample = get().samples.find((s) => s.song_id === realId);
+    set((s) => ({ selectedId: id, open: parseData(record, data, audio, sample?.attribution), fresh: s.fresh === id ? id : null }));
   },
 
   addFile: async (file, keepAudio) => {
@@ -189,7 +207,7 @@ export const useApp = create<AppState>((set, get) => ({
       await lib.putData(songId, data);
       if (keepAudio) await lib.putAudio(songId, file);
       await get().refresh();
-      set((st) => ({ jobs: st.jobs.filter((j) => j.id !== localId) }));
+      set((st) => ({ jobs: st.jobs.filter((j) => j.id !== localId), fresh: songId }));
       await get().selectSong(songId);
     } catch (e) {
       const msg = e instanceof api.ApiError ? e.message : "We couldn't reach the analysis service.";
