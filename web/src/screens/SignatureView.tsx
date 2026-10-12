@@ -308,7 +308,7 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
           )}
           <p className="caption t-sub secondary">{caption}</p>
 
-          <div className="player material" role="group" aria-label="Playback">
+          <div className="player" role="group" aria-label="Playback">
             <button className="btn btn-icon btn-filled" onClick={toggle} disabled={!open.audio || player.state === "idle"} aria-label={player.state === "playing" ? "Pause" : "Play"}>
               <Icon name={player.state === "playing" ? "pause.fill" : "play.fill"} />
             </button>

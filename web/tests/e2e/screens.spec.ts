@@ -13,13 +13,13 @@ const OUT = join(process.cwd(), "test-results", "screens");
 mkdirSync(OUT, { recursive: true });
 const MIN_HIT = 44;
 
-async function prepare(page: Page, opts: { transparency: boolean; landing: boolean }): Promise<void> {
+async function prepare(page: Page, opts: { transparency: boolean; landing: boolean; scheme: "light" | "dark" }): Promise<void> {
   await page.goto("/");
   await page.evaluate(
-    ({ transparency, landing }) => {
+    ({ transparency, landing, scheme }) => {
       localStorage.setItem(
         "synesthesia.settings",
-        JSON.stringify({ landingDone: !landing, reduceTransparency: transparency ? "on" : "auto" }),
+        JSON.stringify({ landingDone: !landing, reduceTransparency: transparency ? "on" : "auto", appearance: scheme }),
       );
     },
     opts,
@@ -116,7 +116,7 @@ for (const size of SIZES) {
           });
 
           test("landing", async ({ page }) => {
-            await prepare(page, { transparency, landing: true });
+            await prepare(page, { transparency, landing: true, scheme });
             const dlg = page.getByRole("dialog", { name: "Welcome" });
             await expect(dlg).toBeVisible();
             await page.waitForTimeout(400);
@@ -133,7 +133,7 @@ for (const size of SIZES) {
           });
 
           test("library, signature view and sheets", async ({ page }) => {
-            await prepare(page, { transparency, landing: false });
+            await prepare(page, { transparency, landing: false, scheme });
             await expect(page.getByText("Add a song to see its signature.")).toBeVisible();
             await page.screenshot({ path: join(OUT, `${id}_library_empty.png`) });
             await checklist(page, size.touch, `${id} library`);
@@ -216,12 +216,16 @@ for (const size of SIZES) {
   }
 }
 
-test("no bundled fonts or Apple assets", async ({ page }) => {
+test("only the licensed text face is loaded; no Apple fonts or assets", async ({ page }) => {
   const requests: string[] = [];
   page.on("request", (r) => requests.push(r.url()));
   await page.goto("/");
   await page.waitForTimeout(500);
-  expect(requests.filter((u) => /\.(woff2?|ttf|otf)(\?|$)/i.test(u))).toEqual([]);
+  // the one bundled face is TeX Gyre Heros (GUST Font License, D-048); never SF or any Apple font
+  const fonts = requests.filter((u) => /\.(woff2?|ttf|otf)(\?|$)/i.test(u));
+  for (const u of fonts) expect(u).toMatch(/\/fonts\/syn-heros-(regular|bold)\.woff2$/);
+  expect(fonts.some((u) => /sf-?pro|san-?francisco|apple/i.test(u))).toBe(false);
   const families = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
-  expect(families).toContain("system-ui");
+  expect(families).toContain("TeX Gyre Heros");
+  expect(families).not.toMatch(/system-ui|-apple-system|BlinkMacSystemFont/);
 });

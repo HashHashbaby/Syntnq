@@ -1,26 +1,76 @@
-/* Design tokens (docs/UI.md section 2, D-033). Dark is the default; light follows
-   prefers-color-scheme and the in-app override (data-theme). Components use tokens only. */
-:root {
-  /* dark (default) */
-  --bg: #000000;
-  --bg-2: #1c1c1e;
-  --bg-3: #2c2c2e;
-  --fill: rgba(120, 120, 128, 0.36);
-  --label: #f5f5f7;
-  --label-2: rgba(235, 235, 245, 0.6);
-  --label-3: rgba(235, 235, 245, 0.3);
-  --separator: rgba(84, 84, 88, 0.65);
-  --accent: #0a84ff;
-  --accent-fill: #0071e3; /* filled buttons: white text keeps >= 4.5:1 */
-  --link: #2997ff;
-  --danger: #ff453a;
-  --material: rgba(30, 30, 32, 0.62);
-  --material-border: rgba(255, 255, 255, 0.1);
-  --focus-ring: #0a84ff;
-  --scrim: rgba(0, 0, 0, 0.4);
+/* Design tokens (docs/UI.md section 2; D-033, D-047, D-048, D-051). Light is the default
+   appearance (warm off-white, ink text); dark is a setting (data-theme="dark", or "auto" with a
+   dark system preference). Components use tokens only. */
 
-  --font: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+/* Text face: TeX Gyre Heros, self-hosted (scripts/fetch_fonts.py, GUST Font License, D-048).
+   Two weights exist; hierarchy comes from size, tracking and colour, never synthesized weights. */
+@font-face {
+  font-family: "TeX Gyre Heros";
+  src: url("/fonts/syn-heros-regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "TeX Gyre Heros";
+  src: url("/fonts/syn-heros-bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+  /* light (default) */
+  --bg: #f6f4ef; /* warm off-white page */
+  --bg-2: #fbfaf7; /* raised surfaces, sheets */
+  --bg-3: #edeae3; /* grouped / inset */
+  --fill: rgba(20, 20, 20, 0.06);
+  --fill-strong: rgba(20, 20, 20, 0.1);
+  --label: #141414; /* ink */
+  --label-2: rgba(20, 20, 20, 0.66); /* >= 5.5:1 on every light ground */
+  --label-3: rgba(20, 20, 20, 0.28); /* separators and disabled UI only, never text */
+  --separator: rgba(20, 20, 20, 0.1);
+  --accent: #2b4bf2; /* ink blue: links, focus, selection; >= 5.1:1 on every light ground */
+  --accent-fill: #141414; /* filled buttons are ink black with white text (18:1) */
+  --accent-fill-glass: rgba(20, 20, 20, 0.88); /* the same, as prominent glass */
+  --on-accent-fill: #ffffff;
+  --link: #2b4bf2;
+  --danger: #b42318;
+  --focus-ring: #2b4bf2;
+  --scrim: rgba(20, 18, 14, 0.28);
+  /* legacy material (sheets, popovers): frosted, see .material */
+  --material: rgba(251, 250, 247, 0.74);
+  --material-border: rgba(20, 20, 20, 0.08);
+  --material-thick: rgba(251, 250, 247, 0.92); /* large surfaces (sheets) read as thicker */
+
+  /* liquid glass (D-051). Tint and rim per theme; geometry shared. */
+  --glass-tint: rgba(255, 255, 255, 0.44);
+  --glass-tint-hover: rgba(255, 255, 255, 0.58);
+  --glass-tint-solid: #fbfaf7;
+  --glass-edge: rgba(20, 20, 20, 0.08); /* hairline that separates glass from a light ground */
+  --glass-rim-hi: rgba(255, 255, 255, 0.95); /* light catching the top edge */
+  --glass-rim-lo: rgba(20, 20, 20, 0.06); /* the lower edge in shade */
+  --glass-specular: rgba(255, 255, 255, 0.55);
+  --glass-shadow: 0 1px 1px rgba(20, 16, 8, 0.05), 0 6px 18px -6px rgba(20, 16, 8, 0.16);
+  --glass-prominent-rim-hi: rgba(255, 255, 255, 0.22);
+  --glass-prominent-rim-lo: rgba(0, 0, 0, 0.25);
+  --glass-prominent-specular: rgba(255, 255, 255, 0.18);
+  --glass-blur: 12px; /* under 20 px (animation-performance) */
+  --glass-saturate: 165%;
+  --glass-bezel: 14; /* px of the edge that bends what is behind it */
+  --glass-refraction: 18; /* feDisplacementMap scale, px */
+
+  /* the signature lightbox: a dark backlit card on the light page (D-047) */
+  --lightbox: #0b0b0c;
+  --lightbox-edge: rgba(255, 255, 255, 0.07);
+  --lightbox-shadow: 0 1px 1px rgba(20, 16, 8, 0.06), 0 22px 44px -18px rgba(20, 16, 8, 0.34);
+
+  /* type (D-048) */
+  --font: "Helvetica Neue", Helvetica, "TeX Gyre Heros", Arial, sans-serif;
+  --font-mono: ui-monospace, Menlo, Consolas, monospace;
+  --weight-regular: 400;
+  --weight-bold: 700;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -30,6 +80,8 @@
   --space-6: 24px;
   --space-8: 32px;
   --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
   --radius-small: 6px;
   --radius-control: 12px;
   --radius-card: 20px;
@@ -63,60 +115,115 @@
   --column-max: 980px;
 }
 
-:root[data-theme="light"] {
-  --bg: #f2f2f7;
-  --bg-2: #ffffff;
-  --bg-3: #f2f2f7;
-  --label: #1d1d1f;
-  --label-2: rgba(60, 60, 67, 0.78); /* darker than Apple secondary label: >= 4.5:1 on the grouped background */
-  --label-3: rgba(60, 60, 67, 0.3);
-  --separator: rgba(60, 60, 67, 0.29);
-  --accent: #007aff;
-  --accent-fill: #0066cc;
-  --link: #0066cc;
-  --danger: #ff3b30;
-  --material: rgba(255, 255, 255, 0.72);
-  --material-border: rgba(0, 0, 0, 0.08);
-  --scrim: rgba(0, 0, 0, 0.3);
-  --fill: rgba(120, 120, 128, 0.16);
+/* dark: the setting, or "auto" with a dark system preference */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000;
+  --bg-2: #1c1c1e;
+  --bg-3: #2c2c2e;
+  --fill: rgba(120, 120, 128, 0.36);
+  --fill-strong: rgba(120, 120, 128, 0.5);
+  --label: #f5f5f7;
+  --label-2: rgba(235, 235, 245, 0.62);
+  --label-3: rgba(235, 235, 245, 0.3);
+  --separator: rgba(84, 84, 88, 0.65);
+  --accent: #6e8bff;
+  --accent-fill: #f5f5f7;
+  --accent-fill-glass: rgba(245, 245, 247, 0.9);
+  --on-accent-fill: #000000;
+  --link: #8aa0ff;
+  --danger: #ff6b5e;
+  --focus-ring: #8aa0ff;
+  --scrim: rgba(0, 0, 0, 0.5);
+  --material: rgba(30, 30, 32, 0.62);
+  --material-border: rgba(255, 255, 255, 0.1);
+  --material-thick: rgba(28, 28, 30, 0.9);
+  --glass-tint: rgba(255, 255, 255, 0.08);
+  --glass-tint-hover: rgba(255, 255, 255, 0.13);
+  --glass-tint-solid: #1c1c1e;
+  --glass-edge: rgba(255, 255, 255, 0.1);
+  --glass-rim-hi: rgba(255, 255, 255, 0.32);
+  --glass-rim-lo: rgba(0, 0, 0, 0.4);
+  --glass-specular: rgba(255, 255, 255, 0.16);
+  --glass-shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 8px 22px -8px rgba(0, 0, 0, 0.6);
+  --glass-prominent-rim-hi: rgba(255, 255, 255, 0.7);
+  --glass-prominent-rim-lo: rgba(0, 0, 0, 0.12);
+  --glass-prominent-specular: rgba(255, 255, 255, 0.5);
+  --lightbox: #0b0b0c;
+  --lightbox-edge: rgba(255, 255, 255, 0.09);
+  --lightbox-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06);
 }
 
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --bg: #f2f2f7;
-    --bg-2: #ffffff;
-    --bg-3: #f2f2f7;
-    --label: #1d1d1f;
-    --label-2: rgba(60, 60, 67, 0.78); /* darker than Apple secondary label: >= 4.5:1 on the grouped background */
-    --label-3: rgba(60, 60, 67, 0.3);
-    --separator: rgba(60, 60, 67, 0.29);
-    --accent: #007aff;
-    --accent-fill: #0066cc;
-    --link: #0066cc;
-    --danger: #ff3b30;
-    --material: rgba(255, 255, 255, 0.72);
-    --material-border: rgba(0, 0, 0, 0.08);
-    --scrim: rgba(0, 0, 0, 0.3);
-    --fill: rgba(120, 120, 128, 0.16);
+/* auto: follow the system when the person picked "Auto" (data-theme="auto") */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="auto"] {
+    color-scheme: dark;
+    --bg: #000000;
+    --bg-2: #1c1c1e;
+    --bg-3: #2c2c2e;
+    --fill: rgba(120, 120, 128, 0.36);
+    --fill-strong: rgba(120, 120, 128, 0.5);
+    --label: #f5f5f7;
+    --label-2: rgba(235, 235, 245, 0.62);
+    --label-3: rgba(235, 235, 245, 0.3);
+    --separator: rgba(84, 84, 88, 0.65);
+    --accent: #6e8bff;
+    --accent-fill: #f5f5f7;
+  --accent-fill-glass: rgba(245, 245, 247, 0.9);
+    --on-accent-fill: #000000;
+    --link: #8aa0ff;
+    --danger: #ff6b5e;
+    --focus-ring: #8aa0ff;
+    --scrim: rgba(0, 0, 0, 0.5);
+    --material: rgba(30, 30, 32, 0.62);
+    --material-border: rgba(255, 255, 255, 0.1);
+  --material-thick: rgba(28, 28, 30, 0.9);
+    --glass-tint: rgba(255, 255, 255, 0.08);
+    --glass-tint-hover: rgba(255, 255, 255, 0.13);
+    --glass-tint-solid: #1c1c1e;
+    --glass-edge: rgba(255, 255, 255, 0.1);
+    --glass-rim-hi: rgba(255, 255, 255, 0.32);
+    --glass-rim-lo: rgba(0, 0, 0, 0.4);
+    --glass-specular: rgba(255, 255, 255, 0.16);
+    --glass-shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 8px 22px -8px rgba(0, 0, 0, 0.6);
+      --glass-prominent-rim-hi: rgba(255, 255, 255, 0.7);
+    --glass-prominent-rim-lo: rgba(0, 0, 0, 0.12);
+    --glass-prominent-specular: rgba(255, 255, 255, 0.5);
+    --lightbox-edge: rgba(255, 255, 255, 0.09);
+    --lightbox-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06);
   }
 }
 
-/* The signature canvas always sits on pure black, in both themes (the glow needs a dark ground). */
-.stage-card {
-  background: #000000;
-}
-
-/* The first landing and the signature stage are always on black (dark tokens), in both themes. */
+/* Dark grounds inside the light page: the signature lightbox, the maps card and the first
+   landing's stage (until M7b phase 5) always use dark text and glass tokens. */
 .landing, .stage-card, .maps-card {
+  color-scheme: dark;
   --label: #f5f5f7;
-  --label-2: rgba(235, 235, 245, 0.6);
+  --label-2: rgba(235, 235, 245, 0.62);
   --label-3: rgba(235, 235, 245, 0.3);
-  --link: #2997ff;
+  --link: #8aa0ff;
+  --focus-ring: #8aa0ff;
   --fill: rgba(120, 120, 128, 0.36);
-  --accent-fill: #0071e3;
+  --fill-strong: rgba(120, 120, 128, 0.5);
+  --accent-fill: #f5f5f7;
+  --accent-fill-glass: rgba(245, 245, 247, 0.9);
+  --on-accent-fill: #000000;
   --material: rgba(30, 30, 32, 0.62);
   --material-border: rgba(255, 255, 255, 0.1);
+  --material-thick: rgba(28, 28, 30, 0.9);
+  --bg: #000000;
   --bg-2: #1c1c1e;
   --bg-3: #2c2c2e;
+  --glass-tint: rgba(255, 255, 255, 0.08);
+  --glass-tint-hover: rgba(255, 255, 255, 0.13);
+  --glass-tint-solid: #1c1c1e;
+  --glass-edge: rgba(255, 255, 255, 0.1);
+  --glass-rim-hi: rgba(255, 255, 255, 0.32);
+  --glass-rim-lo: rgba(0, 0, 0, 0.4);
+  --glass-specular: rgba(255, 255, 255, 0.16);
+  --glass-shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 8px 22px -8px rgba(0, 0, 0, 0.6);
+  --glass-prominent-rim-hi: rgba(255, 255, 255, 0.7);
+  --glass-prominent-rim-lo: rgba(0, 0, 0, 0.12);
+  --glass-prominent-specular: rgba(255, 255, 255, 0.5);
   color: var(--label);
 }

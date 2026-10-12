@@ -1,6 +1,7 @@
 // Appearance, motion and transparency settings, persisted in localStorage (a per-viewer
 // convenience: the app renders correctly when storage is unavailable).
 import { create } from "zustand";
+import { glass } from "../glass/glass";
 
 export type Appearance = "auto" | "dark" | "light";
 export type Toggle = "auto" | "on";
@@ -25,7 +26,7 @@ function load(): Partial<SettingsState> {
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({
-  appearance: "auto",
+  appearance: "light", // D-047: light by default; dark and auto are settings
   reduceMotion: "auto",
   reduceTransparency: "auto",
   keepAudio: true,
@@ -45,12 +46,12 @@ export const useSettings = create<SettingsState>((set, get) => ({
 /** Applies settings to the document root (data attributes read by tokens.css and app.css). */
 export function applySettings(s: Pick<SettingsState, "appearance" | "reduceMotion" | "reduceTransparency">): void {
   const root = document.documentElement;
-  if (s.appearance === "auto") root.removeAttribute("data-theme");
-  else root.setAttribute("data-theme", s.appearance);
+  root.setAttribute("data-theme", s.appearance);
   if (s.reduceMotion === "on") root.setAttribute("data-motion", "reduced");
   else root.removeAttribute("data-motion");
   if (s.reduceTransparency === "on") root.setAttribute("data-transparency", "reduced");
   else root.removeAttribute("data-transparency");
+  glass.apply(); // the glass tier depends on the transparency setting
 }
 
 /** True when motion should be reduced: the in-app override or the system preference. */

@@ -14,97 +14,72 @@ We copy the **look and feel**, not Apple's assets or branding. Exact values belo
 
 ## 2. Design tokens (`web/src/styles/tokens.css`)
 
-Dark is the default appearance; light follows `prefers-color-scheme` and the in-app override.
+**Light is the default appearance** (D-047): warm off-white ground, ink text, one restrained ink-blue
+accent. Dark is a setting (Appearance: Light / Dark / Auto; Auto follows the system). The file is the
+single source; this table lists the light values and the role of each token.
 
-```css
-:root {
-  /* dark (default) */
-  --bg: #000000;
-  --bg-2: #1C1C1E;
-  --bg-3: #2C2C2E;
-  --fill: rgba(120,120,128,0.36);
-  --label: #F5F5F7;             /* near-white on black (docs/REFERENCES.md) */
-  --label-2: rgba(235,235,245,0.60);
-  --label-3: rgba(235,235,245,0.30);
-  --separator: rgba(84,84,88,0.65);
-  --accent: #0A84FF;
-  --accent-fill: #0071E3;       /* filled buttons: white text >= 4.5:1 (D-043) */
-  --link: #2997FF;              /* text links on dark */
-  --danger: #FF453A;
-  --material: rgba(30,30,32,0.62);
-  --material-border: rgba(255,255,255,0.10);
-  --focus-ring: #0A84FF;
-
-  --font: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;   /* uses SF Mono only if installed */
-
-  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
-  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
-  --radius-small: 6px; --radius-control: 12px; --radius-card: 20px; --radius-sheet: 24px;
-  --radius-pill: 980px;
-  --hit: 44px;
-
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);          /* enter, exit, reveal, press release (D-044) */
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);      /* movement of something already on screen */
-  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);       /* sheets, carousels, segmented pill */
-  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);       /* alias of --ease-drawer */
-  --ease-standard: cubic-bezier(0.4, 0, 0.6, 1);       /* hover and colour only */
-  --ease-stage: cubic-bezier(0.65, 0.05, 0, 1);        /* stage-level transitions only */
-  --dur-press: 120ms; --dur-fast: 200ms; --dur-ui: 240ms; --dur-push: 300ms; --dur: 350ms;
-  --dur-sheet: 400ms; --dur-reveal: 450ms; --dur-handoff: 450ms; --dur-slow: 500ms; --dur-stage: 700ms;
-  --dip-out: 250ms; --dip-rest: 100ms; --dip-in: 350ms;
-}
-/* light: explicit override */
-:root[data-theme="light"] {
-  --bg: #F2F2F7; --bg-2: #FFFFFF; --bg-3: #F2F2F7;
-  --label: #1D1D1F; --label-2: rgba(60,60,67,0.78); --label-3: rgba(60,60,67,0.30);
-  --separator: rgba(60,60,67,0.29); --accent: #007AFF; --accent-fill: #0066CC; --link: #0066CC; --danger: #FF3B30;
-  --material: rgba(255,255,255,0.72); --material-border: rgba(0,0,0,0.08);
-}
-/* light: automatic, unless the user forced dark */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --bg: #F2F2F7; --bg-2: #FFFFFF; --bg-3: #F2F2F7;
-    --label: #1D1D1F; --label-2: rgba(60,60,67,0.60); --label-3: rgba(60,60,67,0.30);
-    --separator: rgba(60,60,67,0.29); --accent: #007AFF; --link: #0071E3; --danger: #FF3B30;
-    --material: rgba(255,255,255,0.72); --material-border: rgba(0,0,0,0.08);
-  }
-}
-```
-
-**The signature canvas always sits on pure black (`#000`) in both themes**, inside a rounded card in light mode, because the glow depends on a dark ground.
-
-## 3. Typography
-
-System stack only (renders SF Pro on Apple devices, no font files bundled). Sizes in `rem` (1 rem = 16 px default) so browser text-size settings scale the UI.
-
-| Style | Size / line (px) | Weight | Use |
+| Token | Light (default) | Dark | Role |
 | --- | --- | --- | --- |
-| Display | 48 / 52 at >= 1069 px, 40 / 44 below | 600 | Landing scene title only |
-| Large Title | 34 / 41 | 700 | Library title on phone |
-| Title 1 | 28 / 34 | 700 | Screen titles |
-| Title 2 | 22 / 28 | 700 | Section titles |
-| Headline | 17 / 22 | 600 | Song title in player bar |
-| Body | 17 / 22 | 400 | Default |
-| Callout | 16 / 21 | 400 | Inspector values |
-| Subheadline | 15 / 20 | 400 | Artist, secondary info |
-| Footnote | 13 / 18 | 400 | Metadata, help |
-| Caption | 12 / 16 | 400 | Axis labels on maps |
+| `--bg` | `#F6F4EF` | `#000000` | page ground |
+| `--bg-2` | `#FBFAF7` | `#1C1C1E` | raised surfaces, sheets |
+| `--bg-3` | `#EDEAE3` | `#2C2C2E` | grouped / inset |
+| `--label` | `#141414` | `#F5F5F7` | text (ink) |
+| `--label-2` | ink at 66 % | 62 % | secondary text, >= 5.5:1 on every light ground |
+| `--label-3` | ink at 28 % | 30 % | separators and disabled UI only, never text |
+| `--accent`, `--link`, `--focus-ring` | `#2B4BF2` | `#6E8BFF` / `#8AA0FF` | links, focus, selection (>= 5.1:1) |
+| `--accent-fill` / `--on-accent-fill` | `#141414` / white | `#F5F5F7` / black | filled buttons |
+| `--glass-*` | see section 4 | | liquid-glass material |
+| `--lightbox`, `--lightbox-edge`, `--lightbox-shadow` | `#0B0B0C`, 7 % white hairline, soft shadow | | the signature card |
 
-Tracking (letter-spacing) tightens with size, as measured on Apple's pages: Body -0.374 px, Subheadline -0.24 px, Footnote -0.08 px, Caption -0.12 px, Display -0.14 px. UI uses two weights, 400 and 600 (700 stays for titles).
+Spacing, radii, hit size and motion tokens are unchanged (motion: section 8, D-044).
 
-Numbers in the inspector use `font-variant-numeric: tabular-nums`. Minimum 11 px anywhere.
+**The signature always sits on a dark lightbox card** (`--lightbox`), in both themes, because the glow
+and the backlit glass need a dark ground (D-026, D-047). On the light page the card has a subtle inner
+hairline and a soft shadow, no heavy frame. The first landing keeps its own dark stage until phase 5.
 
-## 4. Materials
+## 3. Typography (D-048)
 
-Floating controls (player bar, toolbars, sheets, popovers):
-```css
-background: var(--material);
-backdrop-filter: blur(20px) saturate(180%);
--webkit-backdrop-filter: blur(20px) saturate(180%);
-border: 0.5px solid var(--material-border);
-```
-Fallback to a solid `--bg-2` when `backdrop-filter` is unsupported or `prefers-reduced-transparency: reduce` (or the in-app "Reduce transparency" toggle) is set. Legibility check: text on materials must keep ≥ 4.5:1 contrast over the brightest signature cells (test with a white-dot screenshot).
+Stack: `"Helvetica Neue", Helvetica, "TeX Gyre Heros", Arial, sans-serif`. Mac renders Helvetica Neue;
+machines without Helvetica get **TeX Gyre Heros**, self-hosted from `web/public/fonts/` (Latin WOFF2
+subsets, 16 KiB per weight, built by `scripts/fetch_fonts.py` from the checksummed CTAN originals; GUST
+Font License = LPPL 1.3c; files renamed per its request, MANIFEST alongside; git-ignored, rebuilt by
+`make web-fonts`). Only regular (400) and bold (700) exist: **hierarchy comes from size, tracking and
+colour, never synthesized weights**. Sizes in `rem` so browser text settings scale the UI.
+
+| Style | Size / line | Weight | Tracking | Use |
+| --- | --- | --- | --- | --- |
+| Hero | clamp(3.5, 9vw, 9 rem) / 0.92 | 700 | -0.045em | landing hero only |
+| Display | clamp(2.5, 5vw, 4 rem) / 1.0 | 700 | -0.035em | landing scene titles |
+| Large Title | 34 px / 1.1 | 700 | -0.028em | library title |
+| Title 1 / 2 | 28 / 22 px, 1.15 / 1.2 | 700 | -0.022 / -0.016em | screen and section titles |
+| Headline | 17 px / 1.3 | 700 | -0.008em | song title |
+| Body | 17 px / 1.45 | 400 | -0.005em | default |
+| Reading | 17 px / 1.6 | 400 | -0.003em | landing copy, About |
+| Subheadline | 15 px / 1.4 | 400 | 0 | artist, secondary |
+| Footnote | 13 px / 1.4 | 400 | +0.01em | metadata, help |
+| Caption | 12 px / 1.35 | 400 | +0.02em | axis labels |
+| Eyebrow | 12 px / 1.2, uppercase | 700 | +0.08em | small section labels |
+
+Tracking tightens as size grows and opens slightly below 15 px (optical sizing emulated). Numbers that
+change use `font-variant-numeric: tabular-nums`. Minimum 11 px anywhere.
+
+## 4. Materials: liquid glass (D-051)
+
+Every button and control uses the glass material (`.glass`), chosen in three tiers by
+`web/src/glass/glass.ts`:
+
+| Tier | When | Material |
+| --- | --- | --- |
+| `refract` | Chromium, transparency allowed | `backdrop-filter: url(lens) blur(--glass-blur) saturate(--glass-saturate)`: a generated displacement map per control size bends the backdrop inside a `--glass-bezel` (14 px) rim with strength `--glass-refraction` (18 px); plus tint, specular rim, shadow |
+| `frost` | Safari, Firefox (Firefox passes `@supports` for `url()` in `backdrop-filter` but draws nothing, so the engine is detected) | blur + saturate + tint + the same rim |
+| `solid` | reduced transparency (system or in-app), `prefers-contrast: more`, or no backdrop-filter | `--glass-tint-solid` fill with a 1 px contrasting edge |
+
+Rim: a bright top inner edge (`--glass-rim-hi`), a shaded lower edge (`--glass-rim-lo`), a hairline
+(`--glass-edge`) and a static specular highlight; shadow via `--glass-shadow`. Press: `scale(0.97)` on
+pointer-down (D-044); hover raises the tint and the rim (pointer devices only). Focus: 2 px
+`--focus-ring` outside the rim. **Glass never covers the signature card** (UI chrome never alters
+signature colours). Sheets and popovers use the frosted `.material` (`--material`, blur 20 px,
+saturate 180 %), solid under reduced transparency. Legibility: text on glass keeps >= 4.5:1.
 
 ## 5. Layout
 
@@ -181,6 +156,8 @@ Rules (D-044): animate `transform` and `opacity` (plus small colour/filter chang
 | Landing exit (skip, add) | Fade out | `opacity` | 250 ms | `--ease-out` | 200 ms | n/a |
 | Analysis finished | Reveal: a diagonal wave of scale-in cells | dot radius | 450 ms, wave width 35 % | ease-out cubic | 450 ms fade from black | n/a |
 | Pause | Ease back to the static signature | live layer blend | 400 ms smoothstep | smoothstep | instant | n/a |
+| Theme change (Appearance setting) | Cross-fade (View Transitions API where supported) | whole page snapshot `opacity` | 200 ms | `--ease-out` | instant | instant |
+| Glass hover | Hover effect | tint (`background-color`) only, no animated shadow | 240 ms | `--ease-standard` | none | none |
 | Toast | Fade in with a small lift | `opacity`, `transform` 8 px | 240 ms | `--ease-out` | fade only | n/a |
 | Map pagination dots | State indication | `width`, `background` | 200 ms | `--ease-out` | none | none |
 | Inspector popover | follows the pointer, no animation (high frequency) | none | 0 | none | none | none |
@@ -218,7 +195,7 @@ Never bundle SF Symbols. Use **Lucide** (ISC license, similar line weight), stro
 
 ## 11. PWA
 
-- `manifest.webmanifest`: name "SYNESTHESIA", short name "Synesthesia", `display: standalone`, `theme_color: #000000`, `background_color: #000000`, original app icon (dark square with a small glowing dot grid; designed in-house, not Apple's icon templates' artwork).
+- `manifest.webmanifest`: name "SYNESTHESIA", short name "Synesthesia", `display: standalone`, `theme_color` and `background_color` `#F6F4EF` (light default, D-047; `index.html` sets a dark `theme-color` for dark system schemes), original app icon (dark square with a small glowing dot grid; designed in-house, not Apple's icon templates' artwork).
 - `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`, `apple-mobile-web-app-capable`, status bar style black-translucent.
 - Service worker caches the app shell and analyzed songs' signature data (not audio).
 
