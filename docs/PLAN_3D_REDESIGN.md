@@ -435,3 +435,100 @@ grid playing. Budget unchanged (glass <= 3 ms on the reference GPU). Integrated 
 4. Tests: UI checklist (48 contexts), contrast on panes, pane cost table, loader tests, render freeze
    (unchanged, or re-frozen under D-055 with parity and fidelity re-run).
 5. Evidence: screenshots at 3 sizes, recording, `review-animations`, `animation-performance`, `break-ui`.
+
+---
+
+## 12. Phase 4b: longer start mural, live trail graph (owner request 2026-10-12; approved with all recommendations 2026-10-13, built as D-061, D-062)
+
+### 12.1 Start mural stays too briefly
+
+**Why it is short today (D-052).** The boot mural in `web/index.html` appears only if loading takes longer than
+`delay_ms` 400, stays at least `min_ms` 600, then fades in `fade_ms` 300. A normal start therefore shows it for
+about 0.6-1.0 s, starting 0.4 s in. One full diagonal sweep needs 1.93 s: the flip runs from 8 % to 36 % of the
+2.6 s period (208-936 ms) and the last of the 12 x 8 tiles starts (11 + 7) x 55 = 990 ms late. So the owner
+sees the first tiles mid-flip and never the finished sweep.
+
+**Proposal.** Treat it as the opening on a cold start, not a loading spinner:
+- shown from the first paint (`delay_ms` 0) on every cold start of the app;
+- stays for one full sweep plus a short hold on the finished mural with the wordmark:
+  `min_ms` = 1,930 + 420 = **2,350 ms**, then a **450 ms** fade (was 300);
+- if loading takes longer, it keeps sweeping (the animation already loops) until the app has painted;
+- skippable: any key, click or tap after 600 ms starts the fade;
+- reduced motion: the static mural for **1,000 ms**, then the fade;
+- the in-app mural for the 3D chunk (`LoadingMural`, D-052 gate 400 / 600 / 300) is unchanged;
+- the timings move from the inline JSON to `config/default.yaml` (`ui.mural`) and reach `index.html`
+  through the fixtures script, with a unit test keeping them equal (as the hue range is today).
+
+Cost: a cold start now holds the user for about 2.35 s even when the app is ready sooner. Options
+for the owner: (a) every cold start (recommended, as asked), (b) only the first start per browser session,
+later reloads fast.
+
+### 12.2 Live trail graph
+
+**What it shows.** A new floating glass pane with a chart whose axes are the two features the grid's
+orientation already uses (D-031: brightness up, loudness right), in physical units:
+- **x: Loudness, dBFS** (frame RMS, `20 log10 rms`), linear, -46 to -18 dBFS, ticks every 5 dB;
+- **y: Brightness, spectral centroid in Hz**, log scale, 406 Hz to 4.09 kHz, ticks 500 Hz, 1 kHz,
+  2 kHz, 4 kHz; a thin hue strip on the y axis (265 deg at the bottom to 30 deg at the top), the same
+  mapping that colours the grid, so the chart also explains the colours;
+- the axis ranges are the frozen global calibration ranges (`config/calibration.yaml`, 2nd-98th
+  percentile over 30 tracks), so every song is drawn on the same axes and songs can be compared;
+  values outside are pinned to the edge and drawn as an open marker;
+- **the trail:** the last 2 s (`live.trail.length_s`, the same window as the grid's trail) as a line
+  fading with age, and a dot at the current moment filled with the current live colour;
+- **context (recommended):** the whole song as a faint static density cloud behind the trail, so you
+  see where "now" sits within the song.
+
+Note: the grid places sounds by similarity per song; this chart places them by absolute loudness and
+brightness. The two trails move together but trace different shapes. That's expected, and the caption
+says so.
+
+**Data, no API change.** `live.bin` already carries `color_t` (T x 5 u8): brightness and loudness
+normalised over the same calibration ranges. Brightness is `log10 Hz`, so the chart reads
+`log10 Hz = lo + q / 255 x (hi - lo)` back to Hz, and the same for dBFS. Resolution: 0.11 dB and 0.9 % in Hz
+per step, finer than the smoothing (9 frames, about 0.2 s). Interpolated between frames exactly like the
+engine (LIVE.md 2.1).
+
+**Same time as the grid, by construction.** The chart doesn't run its own clock. `GridCanvas` already
+computes `s = analysisTime(player.position(), audioOffsetS)` once per animation frame. It will publish that
+`s` to subscribers in the same `requestAnimationFrame` callback, and the chart draws from that exact
+value in the same frame. A test asserts that the grid and the chart report the identical `s` on every
+frame (not merely "close").
+Behaviour: playing, it follows `s`; seek, the trail resets (as the grid's does after a jump of more than 0.5 s);
+pause, the trail fades out over the grid's 400 ms and the dot stays at the paused moment.
+
+**Drawing.** Canvas2D for the trail and dot (about 86 segments per frame, well under 0.2 ms); axes, ticks and
+labels as static SVG/DOM text in TeX Gyre Heros with tabular figures, so they stay crisp and readable by screen
+readers. `role="img"` with a live text alternative updated at 2 Hz, for example "Loudness -24 dBFS, brightness
+1.6 kHz". Reduced motion: no fading trail, the dot only.
+
+**Where it sits.**
+- Desktop (>= 1069 px): in the right column, a pane under the inspector, square, the column's width (about
+  280 px).
+- Tablet: under the stage, beside the player.
+- Phone: a pane under the player bar, full width, above the inspector.
+- A small toggle (chart icon, key G, remembered) hides it.
+
+This also resolves the phase-4 break: on phones the time label can go to its own row in the new layout, so the
+scrubber keeps its width at 320 px and 200 % text.
+
+**Numbers in config** (`ui.trail_graph`): trail length (default `live.trail.length_s`), tick sets, cloud
+opacity, line width, dot size, alt-text rate.
+
+**Tests and evidence.**
+- Unit: dequantisation against Python's physical values (a fixture of 20 frames per song, error <= half a
+  step), axis tick placement, log scale.
+- e2e: same `s` in grid and chart per frame; chart dot position vs the interpolated value at that `s`; seek
+  resets the trail; reduced motion.
+- Screenshots at 390 / 820 / 1440, a recording of grid and chart together, frame-time table (target: no
+  change in p95), and the break-ui pass on the new pane.
+
+**Decisions to record:** D-061 start mural timing; D-062 trail graph.
+
+### 12.3 Questions for the owner
+1. Start mural: (a) every cold start, about 2.35 s (recommended), or (b) first start per session only?
+2. Chart axes: loudness (dBFS) by brightness (Hz) as above (recommended), or a time chart instead (x = time in
+   seconds, y = one feature)?
+3. Trail length on the chart: 2 s like the grid (recommended), or longer (for example 8 s) so the shape reads
+   better?
+4. Show the faint whole-song cloud behind the trail? (recommended: yes)

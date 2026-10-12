@@ -14,6 +14,7 @@ import { loadDisc } from "../three/load";
 const LABEL_PX = 512;
 const IDLE_TIMEOUT_MS = 1200; // the chunk loads by then even on a busy page
 const LOG_MAX = 900;
+const HANDOFF_POLL_MS = 150; // re-check for the end of the landing handoff this often
 
 declare global {
   interface Window {
@@ -77,7 +78,19 @@ export function Disc({ open, player, reduced }: Props) {
     });
     // load the 3D chunk when the browser is idle, never in the middle of the screen transition
     const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (h: number) => void };
+    // and not while the first landing hands its stage over (creating a GL context mid-travel stalls it,
+    // as for the grid in GridCanvas): wait until the handoff has finished, then for an idle moment
+    const handoffRunning = (): boolean => !!document.querySelector('.landing[data-exit="handoff"]');
+    let handoffWait = 0;
     const start = (): void => {
+      if (dead) return;
+      if (handoffRunning()) {
+        handoffWait = window.setTimeout(() => {
+          handoffWait = 0;
+          scheduleIdle();
+        }, HANDOFF_POLL_MS);
+        return;
+      }
       void loadDisc()
         .then((create) => {
           if (dead) return;
@@ -92,20 +105,24 @@ export function Disc({ open, player, reduced }: Props) {
           canvas.hidden = true; // no WebGL: the player bar works without the disc
         });
     };
-    let cancelIdle: () => void;
-    if (w.requestIdleCallback && w.cancelIdleCallback) {
-      const h = w.requestIdleCallback(start, { timeout: IDLE_TIMEOUT_MS });
-      const cancel = w.cancelIdleCallback;
-      cancelIdle = () => cancel(h);
-    } else {
-      const h = window.setTimeout(start, IDLE_TIMEOUT_MS);
-      cancelIdle = () => window.clearTimeout(h);
-    }
+    let cancelIdle: () => void = () => undefined;
+    const scheduleIdle = (): void => {
+      if (w.requestIdleCallback && w.cancelIdleCallback) {
+        const h = w.requestIdleCallback(start, { timeout: IDLE_TIMEOUT_MS });
+        const cancel = w.cancelIdleCallback;
+        cancelIdle = () => cancel(h);
+      } else {
+        const h = window.setTimeout(start, IDLE_TIMEOUT_MS);
+        cancelIdle = () => window.clearTimeout(h);
+      }
+    };
+    scheduleIdle();
     // play, pause and seek all emit a change: restart the loop if it had stopped
     const off = player.onChange(kick);
     return () => {
       dead = true;
       cancelIdle();
+      window.clearTimeout(handoffWait);
       off();
       ro.disconnect();
       cancelAnimationFrame(raf);

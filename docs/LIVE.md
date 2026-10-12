@@ -168,3 +168,23 @@ polished rim and a spindle. Camera tilted 12 deg from straight above.
   time at the start); coast 0.63 rad over 1446 ms; a +5 s seek turned 4.8868 rad
   (expected 4.8867).
 
+## 12. Live trail chart (M7b phase 4b, D-062)
+
+A second live view beside the grid (`web/src/components/TrailGraph.tsx`, `web/src/engine/graph.ts`, config
+`ui.trail_graph`): loudness (dBFS, frame RMS) across and brightness (spectral centroid, Hz, log axis) up, on
+the frozen calibration ranges (`config/calibration.yaml`). Values are `color_t` columns 1 and 0 read back as
+`lo + q / 255 x (hi - lo)`; points at q = 0 or 255 lie outside the range and are drawn open, pinned to the edge.
+
+- **Clock:** `web/src/audio/frameClock.ts`. One requestAnimationFrame loop per signature screen computes
+  `s = analysisTime(player.position(), audioOffsetS)` once per frame and calls the grid, then the chart. The
+  grid subscribes through `GridCanvas`'s `clock` prop (the landing stage keeps its own loop), so both views
+  draw the identical `s` in the same frame; the chart keeps running on the map views where the grid is not
+  mounted.
+- **Trail:** a pure function of `s`: the frames of the last `trail_s` (= `live.trail.length_s`, the grid's
+  window) up to `s`, plus the point at `s` interpolated as in section 2.1. Alpha = 0.9 x (1 - age).
+- **Pause:** the trail fades over 400 ms (smoothstep, as the grid's ease-out); the dot stays. **Seek:** the
+  trail is recomputed for the new `s`. **Reduced motion:** the dot only.
+- **Cloud:** the whole song's 64 x 64 density, Gaussian sigma 1.2 bins, square-rooted, peak opacity 0.35,
+  painted once per song and size.
+- **Cost:** about 88 line segments and one dot on a Canvas2D per frame; redrawn only while something changes.
+

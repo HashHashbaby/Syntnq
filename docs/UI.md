@@ -103,6 +103,8 @@ Breakpoints (D-033): phone <= 734 px, tablet 735-1068, desktop 1069-1440, wide >
 - 3D live view (D-056): the Sound view draws glass chips; a "True colour" icon button in the toolbar (pressed = flat 2D dots, key T, remembered) switches views; the 3D chunk loads on first use under the loading mural.
 - Split view: sidebar 320 px (library list, search field, "+" button) and detail area.
 - Detail: toolbar at top (song title, segmented map switcher, Export button, more menu); canvas centered; inspector panel on the right (280 px) on ≥ 1069 px wide, otherwise a popover.
+- Live trail chart (D-062): a "Loudness and brightness" pane (loudness dBFS across, brightness Hz up on a log axis, calibration ranges, the grid's 2 s trail and a dot for now, a faint whole-song cloud), in the right column above the inspector at >= 1200 px and under the player below that; toolbar toggle (chart icon, key G, remembered; not in the phone toolbar). It draws from the same frame clock as the grid.
+- Start mural (D-061): the opening on every cold start, one full sweep (2.35 s) then a 450 ms fade; a key, click or tap after 0.6 s skips it.
 - Player bar docked at the bottom of the detail area. At its left end, concentric with the pill, the **rotating disc** (D-060, `--disc-size` 52 px, 46 px on phones): a smoked-glass disc whose label is the song's signature card; decorative (`aria-hidden`), it turns with the audio clock, coasts to a stop on pause, follows seeks and scrubs, stays still under reduced motion, and steps aside when WebGL is missing.
 
 **Keyboard (desktop)**

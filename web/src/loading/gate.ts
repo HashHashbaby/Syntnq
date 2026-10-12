@@ -1,7 +1,9 @@
 // When a loading surface (the mural, D-052) appears and leaves. It never shows for loads shorter
 // than `delayMs`; once shown it stays at least `minMs` so it never flashes; then it fades out over
 // `fadeMs` and is removed. No artificial delay: a load that finishes before `delayMs` ends at once.
-// The numbers live in index.html (#syn-mural-params), read through muralParams().
+// The cold start uses its own times (D-061): shown from the first paint for one full sweep, then a
+// slower fade; a key, click or tap after `skip_after_ms` ends it early.
+// The numbers live in index.html (#syn-mural-params, a copy of config ui.mural), read through muralParams().
 
 export interface GateTimes {
   delayMs: number;
@@ -31,6 +33,8 @@ export class LoadGate {
   private shownAt: number | null = null;
   private pending: unknown = null;
   private finished = false;
+  private waiting: unknown = null; // the minimum-time timer after finish()
+  private hidden = false;
 
   constructor(
     private readonly t: GateTimes,
@@ -67,10 +71,31 @@ export class LoadGate {
       return;
     }
     const wait = Math.max(0, this.t.minMs - (this.clock.now() - this.shownAt));
-    this.clock.set(() => {
-      this.hooks.hide();
-      this.clock.set(() => this.hooks.remove(), this.t.fadeMs);
+    this.waiting = this.clock.set(() => {
+      this.waiting = null;
+      this.leave();
     }, wait);
+  }
+
+  /** Cut the minimum time short (the user asked to skip): fade out now if the load is done. */
+  skip(): boolean {
+    if (!this.finished || this.waiting === null || this.hidden) return false;
+    this.clock.clear(this.waiting);
+    this.waiting = null;
+    this.leave();
+    return true;
+  }
+
+  /** Shown for at least this long (ms), or null when not shown. */
+  shownFor(): number | null {
+    return this.shownAt === null ? null : this.clock.now() - this.shownAt;
+  }
+
+  private leave(): void {
+    if (this.hidden) return;
+    this.hidden = true;
+    this.hooks.hide();
+    this.clock.set(() => this.hooks.remove(), this.t.fadeMs);
   }
 }
 
@@ -86,6 +111,11 @@ export interface MuralParams {
   delay_ms: number;
   min_ms: number;
   fade_ms: number;
+  boot_delay_ms: number;
+  boot_min_ms: number;
+  boot_min_reduced_ms: number;
+  boot_fade_ms: number;
+  skip_after_ms: number;
 }
 
 /** The mural parameters from index.html (single source for the inline script and the app). */
@@ -96,6 +126,11 @@ export function muralParams(): MuralParams {
 
 export function gateTimes(p: MuralParams = muralParams()): GateTimes {
   return { delayMs: p.delay_ms, minMs: p.min_ms, fadeMs: p.fade_ms };
+}
+
+/** The cold-start times (D-061): one full sweep plus a hold, or the still mural under reduced motion. */
+export function bootTimes(p: MuralParams, reduced: boolean): GateTimes {
+  return { delayMs: p.boot_delay_ms, minMs: reduced ? p.boot_min_reduced_ms : p.boot_min_ms, fadeMs: p.boot_fade_ms };
 }
 
 interface BootState {
@@ -111,24 +146,42 @@ declare global {
   }
 }
 
-/** Ends the boot mural once the app has painted its first frame (called from main.tsx). */
+/** Ends the boot mural once the app has painted its first frame (called from main.tsx): after its
+ *  minimum time, or earlier when the user presses a key, clicks or taps (after `skip_after_ms`). */
 export function finishBoot(): void {
   const el = document.getElementById("syn-mural");
   const state = window.__synBoot;
   if (!el || !state) return;
+  const p = muralParams();
+  const root = document.documentElement;
+  const reduced = root.getAttribute("data-motion") === "reduced" || (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
   const log = { shownAt: state.shownAt, hideAt: null as number | null, removedAt: null as number | null };
   window.__synMuralLog = log;
-  const gate = new LoadGate(gateTimes(), {
+  const onInput = (e: Event): void => {
+    const age = gate.shownFor();
+    if (age === null || age < p.skip_after_ms) return;
+    // the press ends the opening and does nothing else (a space must not also start playback)
+    e.preventDefault();
+    e.stopPropagation();
+    gate.skip();
+  };
+  const listen = (on: boolean): void => {
+    for (const type of ["keydown", "pointerdown"]) (on ? window.addEventListener : window.removeEventListener)(type, onInput, { capture: true });
+  };
+  const gate = new LoadGate(bootTimes(p, reduced), {
     show: () => undefined,
     hide: () => {
       log.hideAt = performance.now();
       el.classList.add("out");
+      listen(false);
     },
     remove: () => {
       log.removedAt = performance.now();
+      listen(false);
       el.remove();
     },
   });
   gate.adopt(state.shownAt, () => clearTimeout(state.timer));
+  listen(true);
   gate.finish();
 }

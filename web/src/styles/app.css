@@ -131,7 +131,7 @@ p {
 /* solid tier: reduced transparency, more contrast, or no backdrop-filter */
 /* while audio plays, the large side panes frost instead of refracting: their refraction costs about
    2.3 ms per frame during playback (pills and controls keep it; D-054) */
-:root[data-glass="refract"][data-playing] :is(.sidebar.pane, .inspector.pane) {
+:root[data-glass="refract"][data-playing] :is(.sidebar.pane, .inspector.pane, .graph-pane.pane) {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
@@ -206,6 +206,7 @@ p {
 }
 .only-phone { display: none; }
 @media (max-width: 734px) { .only-phone { display: inline-grid; } }
+@media (max-width: 734px) { .not-phone { display: none; } } /* the chart toggle: phones keep the title room */
 /* phone push/pop (D-044): a short slide-and-fade from the side the pane came from, never on first paint */
 @keyframes pane-in-right { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
 @keyframes pane-in-left { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
@@ -425,3 +426,31 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .stage-card canvas[data-kind="three"] { opacity: 1; transition: opacity var(--dur-ui) var(--ease-out); }
 @starting-style { .stage-card canvas[data-kind="three"] { opacity: 0; } }
 @media (max-width: 734px) { :root { --disc-size: 46px; } }
+
+/* the live trail chart (D-062): loudness (dBFS) across, brightness (Hz, log) up */
+.graph-pane { padding: var(--space-5); display: grid; gap: var(--space-3); align-content: start; }
+.graph { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; column-gap: var(--space-2); row-gap: var(--space-1); }
+.graph-ytitle { grid-row: 1; grid-column: 1 / -1; }
+.graph-yticks { grid-row: 2; grid-column: 1; position: relative; min-width: 2.2em; }
+.graph-yticks span { position: absolute; right: 0; transform: translateY(50%); white-space: nowrap; }
+.graph-plot { grid-row: 2; grid-column: 2; position: relative; aspect-ratio: 1; border-radius: var(--radius-small); background: #000; box-shadow: inset 0 0 0 0.5px var(--glass-edge); overflow: hidden; }
+.graph-xticks { grid-row: 3; grid-column: 2; position: relative; height: 1.4em; }
+.graph-xticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.graph-xtitle { grid-row: 4; grid-column: 2; text-align: center; }
+.graph-layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.graph-grid-v, .graph-grid-h { position: absolute; background: rgba(255, 255, 255, 0.08); pointer-events: none; }
+.graph-grid-v { top: 0; bottom: 0; width: 1px; }
+.graph-grid-h { left: 0; right: 0; height: 1px; }
+.graph-hue { position: absolute; left: 0; top: 0; bottom: 0; opacity: 0.85; }
+.side { display: flex; flex-direction: column; gap: var(--pane-gap); min-height: 0; }
+.side .inspector { flex: 1; }
+/* below the side column the chart sits under the player, not wider than it needs to be */
+.view-body > .graph-pane { width: 100%; max-width: 440px; margin: 0 auto; }
+
+/* phones: the time goes under the scrubber so the scrubber keeps its width (phase-4 break, 320 px at 200 % text) */
+@media (max-width: 734px) {
+  .player { grid-template-columns: auto auto minmax(0, 1fr); grid-template-rows: auto auto; row-gap: 0; }
+  .player > .disc, .player > .btn { grid-row: 1 / span 2; }
+  .player > .scrub { grid-column: 3; grid-row: 1; align-self: end; }
+  .player > .tabular { grid-column: 3; grid-row: 2; align-self: start; justify-self: end; margin-top: -8px; padding-right: var(--space-1); }
+}

@@ -67,6 +67,7 @@ def export_params() -> None:
         },
         "preview": {"fps": cfg.preview.fps},
         "web3d": cfg.web3d.model_dump(),
+        "ui": cfg.ui.model_dump(),
         "api": {
             "page_size_default": cfg.api.page_size_default,
             "page_size_max": cfg.api.page_size_max,
@@ -129,6 +130,16 @@ def generate(prefix: str, signal: str, cfg, wavs) -> None:  # type: ignore[no-un
     (FIX / f"{prefix}_expected.json").write_text(
         json.dumps(meta, indent=2) + "\n", encoding="utf-8"
     )
+    # trail chart (D-062): physical brightness (Hz) and loudness (dBFS) of every 37th frame, to check
+    # the web's dequantisation of live.bin color_t against the analysis values
+    phys = result.features.color_matrix()  # (T, 5) brightness log10 Hz, loudness dBFS, ...
+    idx = list(range(0, phys.shape[0], 37))
+    graph = {
+        "frames": idx,
+        "brightness_hz": [float(10.0 ** phys[i, 0]) for i in idx],
+        "loudness_dbfs": [float(phys[i, 1]) for i in idx],
+    }
+    (FIX / f"{prefix}_graph.json").write_text(json.dumps(graph, indent=2) + "\n", encoding="utf-8")
 
 
 def main() -> int:

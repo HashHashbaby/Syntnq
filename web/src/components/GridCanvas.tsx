@@ -3,6 +3,7 @@
 // counts. Paused, the liquid layer eases back to the static signature in 400 ms.
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { analysisTime } from "../audio/clock";
+import type { FrameClock } from "../audio/frameClock";
 import type { AudioPlayer } from "../audio/player";
 import { LiveEngine } from "../engine/live";
 import { Pooler, type PooledFrame } from "../engine/pool";
@@ -48,6 +49,8 @@ declare global {
       centers: () => number[] | null;
       /** Trail of the frame drawn last: node x, y, age (0 newest .. 1 oldest) per point. */
       trail: () => number[];
+      /** [frame time, s] of each live frame drawn (the last 600-1,200), for the chart sync test. */
+      sLog: Array<[number, number]>;
     };
   }
 }
@@ -72,12 +75,14 @@ interface Props {
   ariaLabel: string;
   /** Draw with the 3D chips (the factory comes from the lazily loaded three chunk). */
   chips?: ChipFactory | null;
+  /** Run from the screen's shared frame clock (D-062) instead of an own loop: same `s` as the other live views. */
+  clock?: FrameClock | null;
 }
 
 const REVEAL_WAVE = 0.35;
 const easeOutCubic = (x: number): number => 1 - Math.pow(1 - x, 3);
 
-export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, externalTime = null, externalTimeRef, reveal = false, ariaLabel, chips = null }: Props) {
+export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, externalTime = null, externalTimeRef, reveal = false, ariaLabel, chips = null, clock = null }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const extRef = useRef<number | null>(externalTime);
   extRef.current = externalTime;
@@ -108,6 +113,7 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
     const stats: GridStats = { kind: renderer.kind, frames: 0, lastMs: 0, maxMs: 0, totalMs: 0 };
     let drawn: Uint8Array = staticSrgb;
     let drawnTrail: number[] = [];
+    const sLog: Array<[number, number]> = []; // [frame time, s] of each live frame, for the sync test
     const draw = (f: PooledFrame): void => {
       drawn = f.srgb;
       drawnTrail = f.trailLength > 0 ? Array.from(f.trail.subarray(0, f.trailLength * 3)) : [];
@@ -122,6 +128,7 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
       layout: () => ({ nodes: n, margin: params.render.margin_cells }),
       centers: () => (renderer as StageRenderer & { centers?: () => number[] }).centers?.() ?? null,
       trail: () => drawnTrail,
+      sLog,
     };
 
     let dirty = true;
@@ -164,8 +171,11 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
       const ext = externalTimeRef ? externalTimeRef.current : extRef.current;
       if (ext !== null) {
         liveAt(ext, now);
-      } else if (player && player.state === "playing") {
-        liveAt(analysisTime(player.position(), open.live.audioOffsetS), now);
+      } else if (clock ? clock.playing : player && player.state === "playing") {
+        const s = clock ? clock.s : analysisTime(player!.position(), open.live.audioOffsetS);
+        liveAt(s, now);
+        sLog.push([now, s]);
+        if (sLog.length > 1200) sLog.splice(0, 600);
       } else if (revealStart !== -2) {
         if (revealStart === -1) revealStart = now;
         const t = Math.min((now - revealStart) / DUR_REVEAL_MS, 1);
@@ -211,10 +221,12 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
           dirty = false;
         }
       }
-      raf = requestAnimationFrame(loop);
+      if (!clock) raf = requestAnimationFrame(loop);
     };
-    raf = requestAnimationFrame(loop);
+    const unsubscribe = clock ? clock.subscribe(loop) : null;
+    if (!clock) raf = requestAnimationFrame(loop);
     return () => {
+      unsubscribe?.();
       cancelAnimationFrame(raf);
       ro.disconnect();
       renderer.dispose();
@@ -239,7 +251,7 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
       cancelAnimationFrame(id);
       stop?.();
     };
-  }, [open, player, reduced, forceCanvas, chips]);
+  }, [open, player, reduced, forceCanvas, chips, clock]);
 
   return <canvas ref={canvasRef} role="img" aria-label={ariaLabel} data-kind={chips ? "three" : undefined} />;
 }

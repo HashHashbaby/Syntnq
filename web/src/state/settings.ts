@@ -11,6 +11,8 @@ interface SettingsState {
   keepAudio: boolean;
   /** Show the flat 2D dots instead of the 3D chips in the live view (D-046). */
   trueColour: boolean;
+  /** Show the live trail chart (D-062). */
+  showGraph: boolean;
   landingDone: boolean;
   set: (patch: Partial<Omit<SettingsState, "set">>) => void;
 }
@@ -30,13 +32,14 @@ export const useSettings = create<SettingsState>((set, get) => ({
   reduceTransparency: "auto",
   keepAudio: true,
   trueColour: false,
+  showGraph: true,
   landingDone: false,
   ...(({ appearance: _ignored, ...rest }) => rest)(load() as Partial<SettingsState> & { appearance?: unknown }),
   set: (patch) => {
     set(patch);
     try {
-      const { reduceMotion, reduceTransparency, keepAudio, landingDone, trueColour } = get();
-      localStorage.setItem(KEY, JSON.stringify({ reduceMotion, reduceTransparency, keepAudio, landingDone, trueColour }));
+      const { reduceMotion, reduceTransparency, keepAudio, landingDone, trueColour, showGraph } = get();
+      localStorage.setItem(KEY, JSON.stringify({ reduceMotion, reduceTransparency, keepAudio, landingDone, trueColour, showGraph }));
     } catch {
       // storage unavailable: keep in memory only
     }

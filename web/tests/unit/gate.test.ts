@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { LoadGate, type Clock } from "../../src/loading/gate";
+import { LoadGate, bootTimes, type Clock } from "../../src/loading/gate";
 import { params } from "../../src/params";
 
 /** A manual clock: timers fire only when advance() passes them. */
@@ -79,9 +79,43 @@ describe("loading gate", () => {
   });
 });
 
+describe("cold start (D-061)", () => {
+  it("skips to the fade once the load is done, and only then", () => {
+    const clock = fakeClock();
+    const log: string[] = [];
+    const gate = new LoadGate({ delayMs: 0, minMs: 2350, fadeMs: 450 }, { show: () => log.push("show"), hide: () => log.push("hide"), remove: () => log.push("remove") }, clock);
+    gate.adopt(0, () => undefined);
+    expect(gate.skip()).toBe(false); // not finished loading: nothing to skip to
+    clock.advance(700);
+    gate.finish();
+    expect(log).toEqual([]); // waiting for the minimum time
+    expect(gate.skip()).toBe(true);
+    expect(log).toEqual(["hide"]);
+    clock.advance(450);
+    expect(log).toEqual(["hide", "remove"]);
+    expect(gate.skip()).toBe(false);
+  });
+
+  it("holds one full sweep plus a hold; the still mural under reduced motion", () => {
+    const p = params.ui.mural;
+    const sweep = (p.cols + p.rows - 2) * p.stagger_ms + 0.36 * p.period_ms; // last tile's flip ends
+    expect(bootTimes({ ...p, hue_from_deg: 0, hue_to_deg: 0 }, false).minMs).toBeGreaterThanOrEqual(sweep);
+    expect(bootTimes({ ...p, hue_from_deg: 0, hue_to_deg: 0 }, true).minMs).toBe(p.boot_min_reduced_ms);
+  });
+});
+
 describe("mural parameters", () => {
   const html = readFileSync(join(__dirname, "../../index.html"), "utf-8");
   const json = JSON.parse(html.match(/<script type="application\/json" id="syn-mural-params">([\s\S]*?)<\/script>/)![1]);
+
+  it("equal config ui.mural (index.html carries a copy for the inline boot script)", () => {
+    const { hue_from_deg: _f, hue_to_deg: _t, ...rest } = json;
+    expect(rest).toEqual(params.ui.mural);
+  });
+
+  it("fade the boot mural out over boot_fade_ms", () => {
+    expect(html).toContain(`#syn-mural.out { opacity: 0; visibility: visible; transition: opacity ${json.boot_fade_ms}ms`);
+  });
 
   it("use the signature hue range from config/default.yaml", () => {
     expect(json.hue_from_deg).toBe(params.color.hue.from_deg);

@@ -423,6 +423,49 @@ class BlindTest(_Section):
     gate_alpha: float
 
 
+class Mural(_Section):
+    """The loading mural (web only, D-052, D-061)."""
+
+    cols: int
+    rows: int
+    lightness: tuple[float, float]
+    chroma: tuple[float, float]
+    stagger_ms: float
+    period_ms: float
+    delay_ms: float
+    min_ms: float
+    fade_ms: float
+    boot_delay_ms: float
+    boot_min_ms: float
+    boot_min_reduced_ms: float
+    boot_fade_ms: float
+    skip_after_ms: float
+
+
+class TrailGraph(_Section):
+    """The live trail chart (web only, D-062)."""
+
+    trail_s: float
+    loudness_ticks_dbfs: tuple[float, ...]
+    brightness_ticks_hz: tuple[float, ...]
+    line_width_px: float
+    dot_radius_px: float
+    trail_opacity: float
+    cloud_bins: int
+    cloud_sigma_bins: float
+    cloud_opacity: float
+    hue_strip_px: float
+    alt_text_hz: float
+    pause_fade_ms: float
+
+
+class Ui(_Section):
+    """App chrome outside every analysis and render output."""
+
+    mural: Mural
+    trail_graph: TrailGraph
+
+
 class Config(_Section):
     """Full resolved configuration (schema v1)."""
 
@@ -441,6 +484,7 @@ class Config(_Section):
     fingerprint: Fingerprint
     live: Live
     web3d: Web3D
+    ui: Ui
     render: Render
     preview: Preview
     api: Api

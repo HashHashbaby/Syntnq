@@ -19,7 +19,7 @@
     <style>
       #syn-mural { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; align-content: center; gap: 32px; background: radial-gradient(circle at 50% 46%, #000 0, #000 40vmin, #121214 60vmin, #2a2a2e 120vmin); opacity: 0; visibility: hidden; transition: opacity 300ms cubic-bezier(0.23, 1, 0.32, 1), visibility 0s linear 300ms; }
       #syn-mural.show { opacity: 1; visibility: visible; transition: opacity 300ms cubic-bezier(0.23, 1, 0.32, 1); }
-      #syn-mural.out { opacity: 0; visibility: visible; }
+      #syn-mural.out { opacity: 0; visibility: visible; transition: opacity 450ms cubic-bezier(0.23, 1, 0.32, 1); }
       .mural { position: relative; width: min(92vw, 960px, (100vh - 9rem) * 1.5); aspect-ratio: 3 / 2; border-radius: 24px; overflow: hidden; background: #0b0b0c; box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 30px 80px -30px rgba(0, 0, 0, 0.9); }
       .mural-light { position: absolute; inset: 14px; background: radial-gradient(80% 92% at 50% 44%, #fff 0%, rgba(255, 249, 238, 0.95) 32%, rgba(255, 241, 222, 0.66) 68%, rgba(255, 236, 214, 0.42) 100%); }
       .mural-bloom { position: absolute; inset: 22% 26%; border-radius: 50%; background: #fff; filter: blur(42px); opacity: 0.32; }
@@ -37,7 +37,8 @@
     </style>
     <script type="application/json" id="syn-mural-params">
       { "cols": 12, "rows": 8, "hue_from_deg": 265, "hue_to_deg": 30, "lightness": [0.2, 0.32], "chroma": [0.06, 0.11],
-        "stagger_ms": 55, "period_ms": 2600, "delay_ms": 400, "min_ms": 600, "fade_ms": 300 }
+        "stagger_ms": 55, "period_ms": 2600, "delay_ms": 400, "min_ms": 600, "fade_ms": 300,
+        "boot_delay_ms": 0, "boot_min_ms": 2350, "boot_min_reduced_ms": 1000, "boot_fade_ms": 450, "skip_after_ms": 600 }
     </script>
   </head>
   <body>
@@ -52,7 +53,7 @@
     </div>
     <script>
       // Before any bundle: apply the saved motion and transparency settings, build
-      // the mural tiles, and show the mural only if loading takes longer than delay_ms.
+      // the mural tiles, and show the mural after boot_delay_ms (0 on a cold start: the opening, D-061).
       (function () {
         var P = JSON.parse(document.getElementById("syn-mural-params").textContent);
         var root = document.documentElement;
@@ -88,11 +89,13 @@
         var boot = document.getElementById("syn-mural");
         build(boot.querySelector(".mural-grid"));
         var state = { shownAt: null, timer: 0 };
-        state.timer = setTimeout(function () {
+        var show = function () {
           state.timer = 0;
           state.shownAt = performance.now();
           boot.classList.add("show");
-        }, P.delay_ms);
+        };
+        if (P.boot_delay_ms > 0) state.timer = setTimeout(show, P.boot_delay_ms);
+        else show();
         window.__synBoot = state;
       })();
     </script>

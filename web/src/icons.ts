@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Box,
   ChartNoAxesColumn,
+  ChartSpline,
   Download,
   Grid3x3,
   Info,
@@ -37,6 +38,7 @@ export const icons = {
   xmark: X,
   "chevron.left": ArrowLeft,
   cube: Box,
+  "chart.xyaxis.line": ChartSpline,
 } as const satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof icons;

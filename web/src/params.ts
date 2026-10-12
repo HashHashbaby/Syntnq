@@ -31,6 +31,40 @@ export interface LiveParams {
   reduced_motion: { ripples: boolean; diffusion: boolean; release_ms: number };
 }
 
+/** App chrome (config ui): the loading mural (D-052, D-061) and the live trail chart (D-062). */
+export interface UiParams {
+  mural: {
+    cols: number;
+    rows: number;
+    lightness: [number, number];
+    chroma: [number, number];
+    stagger_ms: number;
+    period_ms: number;
+    delay_ms: number;
+    min_ms: number;
+    fade_ms: number;
+    boot_delay_ms: number;
+    boot_min_ms: number;
+    boot_min_reduced_ms: number;
+    boot_fade_ms: number;
+    skip_after_ms: number;
+  };
+  trail_graph: {
+    trail_s: number;
+    loudness_ticks_dbfs: number[];
+    brightness_ticks_hz: number[];
+    line_width_px: number;
+    dot_radius_px: number;
+    trail_opacity: number;
+    cloud_bins: number;
+    cloud_sigma_bins: number;
+    cloud_opacity: number;
+    hue_strip_px: number;
+    alt_text_hz: number;
+    pause_fade_ms: number;
+  };
+}
+
 /** The rotating disc in the player bar (config web3d.disc, D-060). */
 export interface DiscParams {
   rpm: number;
@@ -98,6 +132,7 @@ export interface Params {
   maps: { feature_grids: string[]; ramp_hues: Record<string, number>; ramp: { lightness: [number, number]; chroma: number } };
   preview: { fps: number };
   web3d: Web3DParams;
+  ui: UiParams;
   api: { page_size_default: number; page_size_max: number };
 }
 

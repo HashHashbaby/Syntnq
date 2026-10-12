@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioPlayer } from "../audio/player";
 import { Disc } from "../components/Disc";
+import { TrailGraph } from "../components/TrailGraph";
+import { FrameClock } from "../audio/frameClock";
 import { reportStage } from "../components/Backdrop";
 import { GridCanvas, type ChipFactory } from "../components/GridCanvas";
 import { LoadingMural } from "../loading/Mural";
@@ -189,6 +191,11 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
   };
 
   const player = useMemo(() => new AudioPlayer(), [open.record.songId]);
+  // one frame clock for the live views, so the grid and the chart draw the same moment (D-062)
+  const clock = useMemo(() => new FrameClock(player, open.live.audioOffsetS), [player, open.live.audioOffsetS]);
+  useEffect(() => () => clock.dispose(), [clock]);
+  const showGraph = settings.showGraph;
+  const sideColumn = useMedia("(min-width: 1200px)");
   useEffect(() => {
     // while audio plays, the two large side panes drop refraction (measured +2.3 ms per frame, D-054)
     const mark = (): void => {
@@ -199,8 +206,19 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
       mark();
       force((n) => n + 1);
     });
-    if (open.audio) void player.load(open.audio);
+    // decoding opens the audio device (new AudioContext: about 300 ms on Windows), so it waits for any
+    // arrival transition (the landing handoff) and an idle moment; Play stays disabled until it is ready
+    const audio = open.audio;
+    let idleId = 0;
+    const t = window.setTimeout(() => {
+      if (!audio) return;
+      const idle = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+      if (idle) idleId = idle(() => void player.load(audio), { timeout: 500 });
+      else void player.load(audio);
+    }, Math.max(0, DUR_HANDOFF_MS + 150 - (performance.now() - mountedAt.current)));
     return () => {
+      window.clearTimeout(t);
+      (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(idleId);
       delete document.documentElement.dataset.playing;
       off();
       player.dispose();
@@ -237,6 +255,7 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
       else if (e.key === "ArrowLeft" && t.tagName !== "INPUT") player.seek(player.position() - (e.shiftKey ? SEEK_LONG_S : SEEK_SHORT_S));
       else if (/^[1-5]$/.test(e.key) && !e.metaKey && !e.ctrlKey) setView(VIEWS[Number(e.key) - 1].value);
       else if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey && t.tagName !== "INPUT") useSettings.getState().set({ trueColour: !useSettings.getState().trueColour });
+      else if (e.key.toLowerCase() === "g" && !e.metaKey && !e.ctrlKey && t.tagName !== "INPUT") useSettings.getState().set({ showGraph: !useSettings.getState().showGraph });
       else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "e") {
         e.preventDefault();
         setSheet(true);
@@ -331,6 +350,15 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
             <Icon name="cube" />
           </button>
         )}
+        <button
+          className="btn btn-icon not-phone"
+          aria-pressed={showGraph}
+          aria-label="Loudness and brightness chart"
+          title="Loudness and brightness chart (G)"
+          onClick={() => settings.set({ showGraph: !showGraph })}
+        >
+          <Icon name="chart.xyaxis.line" />
+        </button>
         <button className="btn btn-icon" onClick={() => setSheet(true)} aria-label="Export">
           <Icon name="square.and.arrow.up" />
         </button>
@@ -377,7 +405,7 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
                         onPointerLeave={() => setHover(null)}
                         data-testid={view === "sound" ? "stage" : undefined}
                       >
-                        <GridCanvas key={stageKey} open={open} player={player} reduced={reduced} reveal={fresh} onBmu={setBmu} ariaLabel={ariaLabel} chips={stageChips} />
+                        <GridCanvas key={stageKey} open={open} player={player} reduced={reduced} reveal={fresh} onBmu={setBmu} ariaLabel={ariaLabel} chips={stageChips} clock={clock} />
                         <LoadingMural loading={chipsLoading} label="Loading the 3D view" />
                       </div>
                     ) : (
@@ -402,7 +430,7 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
               onPointerLeave={() => setHover(null)}
               data-testid="stage"
             >
-              <GridCanvas key={stageKey} open={open} player={player} reduced={reduced} reveal={fresh} onBmu={setBmu} ariaLabel={ariaLabel} chips={stageChips} />
+              <GridCanvas key={stageKey} open={open} player={player} reduced={reduced} reveal={fresh} onBmu={setBmu} ariaLabel={ariaLabel} chips={stageChips} clock={clock} />
               <LoadingMural loading={chipsLoading} label="Loading the 3D view" />
             </div>
           ) : (
@@ -443,12 +471,16 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
             </div>
           )}
           {open.attribution && <p className="t-foot secondary caption">{open.attribution}</p>}
+          {showGraph && !sideColumn && <TrailGraph open={open} clock={clock} reduced={reduced} />}
         </div>
 
-        <aside className="inspector pane" aria-label="Inspector">
-          <h2 className="t-headline">Inspector</h2>
-          <InspectorBody info={hover?.info ?? null} />
-        </aside>
+        <div className="side">
+          {showGraph && sideColumn && <TrailGraph open={open} clock={clock} reduced={reduced} />}
+          <aside className="inspector pane" aria-label="Inspector">
+            <h2 className="t-headline">Inspector</h2>
+            <InspectorBody info={hover?.info ?? null} />
+          </aside>
+        </div>
       </div>
 
       {hover && (
