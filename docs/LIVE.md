@@ -140,14 +140,16 @@ thumbnails and exports always use the 2D render (D-050, D-055).
   120 up to the audio time with sources sampled per substep, so the surface is a function of audio time
   (not of the display rate); reset to flat on seek; at most 0.5 s of catch-up; |h| <= 1.
 - **Chips** (config `web3d`): face colour = node colour (sRGB, no tone mapping, no conversion) with only
-  zero-mean, headroom-limited modulation; lighting only on the rounded rim and sides. Surface z = 2.4 A +
-  1.0 h pitch (A = pooled live activation, h = wave height, D-057); tilt = clamp(1.6 x slope of z) x 8 deg.
-  Camera FOV 20 deg; straight on at rest; while playing it eases (spring 0.9 s, damping 1) into a
-  three-quarter view (pitch 26 deg, yaw 10 deg, distance x 1.22). Pointer parallax <= 3 deg (spring 0.5 s),
-  only while the pointer moves.
-- **Trail** (D-057): the best-matching path of the last 2 s as a faint additive line (width 0.40 pitch,
-  peak 0.45, fading with age) floating 0.60 pitch over the chip surface. A live overlay; none at rest.
-- **Pause:** lift, wave and pose ease back (400 ms smoothstep for the surface, the pose spring for the
-  camera). **Reduced motion:** no lift, no pose, no trail, no parallax.
+  zero-mean, headroom-limited modulation; lighting only on the rounded rim and sides. The chips lie flat
+  on the z = 0 plane, untilted (D-058: no lift, no tilt); only the live radius swell changes their size.
+  Camera FOV 15 deg, always straight on (no playing pose). Pointer parallax <= 3 deg (spring 0.5 s), only
+  while the pointer moves.
+- **Trail** (D-057, kept by D-058): the best-matching path of the last 2 s as a faint additive line
+  (width 0.40 pitch, peak 0.45, fading with age) floating 0.60 pitch over the chip faces. A live overlay;
+  none at rest.
+- **Pause:** as in the 2D view, the trail goes and the colours ease back to the static signature over
+  400 ms (smoothstep). **Reduced motion:** no trail, no parallax.
+- **Wave height:** the engine still computes `height` (above), but since D-058 no view uses it and it is
+  not pooled (`web/src/engine/pool.ts` is back to its frozen D-055 state).
 - **Fidelity:** measured on straight-on renders by `web/tests/e2e/fidelity3d.spec.ts` (D-046 gates).
-- **Versioning:** `web3d.live_view_version` (2, D-057) is bumped whenever a live-view or 3D parameter changes.
+- **Versioning:** `web3d.live_view_version` (3, D-058) is bumped whenever a live-view or 3D parameter changes.

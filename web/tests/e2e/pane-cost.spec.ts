@@ -60,8 +60,10 @@ test("frame time while playing: 3D chips vs the flat 2D view", async ({ page }) 
     await page.reload();
     await page.waitForFunction(() => !document.getElementById("syn-mural"));
     const sample = page.getByRole("button", { name: "Try a sample" });
+    const first = page.getByRole("option").first();
+    await expect(sample.or(first)).toBeVisible(); // the library renders after the mural; wait for either
     if (await sample.count()) await sample.click();
-    else await page.getByRole("option").first().click();
+    else await first.click();
     await page.waitForFunction((k) => window.__synesthesia?.stats.kind === k, trueColour ? "webgl2" : "three", { timeout: 15000 });
     await page.getByRole("button", { name: "Play" }).click();
     await page.waitForTimeout(1500);

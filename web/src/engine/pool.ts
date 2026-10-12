@@ -9,12 +9,6 @@ export interface PooledFrame {
   radiusScale: Float32Array; // (N)
   trail: Float32Array; // (M, 3) x_node, y_node, age
   trailLength: number;
-  /** (N) mean wave height per node for the 3D chips (D-056); absent for static frames. */
-  height?: Float32Array;
-  /** (N) mean live activation per node 0..1 (the 3D chips rise with it, D-057); absent for static frames. */
-  activation?: Float32Array;
-  /** True for frames of the playing liquid grid (the 3D camera eases into its playing pose, D-057). */
-  live?: boolean;
 }
 
 const tmp = new Float64Array(3);
@@ -34,18 +28,15 @@ export class Pooler {
       radiusScale: new Float32Array(displayGrid * displayGrid),
       trail: new Float32Array(trailMax * 3),
       trailLength: 0,
-      height: new Float32Array(displayGrid * displayGrid),
-      activation: new Float32Array(displayGrid * displayGrid),
-      live: true,
     };
   }
 
-  pool(srgb: Uint8Array, radius: Float32Array, trail: Float32Array, trailLength: number, height?: Float32Array, activation?: Float32Array): PooledFrame {
+  pool(srgb: Uint8Array, radius: Float32Array, trail: Float32Array, trailLength: number): PooledFrame {
     const { block, nodes, size, out } = this;
     const per = block * block;
     for (let ny = 0; ny < nodes; ny++) {
       for (let nx = 0; nx < nodes; nx++) {
-        let L = 0, A = 0, B = 0, r = 0, hh = 0, act = 0;
+        let L = 0, A = 0, B = 0, r = 0;
         for (let dy = 0; dy < block; dy++) {
           for (let dx = 0; dx < block; dx++) {
             const c = (ny * block + dy) * size + nx * block + dx;
@@ -59,14 +50,10 @@ export class Pooler {
             A += tmp[1];
             B += tmp[2];
             r += radius[c];
-            if (height) hh += height[c];
-            if (activation) act += activation[c];
           }
         }
         const n = ny * nodes + nx;
         out.radiusScale[n] = r / per;
-        if (out.height) out.height[n] = height ? hh / per : 0;
-        if (out.activation) out.activation[n] = activation ? act / per : 0;
         if (block > 1) {
           oklabToLinear(L / per, A / per, B / per, tmp);
           out.srgb[n * 3] = linearToSrgb8(tmp[0]);

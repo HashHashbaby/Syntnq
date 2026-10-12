@@ -330,19 +330,11 @@ class Web3D(_Section):
     chip_size: float
     chip_thickness: float
     chip_corner: float
-    z_amp: float
-    z_activation: float
-    tilt_max_deg: float
-    tilt_gain: float
     absorb_edge: float
     absorb_edge_sat: float
     grain: float
     glint: float
     side_shade: float
-    play_tilt_deg: float
-    play_yaw_deg: float
-    pose_response_s: float
-    pose_fit: float
     trail_opacity: float
     trail_width: float
     trail_lift: float

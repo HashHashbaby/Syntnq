@@ -2,10 +2,9 @@
 // (3D) and each dot's centre (2D, true colour) averaged in linear light, compared in OKLab with the
 // node colours of the same drawn frame. Gates: OKLab ΔE p95 <= 0.02, lightness r >= 0.99, mean hue
 // error <= 3 deg (chroma >= 0.03), darkest decile mean |ΔL| <= 0.02. Three songs; chips at rest and
-// mid-playback with the full depth lift and the camera held straight on (?pose=0; in the app it tilts
-// into a three-quarter view while playing, where raised chips occlude others), sampled at projected chip
-// centres; chips under the visible trail (a deliberate live overlay) and chips whose face is partly
-// covered by a higher neighbour (depth, not colour) are left out and counted.
+// mid-playback (flat chips, straight-on camera, D-058), sampled at projected chip centres; chips under
+// the visible trail (a deliberate live overlay) are left out and counted, as are chips partly covered
+// by a higher neighbour (none since D-058; the check stays as a guard).
 // Results: out/ui_review/m7b/phase3/fidelity.json.
 // The chips are asserted. The 2D dots are reported, not asserted: their screen-blended glow (D-017,
 // D-026, part of the frozen render) lifts the dot centre by about 0.03-0.04 L, which fails dE95 and
@@ -160,8 +159,7 @@ test("fidelity gates on the 3D chips and the 2D view", async ({ page }) => {
   const trailNodes: Record<string, number> = {};
   const coveredNodes: Record<string, number> = {};
   for (const slug of SONGS) {
-    // straight-on camera while playing (?pose=0, dev only): the gates are defined on a straight-on render
-    await page.goto("/?pose=0");
+    await page.goto("/");
     await page.evaluate(() => localStorage.setItem("synesthesia.settings", JSON.stringify({ landingDone: true, trueColour: false })));
     await page.reload();
     await page.waitForFunction(() => {
