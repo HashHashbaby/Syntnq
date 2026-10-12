@@ -11,6 +11,13 @@ import { DUR_REVEAL_MS } from "../motion/tokens";
 import type { GridRendererLike } from "../gl/renderer";
 import type { Params } from "../params";
 import { params } from "../params";
+
+// dev builds: ?glow=0 draws the 2D view without its glow (opacity 0), so the fidelity test can judge the
+// dot fill (D-059); the frozen renderer is unchanged, it only receives a copy of the parameters
+const NO_GLOW = import.meta.env.DEV && typeof location !== "undefined" && new URLSearchParams(location.search).get("glow") === "0";
+const params2d: Params = NO_GLOW
+  ? { ...params, render: { ...params.render, node: { ...params.render.node, dot: { ...params.render.node.dot, glow_opacity: 0 } } } }
+  : params;
 import type { OpenSong } from "../state/store";
 
 const EASE_OUT_MS = 400;
@@ -83,9 +90,9 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
     const start = (): (() => void) => {
     let renderer: StageRenderer;
     try {
-      renderer = chips && !forceCanvas ? chips(canvas, params, { reducedMotion: reduced }) : createRenderer(canvas, params, forceCanvas);
+      renderer = chips && !forceCanvas ? chips(canvas, params, { reducedMotion: reduced }) : createRenderer(canvas, params2d, forceCanvas);
     } catch {
-      renderer = createRenderer(canvas, params, forceCanvas); // no WebGL for three: the 2D view
+      renderer = createRenderer(canvas, params2d, forceCanvas); // no WebGL for three: the 2D view
     }
     const engine = new LiveEngine(open.live, open.proto, open.stat.colorOklch, params, { reducedMotion: reduced });
     const trailMax = Math.max(2, Math.round(params.live.trail.length_s * open.live.fps));

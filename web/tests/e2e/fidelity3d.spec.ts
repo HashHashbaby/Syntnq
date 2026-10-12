@@ -6,9 +6,9 @@
 // the visible trail (a deliberate live overlay) are left out and counted, as are chips partly covered
 // by a higher neighbour (none since D-058; the check stays as a guard).
 // Results: out/ui_review/m7b/phase3/fidelity.json.
-// The chips are asserted. The 2D dots are reported, not asserted: their screen-blended glow (D-017,
-// D-026, part of the frozen render) lifts the dot centre by about 0.03-0.04 L, which fails dE95 and
-// dim while L r and hue pass; the owner decides how the gate applies to the frozen 2D look.
+// Asserted: the chips, and the 2D dot fill (D-059: the 2D gate judges the fill, drawn by the frozen
+// renderer with the glow off via the dev-only ?glow=0). The 2D view as shown (fill + screen-blended glow,
+// D-017, D-026) is reported only: the glow lifts the dot centre by about 0.03-0.04 L by design.
 // Both views must draw identical node colours (asserted).
 import { expect, test, type Page } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -197,8 +197,18 @@ test("fidelity gates on the 3D chips and the 2D view", async ({ page }) => {
     await page.waitForFunction(() => window.__synesthesia?.stats.kind === "webgl2", null, { timeout: 15000 });
     await page.waitForTimeout(1200);
     const dotsRest = await sample(page, "dots");
-    results[`${slug} 2D rest`] = metrics(dotsRest);
+    results[`${slug} 2D with glow (reported)`] = metrics(dotsRest);
     sameNodes[slug] = chipsRest.nodes.length === dotsRest.nodes.length && chipsRest.nodes.every((v, i) => v === dotsRest.nodes[i]);
+    // the dot fill: the same frozen 2D renderer with the glow off (dev-only ?glow=0)
+    await page.goto("/?glow=0");
+    await page.waitForFunction(() => {
+      const app = (window as unknown as { __synApp?: { getState: () => { lib: unknown; samples: unknown[] } } }).__synApp;
+      return !!app && !!app.getState().lib && app.getState().samples.length > 0;
+    });
+    await page.evaluate((s) => (window as unknown as { __synApp: { getState: () => { addSample: (x: string) => Promise<void> } } }).__synApp.getState().addSample(s), slug);
+    await page.waitForFunction(() => window.__synesthesia?.stats.kind === "webgl2", null, { timeout: 15000 });
+    await page.waitForTimeout(1200);
+    results[`${slug} 2D fill`] = metrics(await sample(page, "dots"));
   }
   const rows = Object.entries(results).map(([k, m]) => `${k.padEnd(22)} dE95 ${m.dE95.toFixed(4)}  dEmax ${m.dEmax.toFixed(4)}  L r ${m.Lr.toFixed(4)}  hue ${m.hue.toFixed(2)} deg  dim dL ${m.dim.toFixed(4)}`);
   console.log(`fidelity (gates: dE95 <= ${GATES.dE95}, L r >= ${GATES.Lr}, hue <= ${GATES.hue}, dim <= ${GATES.dim})\n${rows.join("\n")}`);
@@ -206,7 +216,7 @@ test("fidelity gates on the 3D chips and the 2D view", async ({ page }) => {
   writeFileSync(join(OUT, "fidelity.json"), JSON.stringify({ gates: GATES, results, sameNodes, trailNodes, coveredNodes }, null, 2));
   for (const [slug, same] of Object.entries(sameNodes)) expect(same, `${slug}: 2D and 3D draw identical node colours`).toBe(true);
   for (const [k, m] of Object.entries(results)) {
-    if (k.includes("2D")) continue; // reported above (see the header comment)
+    if (k.includes("reported")) continue; // the 2D view with its glow (see the header comment)
     expect(m.dE95, `${k} dE95`).toBeLessThanOrEqual(GATES.dE95);
     expect(m.Lr, `${k} L r`).toBeGreaterThanOrEqual(GATES.Lr);
     expect(m.hue, `${k} hue`).toBeLessThanOrEqual(GATES.hue);

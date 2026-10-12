@@ -157,7 +157,7 @@ at 390 x 844, 820 x 1180 and 1440 x 900 in light and dark, a short screen record
 
 1. Type, colour and glass tokens (light default, lightbox card, TeX Gyre Heros, glass tiers, glass stress table).
 2. Loading mural.
-3. 3D grid chips, wave field, true-colour toggle, fidelity numbers.
+3. 3D grid chips, true-colour toggle, fidelity numbers. **Accepted 2026-10-12** (D-056, D-057 trail, D-058 flat, D-059).
 4. Rotating disc.
 5. Landing page.
 6. Polish pass across all screens.

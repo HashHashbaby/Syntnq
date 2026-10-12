@@ -181,23 +181,6 @@ live:
     ripples: false
     diffusion: false
     release_ms: 500
-  flow:                         # river-ripple wave field: a visual-only height for the 3D chips (D-046, D-056)
-    substep_hz: 120             # fixed simulation rate; integrated up to the audio time, never per display frame
-    wave_speed: 13.0            # cells per second (D-029)
-    damping: 1.5                # 1/s
-    sponge_cells: 7.0           # open edges: an absorbing border this wide ...
-    sponge_damping: 3.5         # ... with this extra damping, so waves leave instead of reflecting
-    source_gain: 0.85           # continuous emission at the best-matching cell x loudness
-    source_sigma_cells: 1.3
-    source_scale: 10.0          # emission units per second
-    beat_gain: 1.6              # impulse of a beat (same beats as the ripples, onset >= threshold)
-    beat_scale: 14.0
-    current_dir: [1.0, 0.0]     # drift direction (left to right)
-    current_speed: 2.6          # cells per second at loudness 0.5
-    current_loud_gain: 1.2      # current speed scales with loudness
-    curl_amp: 0.30              # deterministic curl-noise share of the current
-    curl_scale: 0.11            # curl noise frequency (1/cells)
-    wave_limit: 1.0             # |height| clamp
 
 web3d:                          # the 3D live view (D-045, D-046, D-056); not part of the frozen 2D render
   live_view_version: 3          # bump whenever a live-view or 3D parameter changes (MILESTONES M7b freeze rules); 3 = D-058 flat chips + trail
