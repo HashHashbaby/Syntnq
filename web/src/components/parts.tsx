@@ -6,7 +6,11 @@ import { releaseVelocity, rubberband, springTo, type SpringRun } from "../motion
 
 /** True at phone widths (<= 734 px, D-033). */
 export function usePhone(): boolean {
-  const q = "(max-width: 734px)";
+  return useMedia("(max-width: 734px)");
+}
+
+/** True while the media query matches (re-renders on change). */
+export function useMedia(q: string): boolean {
   const [on, setOn] = useState(() => typeof matchMedia === "function" && matchMedia(q).matches);
   useEffect(() => {
     const m = matchMedia(q);

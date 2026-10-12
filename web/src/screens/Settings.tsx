@@ -1,20 +1,7 @@
-// Settings (docs/UI.md section 6.10): appearance, motion, transparency, local audio, licences.
+// Settings (docs/UI.md section 6.10): motion, transparency, local audio, licences (graphite only, D-053).
 import { Sheet } from "../components/parts";
-import { keyboardDriven, reduced } from "../motion/tokens";
-import { applySettings, useSettings, type Appearance, type Toggle } from "../state/settings";
+import { useSettings, type Toggle } from "../state/settings";
 import { useApp } from "../state/store";
-
-/** Theme changes cross-fade (200 ms, View Transitions) instead of flashing; instant when motion is
- *  reduced, the change came from the keyboard, or the browser has no view transitions. */
-function setAppearance(appearance: Appearance): void {
-  const run = (): void => {
-    useSettings.getState().set({ appearance });
-    applySettings(useSettings.getState());
-  };
-  const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
-  if (doc.startViewTransition && !reduced() && !keyboardDriven()) doc.startViewTransition(run);
-  else run();
-}
 
 export function Settings({ onClose }: { onClose: () => void }) {
   const s = useSettings();
@@ -22,14 +9,6 @@ export function Settings({ onClose }: { onClose: () => void }) {
   return (
     <Sheet title="Settings" onClose={onClose}>
       <div className="group" style={{ margin: "var(--space-4) 0" }}>
-        <div>
-          <label htmlFor="set-app">Appearance</label>
-          <select id="set-app" value={s.appearance} onChange={(e) => setAppearance(e.target.value as Appearance)}>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-            <option value="auto">Auto</option>
-          </select>
-        </div>
         <div>
           <label htmlFor="set-motion">Reduce motion</label>
           <select id="set-motion" value={s.reduceMotion} onChange={(e) => s.set({ reduceMotion: e.target.value as Toggle })}>

@@ -76,5 +76,5 @@ test("the mural fits short landscape screens and follows the text-size setting",
   expect(fit.bottom).toBeLessThanOrEqual(fit.vh);
   await page.evaluate(() => (document.documentElement.style.fontSize = "200%"));
   const size = await page.locator(".mural-word").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  expect(size).toBe(24);
+  expect(size).toBe(28); // 0.875rem at 200 % (D-053)
 });

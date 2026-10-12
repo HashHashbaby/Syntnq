@@ -190,8 +190,8 @@ render:
   node:                         # the look of one node; swap by changing `style` (D-030)
     style: dot                  # dot | (future styles register in src/synesthesia/nodes.py)
     dot:
-      radius_ratio: 0.34        # dot radius / node pitch
-      glow_sigma_ratio: 0.30    # glow blur sigma / node pitch (D-018; D-017 had 0.25, spec 0.50)
+      radius_ratio: 0.41        # dot radius / node pitch (D-055; was 0.34)
+      glow_sigma_ratio: 0.24    # glow blur sigma / node pitch (D-055; D-018 had 0.30, D-017 0.25)
       glow_opacity: 0.30        # D-026 (D-018 had 0.45, D-017 0.35, spec 0.60)
   background: "#000000"
   caption: {enabled: false, font: system}

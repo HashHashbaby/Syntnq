@@ -1,9 +1,10 @@
 // Signature screen (docs/UI.md section 6.5-6.7): the stage, player bar, map switcher, inspector.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioPlayer } from "../audio/player";
+import { reportStage } from "../components/Backdrop";
 import { GridCanvas } from "../components/GridCanvas";
 import { CAPTIONS, DynamicsView, FEATURES, FeatureGridView, RhythmView, StructureView, type FeatureName, type MapView } from "../components/MapViews";
-import { Icon, Segmented, formatTime, usePhone } from "../components/parts";
+import { Icon, Segmented, formatTime, useMedia, usePhone } from "../components/parts";
 import { keyboardDriven, reduced as motionNow } from "../motion/tokens";
 import { params } from "../params";
 import { motionReduced, useSettings } from "../state/settings";
@@ -95,6 +96,8 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
   const [pos, setPos] = useState(0);
   const [, force] = useState(0);
   const phone = usePhone();
+  // the map switcher rides in the toolbar pill only where there is room for it and the title (D-054)
+  const wide = useMedia("(min-width: 1069px)");
   const fresh = useApp((s) => s.fresh === open.record.songId);
   const trackRef = useRef<HTMLDivElement>(null);
   const programmatic = useRef<{ target: number; t: number } | null>(null);
@@ -113,7 +116,8 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
     if (!phone || !el) return;
     const card = el.children[VIEWS.findIndex((v) => v.value === view)] as HTMLElement | undefined;
     if (!card) return;
-    const left = card.offsetLeft - parseFloat(getComputedStyle(el).paddingLeft);
+    // relative to the first card, so the result does not depend on which ancestor is positioned
+    const left = card.offsetLeft - (el.children[0] as HTMLElement).offsetLeft;
     if (Math.abs(el.scrollLeft - left) < 2) return;
     programmatic.current = { target: left, t: performance.now() };
     el.scrollTo({ left, behavior: keyboardDriven() || motionNow() ? "auto" : "smooth" });
@@ -142,9 +146,18 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
 
   const player = useMemo(() => new AudioPlayer(), [open.record.songId]);
   useEffect(() => {
-    const off = player.onChange(() => force((n) => n + 1));
+    // while audio plays, the two large side panes drop refraction (measured +2.3 ms per frame, D-054)
+    const mark = (): void => {
+      if (player.state === "playing") document.documentElement.dataset.playing = "true";
+      else delete document.documentElement.dataset.playing;
+    };
+    const off = player.onChange(() => {
+      mark();
+      force((n) => n + 1);
+    });
     if (open.audio) void player.load(open.audio);
     return () => {
+      delete document.documentElement.dataset.playing;
       off();
       player.dispose();
     };
@@ -217,13 +230,36 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
 
   const title = open.record.title?.trim() || "Untitled";
   const byline = open.record.artist?.trim() || open.attribution || "";
+  // the graphite gradient follows the square on screen (grid or map card), D-053
+  useEffect(() => {
+    const find = (): Element | null => document.querySelector('[data-testid="stage"], [data-testid="map-card"]');
+    let raf = 0;
+    const update = (): void => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => reportStage(find()));
+    };
+    const ro = new ResizeObserver(update);
+    const el = find();
+    if (el) ro.observe(el);
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    update();
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+      reportStage(null);
+    };
+  }, [view, phone]);
+
   const duration = player.duration || open.record.durationS;
   const ariaLabel = `Signature of ${title}`;
   const caption = view === "features" ? `${CAPTIONS.features} Showing ${FEATURE_LABELS[feature].toLowerCase()}.` : CAPTIONS[view];
 
   return (
     <>
-      <div className="toolbar material">
+      <div className="toolbar pane">
         <button className="btn btn-icon only-phone" onClick={onBack} aria-label="Back to library">
           <Icon name="chevron.left" />
         </button>
@@ -231,6 +267,14 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
           <h1 className="t-headline truncate" title={title} dir="auto">{title}</h1>
           <p className="t-foot secondary truncate" title={byline} dir="auto">{byline}</p>
         </div>
+        {wide && (
+          <Segmented
+            label="Map view"
+            value={view}
+            options={VIEWS.map((v, i) => ({ ...v, ariaLabel: `${v.label} (${i + 1})` }))}
+            onChange={setView}
+          />
+        )}
         <button className="btn btn-icon" onClick={() => setSheet(true)} aria-label="Export">
           <Icon name="square.and.arrow.up" />
         </button>
@@ -247,12 +291,14 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
 
       <div className="view" data-inspector="true">
         <div className="view-body">
-          <Segmented
-            label="Map view"
-            value={view}
-            options={VIEWS.map((v, i) => ({ ...v, ariaLabel: `${v.label} (${i + 1})` }))}
-            onChange={setView}
-          />
+          {!wide && (
+            <Segmented
+              label="Map view"
+              value={view}
+              options={VIEWS.map((v, i) => ({ ...v, ariaLabel: `${v.label} (${i + 1})` }))}
+              onChange={setView}
+            />
+          )}
           {view === "features" && (
             <Segmented
               label="Feature"
@@ -306,7 +352,7 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
               {renderMap(view)}
             </div>
           )}
-          <p className="caption t-sub secondary">{caption}</p>
+          <p className="caption t-foot secondary">{caption}</p>
 
           <div className="player" role="group" aria-label="Playback">
             <button className="btn btn-icon btn-filled" onClick={toggle} disabled={!open.audio || player.state === "idle"} aria-label={player.state === "playing" ? "Pause" : "Play"}>
@@ -340,7 +386,7 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
           {open.attribution && <p className="t-foot secondary caption">{open.attribution}</p>}
         </div>
 
-        <aside className="inspector" aria-label="Inspector">
+        <aside className="inspector pane" aria-label="Inspector">
           <h2 className="t-headline">Inspector</h2>
           <InspectorBody info={hover?.info ?? null} />
         </aside>

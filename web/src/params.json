@@ -120,8 +120,8 @@
     "node": {
       "dot": {
         "glow_opacity": 0.3,
-        "glow_sigma_ratio": 0.3,
-        "radius_ratio": 0.34
+        "glow_sigma_ratio": 0.24,
+        "radius_ratio": 0.41
       },
       "style": "dot"
     }

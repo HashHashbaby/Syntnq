@@ -11,12 +11,15 @@
 export type GlassTier = "refract" | "frost" | "solid";
 
 /** Elements that wear the glass material; the same list is in styles/app.css. */
-export const GLASS_SELECTOR = ".glass, .btn:not(.btn-plain), .segmented, .search, .player";
+export const GLASS_SELECTOR = ".glass, .btn:not(.btn-plain), .segmented, .search, .player, .pane";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const MAX_SIDE = 2048;
 /** Filters kept before the cache is cleared (window resizes create one per new control size). */
 const MAX_FILTERS = 64;
+/** Elements larger than this (px²) rebuild their map only after a resize has settled. */
+const LARGE_AREA = 40_000;
+const SETTLE_MS = 120;
 
 /** Rounded-rectangle signed distance (negative inside), in pixels. */
 function roundedRectSdf(px: number, py: number, w: number, h: number, r: number): number {
@@ -63,8 +66,9 @@ export function displacementMap(w: number, h: number, radius: number, bezel: num
   return out;
 }
 
-function cssNumber(name: string, fallback: number): number {
-  const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+/** A numeric custom property as seen by `el` (panes override the control values, D-054). */
+function cssNumber(el: Element, name: string, fallback: number): number {
+  const v = parseFloat(getComputedStyle(el).getPropertyValue(name));
   return Number.isFinite(v) ? v : fallback;
 }
 
@@ -93,6 +97,7 @@ class GlassLayer {
   private defs: SVGDefsElement | null = null;
   private readonly filters = new Map<string, string>();
   private serial = 0;
+  private readonly settle = new WeakMap<Element, ReturnType<typeof setTimeout>>();
   private sizes = new WeakMap<Element, string>();
   private resize: ResizeObserver | null = null;
   private mutations: MutationObserver | null = null;
@@ -125,7 +130,16 @@ class GlassLayer {
     svg.appendChild(this.defs);
     document.body.appendChild(svg);
     this.resize = new ResizeObserver((entries) => {
-      for (const e of entries) this.fit(e.target as HTMLElement, e.borderBoxSize?.[0]);
+      for (const e of entries) {
+        const el = e.target as HTMLElement;
+        const box = e.borderBoxSize?.[0];
+        const area = (box?.inlineSize ?? el.offsetWidth) * (box?.blockSize ?? el.offsetHeight);
+        if (area < LARGE_AREA || !el.style.getPropertyValue("--glass-lens")) this.fit(el, box);
+        else {
+          clearTimeout(this.settle.get(el));
+          this.settle.set(el, setTimeout(() => this.fit(el), SETTLE_MS));
+        }
+      }
     });
     const scan = (root: ParentNode): void => {
       if (root instanceof HTMLElement && root.matches(GLASS_SELECTOR)) this.resize?.observe(root);
@@ -153,7 +167,9 @@ class GlassLayer {
     const h = Math.round(box?.blockSize ?? el.offsetHeight);
     if (w < 2 || h < 2 || w > MAX_SIDE || h > MAX_SIDE) return;
     const r = Math.round(Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, h / 2, w / 2));
-    const key = `${w}x${h}r${r}`;
+    const bezel = Math.min(cssNumber(el, "--glass-bezel", 14), h / 2, w / 2);
+    const scale = cssNumber(el, "--glass-refraction", 18);
+    const key = `${w}x${h}r${r}b${bezel}s${scale}`;
     if (this.sizes.get(el) === key) return;
     if (!this.filters.has(key) && this.filters.size >= MAX_FILTERS) {
       // too many sizes seen (window resizes): rebuild the cache from the elements on screen now
@@ -164,14 +180,13 @@ class GlassLayer {
       document.querySelectorAll<HTMLElement>(GLASS_SELECTOR).forEach((other) => other !== el && this.fit(other));
     }
     this.sizes.set(el, key);
-    el.style.setProperty("--glass-lens", `url(#${this.filter(w, h, r, key)})`);
+    el.style.setProperty("--glass-lens", `url(#${this.filter(w, h, r, bezel, scale, key)})`);
   }
 
-  private filter(w: number, h: number, r: number, key: string): string {
+  private filter(w: number, h: number, r: number, bezel: number, scale: number, key: string): string {
     const known = this.filters.get(key);
     if (known) return known;
     const id = `syn-glass-${this.serial}-${this.filters.size}`;
-    const bezel = Math.min(cssNumber("--glass-bezel", 14), h / 2, w / 2);
     const canvas = document.createElement("canvas");
     canvas.width = w;
     canvas.height = h;
@@ -196,7 +211,7 @@ class GlassLayer {
     const disp = document.createElementNS(SVG_NS, "feDisplacementMap");
     disp.setAttribute("in", "SourceGraphic");
     disp.setAttribute("in2", "map");
-    disp.setAttribute("scale", String(cssNumber("--glass-refraction", 18)));
+    disp.setAttribute("scale", String(scale));
     disp.setAttribute("xChannelSelector", "R");
     disp.setAttribute("yChannelSelector", "G");
     f.append(img, disp);

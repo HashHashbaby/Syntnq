@@ -3,6 +3,6 @@
 # sections and synesthesia.io.RENDER_SOURCES. M7b may change only the 3D/live view and app chrome;
 # changing the static render needs a DECISIONS entry, this value updated, and the fidelity gates and
 # WebGL-vs-Python comparison re-run.
-render_hash: dd7d73d89bb5a676401570cb51b3ccb29c1bd8857e6a9c833bd3c755a1581780
-frozen: "2026-10-12"
-decision: D-050
+render_hash: 4950af81ebb745a085aff96a068d0924b862dae065f7c67479f427f6d227c878
+frozen: "2026-10-12"  # re-frozen under D-055 (node radius 0.41, glow 0.24); first frozen under D-050
+decision: D-055

@@ -3,11 +3,9 @@
 import { create } from "zustand";
 import { glass } from "../glass/glass";
 
-export type Appearance = "auto" | "dark" | "light";
 export type Toggle = "auto" | "on";
 
 interface SettingsState {
-  appearance: Appearance;
   reduceMotion: Toggle;
   reduceTransparency: Toggle;
   keepAudio: boolean;
@@ -26,17 +24,16 @@ function load(): Partial<SettingsState> {
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({
-  appearance: "light", // D-047: light by default; dark and auto are settings
   reduceMotion: "auto",
   reduceTransparency: "auto",
   keepAudio: true,
   landingDone: false,
-  ...load(),
+  ...(({ appearance: _ignored, ...rest }) => rest)(load() as Partial<SettingsState> & { appearance?: unknown }),
   set: (patch) => {
     set(patch);
     try {
-      const { appearance, reduceMotion, reduceTransparency, keepAudio, landingDone } = get();
-      localStorage.setItem(KEY, JSON.stringify({ appearance, reduceMotion, reduceTransparency, keepAudio, landingDone }));
+      const { reduceMotion, reduceTransparency, keepAudio, landingDone } = get();
+      localStorage.setItem(KEY, JSON.stringify({ reduceMotion, reduceTransparency, keepAudio, landingDone }));
     } catch {
       // storage unavailable: keep in memory only
     }
@@ -44,9 +41,8 @@ export const useSettings = create<SettingsState>((set, get) => ({
 }));
 
 /** Applies settings to the document root (data attributes read by tokens.css and app.css). */
-export function applySettings(s: Pick<SettingsState, "appearance" | "reduceMotion" | "reduceTransparency">): void {
+export function applySettings(s: Pick<SettingsState, "reduceMotion" | "reduceTransparency">): void {
   const root = document.documentElement;
-  root.setAttribute("data-theme", s.appearance);
   if (s.reduceMotion === "on") root.setAttribute("data-motion", "reduced");
   else root.removeAttribute("data-motion");
   if (s.reduceTransparency === "on") root.setAttribute("data-transparency", "reduced");

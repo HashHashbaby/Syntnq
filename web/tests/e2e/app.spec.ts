@@ -44,10 +44,8 @@ test.describe("app flow", () => {
 
     // settings change the document attributes
     await page.getByRole("button", { name: "Settings" }).click();
-    await page.getByLabel("Appearance").selectOption("light");
     await page.getByLabel("Reduce transparency").selectOption("on");
     await page.getByLabel("Reduce motion").selectOption("on");
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
     await expect(page.locator("html")).toHaveAttribute("data-transparency", "reduced");
     await expect(page.locator("html")).toHaveAttribute("data-motion", "reduced");
     await page.keyboard.press("Escape");

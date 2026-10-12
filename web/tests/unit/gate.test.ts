@@ -91,6 +91,6 @@ describe("mural parameters", () => {
   it("fade in the CSS equals fade_ms (index.html and app.css)", () => {
     const css = readFileSync(join(__dirname, "../../src/styles/app.css"), "utf-8");
     expect(html).toContain(`#syn-mural.show { opacity: 1; visibility: visible; transition: opacity ${json.fade_ms}ms`);
-    expect(css).toContain(`.mural-cover { position: absolute; inset: 0; z-index: 5; display: grid; background: var(--lightbox); opacity: 1; transition: opacity ${json.fade_ms}ms`);
+    expect(css).toContain(`.mural-cover { position: absolute; inset: 0; z-index: 5; display: grid; background: #000; opacity: 1; transition: opacity ${json.fade_ms}ms`);
   });
 });

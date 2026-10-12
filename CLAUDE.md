@@ -46,7 +46,7 @@ If a spec and the code disagree, the spec wins unless `docs/DECISIONS.md` record
 | Area | Decision |
 | --- | --- |
 | Grid | 64 × 64 (4,096 cells) analysed; drawn as 32 × 32 nodes (`render.display_grid`, mean of 2 × 2 cells, D-030). `grid.size` is a parameter for experiments only. |
-| Node look | Static view and exports: flat glowing `dot` (`NodeStyle`, D-030), frozen by `render_hash` (D-050). 3D live view: stained-glass chips (D-046). Same per-cell colours; both pass the fidelity gates. |
+| Node look | Static view and exports: flat glowing `dot` (`NodeStyle`, D-030), radius 0.41 / glow 0.24 (D-055), frozen by `render_hash` (D-050, re-frozen D-055). 3D live view: stained-glass chips (D-046). Same per-cell colours; both pass the fidelity gates. |
 | What a cell is | A cluster of similar-sounding moments (a SOM prototype), not a time slice. |
 | Moments | Analysis frames: 22,050 Hz, hop 512 (≈ 43.07 frames/s), features smoothed over 9 frames (≈ 0.2 s). The SOM trains on all frames (strided to ≤ 16,384). |
 | Layout | Per-song batch SOM, PCA initialization, planar topology, then canonical orientation (brightness up, loudness right). |
@@ -57,7 +57,7 @@ If a spec and the code disagree, the spec wins unless `docs/DECISIONS.md` record
 | Live layer | Response field + temporal smoothing + diffusion + beat ripples, on top of the fixed static signature. Synced to the audio clock. |
 | Comparison | Cross-song comparison uses the 133-value fingerprint, never pixel positions. |
 | Stack | Python 3.11 analysis (uv, numpy, scipy, librosa, soxr, pyloudnorm, Pillow, FastAPI); web app in TypeScript + React + Vite; raw WebGL2 for the 2D reference renderer, plain three.js (pinned, lazy) for the 3D views (D-045). |
-| UI | Apple-style web app (PWA), light by default with a dark setting; signature on a dark lightbox card; TeX Gyre Heros; liquid-glass controls (D-047, D-048, D-051); see `docs/UI.md`. |
+| UI | Apple-style web app (PWA), graphite only: dark grey gradient, black behind the grid, white-tinted floating glass panes with refraction and a song-colour ambient light; TeX Gyre Heros (D-048, D-051, D-053, D-054); see `docs/UI.md`. |
 | Deferred | Commercial-success research, live microphone input, harmony and emotion maps (emotion arrives in M10). |
 
 ## Architecture

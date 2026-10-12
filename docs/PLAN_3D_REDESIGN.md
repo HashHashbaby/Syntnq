@@ -351,3 +351,87 @@ scroll approach. UI.md and LIVE.md are updated in the same commit as each.
 4. Stack: **plain three.js** (recommended) or R3F + drei with a React 19 upgrade?
 5. Scrolling on the landing: **native scroll with damped visuals** (recommended) or Lenis?
 6. Gate placement: sign off M7 now and run this as **M7b** before M8?
+
+---
+
+## 11. Phase 2b: graphite redesign (owner request 2026-10-12, plan only; nothing built)
+
+Inserted before phase 3. It changes the look of phases 1 and 2; phases 3-6 then build on it.
+
+### 11.1 What the owner asked for
+1. Loading page dark; keep the "SYNESTHESIA" wordmark under the mural; keep the tile chips and make them bigger.
+2. Main app: the 32 x 32 grid larger on screen, and each node larger in radius.
+3. The whole site on a **dark grey gradient**, almost black behind the grid square, instead of a light page
+   with an opaque black card.
+4. Side bars and sections as **floating, white-tinted glass panes with refraction** over that gradient
+   (library and upload section, inspector, toolbar, player bar, sheets).
+
+### 11.2 Conflicts with locked decisions (need explicit owner approval)
+| Request | Conflicts with | Consequence |
+| --- | --- | --- |
+| Dark grey gradient everywhere | D-047 (light default, signature on a dark lightbox card) | New decision superseding D-047's default and card; light theme kept only as a setting (or dropped, owner's choice) |
+| Larger node radius | **D-050 render freeze**: the dot radius (`render.node.dot.radius_ratio` 0.34) is part of the frozen 2D static render, and M7b may change only the 3D/live view and chrome | Changing it re-opens the frozen render: DECISIONS entry, new `render_hash`, Python renders, exports (M8), WebGL-vs-Python parity and the fidelity gates all re-run on the new radius |
+| Larger grid on screen | none (stage size is app chrome) | Free to change |
+| Dark, larger loading mural | D-052 (proposed, not yet approved) | Amend D-052 |
+
+### 11.3 Proposed design
+**Background ("graphite").** One fixed, full-viewport layer: a radial gradient centred on the grid square,
+`#000` at the square (the canvas background is `#000`, so the square's edge disappears and the grid looks
+lit from inside the page), easing to `#121214` around the square and `#2A2A2E` at the far corners. A
+faint static grain (the mural's noise texture at about 4 %) stops banding on 8-bit screens. The gradient's
+centre follows the stage rectangle (set by a ResizeObserver, never per frame). The card's edge and shadow
+are removed; the corner radius of the canvas stays.
+
+**Ambient light (optional, recommended so that refraction is visible).** Glass over a smooth gradient has
+nothing to bend, so refraction would be invisible. Option: a very dim, heavily blurred copy of the static
+signature colours (a 16 x 16 downsample, blur about 120 px, at most 12 % opacity) spread behind the panes,
+far outside the grid square. It gives the panes something to refract and ties the page to the song, like
+album-art backdrops. It never draws over the grid square. Simultaneous-contrast risk: measured with the
+fidelity script on the square's pixels with and without it.
+
+**Floating glass panes.** Every region becomes a pane floating 12 px from the edges and from each other
+(8 px on phones), radius 24 px, white-tinted glass: tint `rgba(255,255,255,0.07-0.10)`, refraction lens
+generated per pane size (the existing `glass.ts`, larger bezel about 24 px on panes), blur 10-14 px,
+saturate 140 %, bright top rim, hairline edge, soft dark shadow so the pane lifts off the gradient.
+- Desktop: library pane (left, 320 px, holds search, sort, list and the add/upload section, which becomes
+  its own floating bar at the top of that pane), inspector pane (right, 280 px), toolbar as a floating
+  pill above the grid, player as a floating pill below it, sheets as glass panes.
+- Phone: library becomes one full-height pane; on the signature screen the toolbar and player float as
+  pills over the gradient.
+- Panes never overlap the grid square (chrome never alters signature colours, D-046/D-047 rule kept).
+- Text: white ink on tinted glass; secondary text checked AA on the brightest point of the gradient and
+  the ambient glow.
+
+**Bigger grid on screen.** The square grows to the largest square that fits between the panes:
+desktop `min(available width, 100vh - 168px)` instead of `100vh - 260px` (about +90 px at 1440 x 900),
+phone full width minus 16 px. This is chrome only and needs no decision.
+
+**Bigger nodes (needs the freeze lifted).** Today the dot radius is 0.34 of the node pitch (gap 0.32
+pitch). Candidates: 0.38, 0.41, 0.44 (gap 0.24 / 0.18 / 0.12 pitch). Above about 0.40 the glow (sigma 0.30
+pitch, opacity 0.30) starts to fill the gaps and mix neighbouring hues, which was the D-017 problem, so a
+larger radius likely needs a slightly smaller glow sigma (about 0.24). Before deciding: a contact sheet of
+3 songs x 4 radii x 2 glow settings from the Python renderer, plus the same in the web app.
+Alternative if the freeze should stay: keep 0.34 for the static view and exports, and give the 3D live
+chips (phase 3) the larger size only.
+
+**Loading mural.** Ground becomes the graphite gradient (black at the centre); the mural grows to
+`min(92vw, 960px, (100vh - 9rem) x 1.5)`, so tiles are about 75 px at 1440 x 900 instead of 44 px; same
+12 x 8 tiles, same sweep and backlight; the wordmark stays below in the same type, slightly larger
+(0.875 rem) and lighter (62 % white). The in-app cover uses the same ground.
+
+### 11.4 Performance
+Large panes are the expensive part of glass: blur cost grows with pane area. The backdrop behind the panes
+is static (gradient, optional ambient glow), so the browser re-filters only when something under a pane
+changes; the live canvas is never under a pane. Measured before approval with the stress page extended to
+panes: frame time uncapped with 0, 2 and 4 panes, refract vs frost, at 1440 x 900, and the same with the
+grid playing. Budget unchanged (glass <= 3 ms on the reference GPU). Integrated graphics still unverified.
+
+### 11.5 Steps and evidence (phase 2b, one stop)
+1. Comparison images first, no app changes: background gradient (3 strengths), pane tint (3 levels),
+   ambient glow on and off, node radius 0.34 / 0.38 / 0.41 / 0.44 with glow 0.30 and 0.24. Owner picks.
+2. Decisions: D-053 graphite default (supersedes D-047 default and card), D-054 floating glass panes,
+   D-052 amended (dark, larger mural), and only if approved D-055 node radius with a new `render_hash`.
+3. Build: tokens and background layer, pane layout, stage sizing, mural; glass lens bezel per pane size.
+4. Tests: UI checklist (48 contexts), contrast on panes, pane cost table, loader tests, render freeze
+   (unchanged, or re-frozen under D-055 with parity and fidelity re-run).
+5. Evidence: screenshots at 3 sizes, recording, `review-animations`, `animation-performance`, `break-ui`.

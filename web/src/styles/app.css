@@ -12,7 +12,7 @@ body,
   margin: 0;
 }
 body {
-  background: var(--bg);
+  background: var(--page);
   color: var(--label);
   font-family: var(--font);
   font-size: 1.0625rem;
@@ -84,7 +84,7 @@ p {
 
 /* liquid glass (D-051) on every button and control. The tier is on <html data-glass>, set by
    glass/glass.ts; the selector list here is GLASS_SELECTOR there. */
-.glass, .btn:not(.btn-plain), .segmented, .search, .player {
+.glass, .btn:not(.btn-plain), .segmented, .search, .player, .pane {
   position: relative;
   isolation: isolate;
   background-color: var(--glass-tint);
@@ -97,7 +97,7 @@ p {
     var(--glass-shadow);
 }
 /* static specular: a soft highlight across the upper half, painted once, never animated */
-.glass::before, .btn:not(.btn-plain)::before, .segmented::before, .player::before {
+.glass::before, .btn:not(.btn-plain)::before, .segmented::before, .player::before, .pane::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -106,7 +106,7 @@ p {
   z-index: -1;
   background: radial-gradient(120% 90% at 30% -20%, var(--glass-specular), transparent 60%);
 }
-:root[data-glass="refract"] :is(.glass, .btn:not(.btn-plain), .segmented, .search, .player) {
+:root[data-glass="refract"] :is(.glass, .btn:not(.btn-plain), .segmented, .search, .player, .pane) {
   -webkit-backdrop-filter: var(--glass-lens, blur(0px)) blur(var(--glass-blur)) saturate(var(--glass-saturate));
   backdrop-filter: var(--glass-lens, blur(0px)) blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
@@ -129,14 +129,20 @@ p {
   .btn.btn-filled:hover:not(:disabled) { background-color: var(--accent-fill); }
 }
 /* solid tier: reduced transparency, more contrast, or no backdrop-filter */
-:root[data-glass="solid"] :is(.glass, .btn:not(.btn-plain), .segmented, .search, .player) {
+/* while audio plays, the large side panes frost instead of refracting: their refraction costs about
+   2.3 ms per frame during playback (pills and controls keep it; D-054) */
+:root[data-glass="refract"][data-playing] :is(.sidebar.pane, .inspector.pane) {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+}
+:root[data-glass="solid"] :is(.glass, .btn:not(.btn-plain), .segmented, .search, .player, .pane) {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   background-color: var(--glass-tint-solid);
   box-shadow: inset 0 0 0 1px var(--label-3);
 }
 :root[data-glass="solid"] .btn.btn-filled { background-color: var(--accent-fill); box-shadow: none; }
-:root[data-glass="solid"] :is(.glass, .btn, .segmented, .player)::before { display: none; }
+:root[data-glass="solid"] :is(.glass, .btn, .segmented, .player, .pane)::before { display: none; }
 
 /* materials (sheets, popovers, toolbars): frosted, solid under reduced transparency */
 .material {
@@ -160,19 +166,38 @@ p {
 
 /* layout */
 .app {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  gap: var(--pane-gap);
   height: 100%;
   min-height: 0;
+}
+/* a floating glass pane (D-054): larger bezel and refraction than controls, deeper shadow */
+.pane {
+  --glass-bezel: var(--pane-bezel);
+  --glass-refraction: var(--pane-refraction);
+  border-radius: var(--radius-pane);
+}
+.pane:not(.toolbar):not(.player) {
+  box-shadow:
+    inset 0 1px 0 var(--glass-rim-hi),
+    inset 0 -1px 0 var(--glass-rim-lo),
+    inset 0 0 0 0.5px var(--glass-edge),
+    var(--glass-pane-shadow);
 }
 .sidebar {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-right: 0.5px solid var(--separator);
-  background: var(--bg);
+  overflow: hidden;
 }
-.detail { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
+.detail { display: flex; flex-direction: column; gap: var(--pane-gap); min-width: 0; min-height: 0; position: relative; }
+@media (max-width: 734px) {
+  .app { gap: 8px; }
+  .detail { gap: 8px; }
+}
 @media (max-width: 734px) {
   .app { grid-template-columns: minmax(0, 1fr); }
   .sidebar, .detail { grid-column: 1; grid-row: 1; }
@@ -196,11 +221,17 @@ p {
   min-height: 52px;
   padding: 0 var(--space-4);
 }
+/* the signature toolbar: a floating glass pill (title, map switcher on desktop, actions) */
+.toolbar.pane { min-height: 60px; padding: 0 var(--space-2) 0 var(--space-5); border-radius: var(--radius-pill); flex-shrink: 0; }
+.toolbar.pane .segmented { flex-shrink: 1; }
 .toolbar .grow { flex: 1; min-width: 0; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* library */
-.library-head { padding: var(--space-4) var(--space-4) var(--space-2); display: grid; gap: var(--space-3); }
+.library-head { padding: var(--space-5) var(--space-4) var(--space-2); display: grid; gap: var(--space-3); }
+/* the upload section: its own floating bar at the top of the library pane (D-054) */
+.upload-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); border-radius: 18px; }
+.upload-bar small { display: block; color: var(--label-2); font-size: 0.8125rem; line-height: 1.35; }
 .search {
   width: 100%;
   min-height: 36px;
@@ -222,21 +253,22 @@ p {
   background: transparent;
   width: 100%;
   text-align: left;
-  border-bottom: 0.5px solid var(--separator);
+  border-radius: 14px;
 }
+.list .row { width: calc(100% - 2 * var(--space-2)); margin: 0 var(--space-2); }
 .row[aria-selected="true"] { background: var(--fill); }
 .thumb { width: 40px; height: 40px; border-radius: var(--radius-small); background: var(--lightbox); display: block; box-shadow: 0 0 0 0.5px var(--lightbox-edge); }
 .empty { display: grid; place-items: center; align-content: center; gap: var(--space-4); text-align: center; padding: var(--space-10) var(--space-6); flex: 1; }
 
 /* signature view */
 .view { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: minmax(0, 1fr); }
-.view-body { display: grid; gap: var(--space-4); padding: var(--space-4); align-content: start; max-width: var(--column-max); width: 100%; margin: 0 auto; }
+.view-body { display: grid; gap: var(--pane-gap); padding: 0; align-content: start; max-width: var(--column-max); width: 100%; margin: 0 auto; }
 @media (min-width: 1200px) {
-  .view[data-inspector="true"] { grid-template-columns: minmax(0, 1fr) var(--inspector-w); }
+  .view[data-inspector="true"] { grid-template-columns: minmax(0, 1fr) var(--inspector-w); gap: var(--pane-gap); }
 }
 .stage-card {
   position: relative;
-  width: min(100%, calc(100vh - 260px));
+  width: min(100%, calc(100vh - 230px));
   aspect-ratio: 1;
   margin: 0 auto;
   border-radius: var(--radius-card);
@@ -248,7 +280,7 @@ p {
 .maps-card { background: var(--lightbox); border-radius: var(--radius-card); padding: var(--space-3); box-shadow: inset 0 0 0 0.5px var(--lightbox-edge), var(--lightbox-shadow); }
 .maps-card canvas { width: 100%; height: auto; display: block; max-height: calc(100vh - 300px); object-fit: contain; }
 .caption { text-align: center; max-width: 60ch; margin: 0 auto; }
-.player { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-3); align-items: center; padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2); border-radius: var(--radius-pill); }
+.player { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-3); align-items: center; min-height: 60px; padding: var(--space-2) var(--space-5) var(--space-2) var(--space-2); border-radius: var(--radius-pill); }
 .scrub { width: 100%; height: var(--hit); background: transparent; appearance: none; -webkit-appearance: none; cursor: pointer; }
 .scrub::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--fill-strong); }
 .scrub::-webkit-slider-thumb { -webkit-appearance: none; width: 0; height: 0; }
@@ -271,7 +303,7 @@ p {
 .dots > span[data-active="true"] { opacity: 1; transform: scale(1.4); }
 
 /* inspector */
-.inspector { padding: var(--space-4); border-left: 0.5px solid var(--separator); display: grid; gap: var(--space-3); align-content: start; }
+.inspector { padding: var(--space-5); display: grid; gap: var(--space-3); align-content: start; }
 .kv { display: grid; grid-template-columns: 1fr auto; gap: var(--space-1) var(--space-3); }
 .popover { position: fixed; z-index: 30; border-radius: 14px; padding: var(--space-3); min-width: 200px; pointer-events: none; transform-origin: top left; }
 @media (min-width: 1200px) { .popover { display: none; } }
@@ -300,7 +332,7 @@ p {
 .group > *:last-child { border-bottom: 0; }
 
 /* first landing: one scroll-driven stage, shown once (D-033) */
-.landing { position: fixed; inset: 0; z-index: 70; overflow-y: auto; background: #000; color: #f5f5f7; transition: background-color var(--dip-out) var(--ease-out); }
+.landing { position: fixed; inset: 0; z-index: 70; overflow-y: auto; background: radial-gradient(circle at 50% 50%, var(--graphite-center) 0, var(--graphite-center) 44vmin, var(--graphite-mid) 62vmin, var(--graphite-edge) 120vmin) fixed; color: #f5f5f7; }
 .landing-track { height: 420vh; position: relative; }
 .landing-sticky { position: sticky; top: 0; height: 100vh; display: grid; grid-template-rows: auto 1fr auto; padding: var(--space-4); gap: var(--space-4); }
 .landing-stage { position: relative; width: min(92vw, 62vh); aspect-ratio: 1; margin: 0 auto; align-self: center; }
@@ -310,7 +342,7 @@ p {
 .landing-step { opacity: 0; transform: translateY(8px); transition: opacity var(--dip-out) var(--ease-out), transform var(--dip-out) var(--ease-out); position: absolute; left: 0; right: 0; }
 .landing-step[data-active="true"] { opacity: 1; transform: none; position: relative; transition: opacity var(--dip-in) var(--ease-out) calc(var(--dip-out) + var(--dip-rest)), transform var(--dip-in) var(--ease-out) calc(var(--dip-out) + var(--dip-rest)); }
 /* leaving the landing: the chrome fades, the ground clears, the stage travels to the signature card */
-.landing[data-exit] { background-color: transparent; overflow: hidden; pointer-events: none; }
+.landing[data-exit] { background: transparent; overflow: hidden; pointer-events: none; }
 .landing[data-exit] .landing-skip,
 .landing[data-exit] .landing-sticky > :not(.landing-stage),
 .landing[data-exit] .landing-after { opacity: 0; transition: opacity var(--dip-out) var(--ease-out); }
@@ -349,7 +381,8 @@ p {
 }
 
 /* safe areas (notch, home indicator) */
-.app { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+.app { padding: calc(var(--pane-gap) + env(safe-area-inset-top)) calc(var(--pane-gap) + env(safe-area-inset-right)) calc(var(--pane-gap) + env(safe-area-inset-bottom)) calc(var(--pane-gap) + env(safe-area-inset-left)); }
+@media (max-width: 734px) { .app { padding: calc(8px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left)); } }
 .sheet { padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom)); }
 .landing { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 
@@ -361,12 +394,22 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 
 .landing-sticky > h1 { padding: 0 56px; } /* clears the 44 px Skip button */
 
-/* theme change: one 200 ms cross-fade of the whole page (Settings > Appearance) */
-::view-transition-old(root),
-::view-transition-new(root) { animation-duration: var(--dur-fast); animation-timing-function: var(--ease-out); }
 
 /* the loading mural over a surface (D-052; the mural itself is styled in index.html) */
-.mural-cover { position: absolute; inset: 0; z-index: 5; display: grid; background: var(--lightbox); opacity: 1; transition: opacity 300ms var(--ease-out); }
+.mural-cover { position: absolute; inset: 0; z-index: 5; display: grid; background: #000; opacity: 1; transition: opacity 300ms var(--ease-out); }
 @starting-style { .mural-cover { opacity: 0; } }
 .mural-cover[data-phase="leaving"] { opacity: 0; }
 .mural-cover .mural { width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; box-shadow: none; }
+
+/* graphite backdrop (D-053): fixed layers under the app. The gradient is centred on the grid square
+   (--gx, --gy, --gr set on .backdrop by Backdrop.tsx), black past the square's corners, grey at the
+   far edges; the ambient layer is the song's static colours, blurred, masked away from the square. */
+.backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.backdrop-gradient { position: absolute; inset: 0; background: radial-gradient(circle at var(--gx, 60%) var(--gy, 50%), var(--graphite-center) 0, var(--graphite-center) calc(var(--gr, 30vmin) * 1.42), var(--graphite-mid) calc(var(--gr, 30vmin) * 1.9), var(--graphite-edge) calc(var(--gr, 30vmin) * 3.6)); }
+.backdrop-ambient { position: absolute; inset: -10%; width: 120%; height: 120%; opacity: var(--ambient-opacity); filter: blur(var(--ambient-blur)) saturate(140%); transition: opacity var(--dur-slow) var(--ease-out);
+  -webkit-mask-image: radial-gradient(circle at var(--gx, 60%) var(--gy, 50%), transparent 0, transparent calc(var(--gr, 30vmin) * 1.45), #000 calc(var(--gr, 30vmin) * 2.2));
+  mask-image: radial-gradient(circle at var(--gx, 60%) var(--gy, 50%), transparent 0, transparent calc(var(--gr, 30vmin) * 1.45), #000 calc(var(--gr, 30vmin) * 2.2)); }
+.backdrop-ambient[data-empty="true"] { opacity: 0; }
+.backdrop-grain { position: absolute; inset: 0; opacity: 0.04; mix-blend-mode: screen; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='7'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+:root[data-transparency="reduced"] .backdrop-ambient, :root[data-transparency="reduced"] .backdrop-grain { display: none; }
+@media (prefers-reduced-transparency: reduce) { .backdrop-ambient, .backdrop-grain { display: none; } }

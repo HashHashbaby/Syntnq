@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Backdrop } from "./components/Backdrop";
 import { DevToggle } from "./dev/DevToggle";
 import { FirstLanding } from "./screens/FirstLanding";
 import { Library } from "./screens/Library";
@@ -24,7 +25,7 @@ export function App() {
   }, []);
   useEffect(() => {
     applySettings(settings);
-  }, [settings.appearance, settings.reduceMotion, settings.reduceTransparency]);
+  }, [settings.reduceMotion, settings.reduceTransparency]);
 
   const choose = useCallback(() => picker.current?.click(), []);
   const addFiles = useCallback(
@@ -92,8 +93,9 @@ export function App() {
 
   return (
     <>
+      <Backdrop colors={open?.stat.colorSrgb ?? null} />
       <div className="app" data-pane={pane} data-animate={navigated && !showLanding}>
-        <nav className="sidebar" aria-label="Library">
+        <nav className="sidebar pane" aria-label="Library">
           <Library onAdd={choose} onSettings={() => setSettingsOpen(true)} />
         </nav>
         <main className="detail">

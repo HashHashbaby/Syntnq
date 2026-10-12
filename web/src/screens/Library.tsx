@@ -1,5 +1,5 @@
-// Library (docs/UI.md section 6): Large Title, search, paged virtualised list of songs, the one
-// filled "+" button, in-progress analyses and the empty state.
+// Library (docs/UI.md section 6): Large Title, the upload bar (the one filled button), search,
+// paged virtualised list of songs, in-progress analyses and the empty state.
 import { useCallback } from "react";
 import { Icon, Segmented, Thumb, VirtualList, formatTime } from "../components/parts";
 import { PAGE_SIZE, useApp } from "../state/store";
@@ -25,8 +25,15 @@ export function Library({ onAdd, onSettings }: { onAdd: () => void; onSettings: 
           <button className="btn btn-icon" onClick={onSettings} aria-label="Settings">
             <Icon name="gearshape" />
           </button>
-          <button className="btn btn-icon btn-filled" onClick={onAdd} aria-label="Add song">
-            <Icon name="plus" />
+        </div>
+        {/* the upload section: a floating bar, the pane's one filled action (D-054) */}
+        <div className="upload-bar glass">
+          <div style={{ minWidth: 0 }}>
+            <p className="t-headline">Add a song</p>
+            <small>Drop audio anywhere, or choose a file</small>
+          </div>
+          <button className="btn btn-filled" onClick={onAdd} aria-label="Upload a song">
+            Upload
           </button>
         </div>
         {!empty && (
@@ -84,9 +91,6 @@ export function Library({ onAdd, onSettings }: { onAdd: () => void; onSettings: 
       {empty ? (
         <div className="empty">
           <p className="t-title-2">Add a song to see its signature.</p>
-          <button className="btn btn-filled" onClick={onAdd}>
-            Add Song
-          </button>
           {samples.length > 0 && (
             <button className="btn btn-plain" onClick={() => void addSample(samples[0].slug)}>
               Try a sample

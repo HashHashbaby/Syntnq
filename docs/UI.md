@@ -14,28 +14,26 @@ We copy the **look and feel**, not Apple's assets or branding. Exact values belo
 
 ## 2. Design tokens (`web/src/styles/tokens.css`)
 
-**Light is the default appearance** (D-047): warm off-white ground, ink text, one restrained ink-blue
-accent. Dark is a setting (Appearance: Light / Dark / Auto; Auto follows the system). The file is the
-single source; this table lists the light values and the role of each token.
+**One theme: graphite** (D-053). A fixed dark grey radial gradient, black behind the grid square,
+white ink, white-tinted glass panes floating over it. There is no light theme and no Appearance
+setting. The file is the single source; this table lists the roles.
 
-| Token | Light (default) | Dark | Role |
-| --- | --- | --- | --- |
-| `--bg` | `#F6F4EF` | `#000000` | page ground |
-| `--bg-2` | `#FBFAF7` | `#1C1C1E` | raised surfaces, sheets |
-| `--bg-3` | `#EDEAE3` | `#2C2C2E` | grouped / inset |
-| `--label` | `#141414` | `#F5F5F7` | text (ink) |
-| `--label-2` | ink at 66 % | 62 % | secondary text, >= 5.5:1 on every light ground |
-| `--label-3` | ink at 28 % | 30 % | separators and disabled UI only, never text |
-| `--accent`, `--link`, `--focus-ring` | `#2B4BF2` | `#6E8BFF` / `#8AA0FF` | links, focus, selection (>= 5.1:1) |
-| `--accent-fill` / `--on-accent-fill` | `#141414` / white | `#F5F5F7` / black | filled buttons |
-| `--glass-*` | see section 4 | | liquid-glass material |
-| `--lightbox`, `--lightbox-edge`, `--lightbox-shadow` | `#0B0B0C`, 7 % white hairline, soft shadow | | the signature card |
+| Token | Value | Role |
+| --- | --- | --- |
+| `--graphite-center` / `-mid` / `-edge` | `#000` / `#121214` / `#2A2A2E` | the backdrop gradient: black out past the square's corners (1.42 x half-side), mid at 1.9 x, edge at 3.6 x |
+| `--page` | `#2A2A2E` | body colour under the backdrop (the lightest ground; contrast is checked against it) |
+| `--bg`, `--bg-2`, `--bg-3` | `#121214`, `#1C1C1F`, `#2A2A2E` | solid fallbacks (reduced transparency), grouped rows |
+| `--label` / `--label-2` / `--label-3` | `#F5F5F7` / 72 % / 30 % | text; `--label-3` for separators and disabled UI only |
+| `--accent`, `--link`, `--focus-ring` | `#8AA0FF`, `#9FB1FF` | links, focus, selection |
+| `--accent-fill` / `--on-accent-fill` | white / black | filled buttons (white glass, black text) |
+| `--glass-*` | tint 9 % white, rims, shadow | controls (section 4) |
+| `--pane-*`, `--radius-pane` | bezel 24, refraction 36, gap 12 px, radius 24 px | floating panes (section 4) |
+| `--ambient-opacity`, `--ambient-blur` | 0.16, 110 px | the song-colour ambient light behind the panes |
 
 Spacing, radii, hit size and motion tokens are unchanged (motion: section 8, D-044).
 
-**The signature always sits on a dark lightbox card** (`--lightbox`), in both themes, because the glow
-and the backlit glass need a dark ground (D-026, D-047). On the light page the card has a subtle inner
-hairline and a soft shadow, no heavy frame. The first landing keeps its own dark stage until phase 5.
+**The signature square has no card**: the canvas background is `#000` and the gradient is black past the
+square's corners, so the grid sits straight in the dark (D-053). Glass never covers the square.
 
 ## 3. Typography (D-048)
 
@@ -63,7 +61,7 @@ colour, never synthesized weights**. Sizes in `rem` so browser text settings sca
 Tracking tightens as size grows and opens slightly below 15 px (optical sizing emulated). Numbers that
 change use `font-variant-numeric: tabular-nums`. Minimum 11 px anywhere.
 
-## 4. Materials: liquid glass (D-051)
+## 4. Materials: liquid glass (D-051, D-054)
 
 Every button and control uses the glass material (`.glass`), chosen in three tiers by
 `web/src/glass/glass.ts`:
@@ -73,6 +71,14 @@ Every button and control uses the glass material (`.glass`), chosen in three tie
 | `refract` | Chromium, transparency allowed | `backdrop-filter: url(lens) blur(--glass-blur) saturate(--glass-saturate)`: a generated displacement map per control size bends the backdrop inside a `--glass-bezel` (14 px) rim with strength `--glass-refraction` (18 px); plus tint, specular rim, shadow |
 | `frost` | Safari, Firefox (Firefox passes `@supports` for `url()` in `backdrop-filter` but draws nothing, so the engine is detected) | blur + saturate + tint + the same rim |
 | `solid` | reduced transparency (system or in-app), `prefers-contrast: more`, or no backdrop-filter | `--glass-tint-solid` fill with a 1 px contrasting edge |
+
+**Floating panes (D-054).** The library (with the upload section as its own floating bar), the
+inspector, the signature toolbar pill, the player pill and sheets are panes: the same glass with a
+24 px bezel and refraction strength 36 (read per element, so controls keep 14 / 18), radius 24 px,
+a deep soft shadow, floating `--pane-gap` (12 px; 8 px on phones) from the edges and each other.
+Large panes rebuild their displacement map only after a resize settles (120 ms). While audio plays, the library and inspector panes frost instead of refracting (`:root[data-playing]`; refraction there costs about 2.3 ms per frame during playback). Behind the panes the
+**ambient light** (the open song's static colours, blurred 110 px, 16 %, masked away from the square)
+gives the glass something to refract; it is hidden under reduced transparency.
 
 Rim: a bright top inner edge (`--glass-rim-hi`), a shaded lower edge (`--glass-rim-lo`), a hairline
 (`--glass-edge`) and a static specular highlight; shadow via `--glass-shadow`. Press: `scale(0.97)` on
@@ -93,6 +99,7 @@ Breakpoints (D-033): phone <= 734 px, tablet 735-1068, desktop 1069-1440, wide >
 - Map switcher in the sheet: Sound · Features · Structure · Rhythm · Dynamics. "Features" shows a second segmented control: Brightness · Loudness · Noise · Harmony · Change.
 
 **Tablet and desktop (≥ 735 px)**
+- Graphite layout (D-054): panes float 12 px apart; the map switcher sits in the toolbar pill; the grid square is `min(100%, 100vh - 230px)`.
 - Split view: sidebar 320 px (library list, search field, "+" button) and detail area.
 - Detail: toolbar at top (song title, segmented map switcher, Export button, more menu); canvas centered; inspector panel on the right (280 px) on ≥ 1069 px wide, otherwise a popover.
 - Player bar docked at the bottom of the detail area.
@@ -106,7 +113,7 @@ Space play/pause · ←/→ seek 5 s · Shift+←/→ seek 30 s · 1-5 map views
    - **Beats** dip through dark (D-044): the old line fades and lifts out (250 ms), the stage rests (100 ms), the new line arrives (350 ms); the two are never on screen together and the signature stays put.
    - **End state:** the pinned track ends and the mapping key and the actions ("Add a song", "Try a sample") scroll into view below the stage; both are on screen at the end of the scroll.
    - **Leaving:** "Try a sample" hands the live canvas over to the signature card (it travels and scales to the card's rectangle in 450 ms with `--ease-stage` while the chrome fades; from the map beat the map fades to the signature on the way). Skip and "Add a song" fade the whole landing out in 250 ms. Reduced motion: a 200 ms fade, no travel.
-0b. **Loading mural (D-052):** while the app or a 3D chunk loads, a mural of dark stained-glass tiles flips in a diagonal sweep and white light floods through each turning tile. It appears only if loading takes longer than 400 ms, then stays at least 600 ms and fades out in 300 ms; fast loads never see it. The boot mural is inline in `index.html`; the in-app one (`LoadingMural`) covers the surface that is loading. Reduced motion: still tiles with a fade; reduced transparency: no bloom or grain.
+0b. **Loading mural (D-052, D-053):** on the graphite ground, up to 960 px wide with the "SYNESTHESIA" wordmark under it; while the app or a 3D chunk loads, a mural of dark stained-glass tiles flips in a diagonal sweep and white light floods through each turning tile. It appears only if loading takes longer than 400 ms, then stays at least 600 ms and fades out in 300 ms; fast loads never see it. The boot mural is inline in `index.html`; the in-app one (`LoadingMural`) covers the surface that is loading. Reduced motion: still tiles with a fade; reduced transparency: no bloom or grain.
 1. **First launch / empty library:** centered short text "Add a song to see its signature." plus the filled "Add Song" button and "Try a sample" link (bundled Creative Commons samples, M7).
 2. **Add song:** file picker or drag-and-drop anywhere on the window (drop overlay with dashed rounded rectangle, label "Drop to analyze").
 3. **Analyzing:** a progress view on the canvas area with stage labels from the API (`Reading audio`, `Listening`, `Mapping sounds`, `Coloring`, `Drawing maps`) and a determinate bar; cancel button. The grid fades in cell by cell (≤ 600 ms) when done; reduced motion → simple fade.
@@ -116,7 +123,7 @@ Space play/pause · ←/→ seek 5 s · Shift+←/→ seek 30 s · 1-5 map views
 7. **Inspector:** cell values (see `docs/LIVE.md §8`).
 8. **Export sheet:** size (2048 / 4096 / 8192 px), format (PNG / SVG), caption toggle (title, artist, wordmark), "Save" and "Share" (Web Share API with file when supported, else download).
 9. **Compare (M9):** two signatures side by side (stacked on phone), similarity score with a plain-language label ("Very similar", "Somewhat similar", "Different") and the top 3 differing features.
-10. **Settings:** Appearance (Auto / Dark / Light), Reduce motion (Auto / On), Reduce transparency (Auto / On), Keep audio on this device (on), About and licenses.
+10. **Settings:** Reduce motion (Auto / On), Reduce transparency (Auto / On), Keep audio on this device (on), About and licenses.
 
 ## 7. Components
 
@@ -157,7 +164,6 @@ Rules (D-044): animate `transform` and `opacity` (plus small colour/filter chang
 | Landing exit (skip, add) | Fade out | `opacity` | 250 ms | `--ease-out` | 200 ms | n/a |
 | Analysis finished | Reveal: a diagonal wave of scale-in cells | dot radius | 450 ms, wave width 35 % | ease-out cubic | 450 ms fade from black | n/a |
 | Pause | Ease back to the static signature | live layer blend | 400 ms smoothstep | smoothstep | instant | n/a |
-| Theme change (Appearance setting) | Cross-fade (View Transitions API where supported) | whole page snapshot `opacity` | 200 ms | `--ease-out` | instant | instant |
 | Glass hover | Hover effect | tint (`background-color`) only, no animated shadow | 240 ms | `--ease-standard` | none | none |
 | Loading mural | Staggered flip (sweep) + fade | `transform: rotateY`, `opacity` | flip within a 2.6 s cycle, 55 ms stagger; show after 400 ms, min 600 ms, fade 300 ms | `--ease-in-out` (flip), `--ease-out` (fade) | still tiles, fade only | n/a |
 | Toast | Fade in with a small lift | `opacity`, `transform` 8 px | 240 ms | `--ease-out` | fade only | n/a |
@@ -197,7 +203,7 @@ Never bundle SF Symbols. Use **Lucide** (ISC license, similar line weight), stro
 
 ## 11. PWA
 
-- `manifest.webmanifest`: name "SYNESTHESIA", short name "Synesthesia", `display: standalone`, `theme_color` and `background_color` `#F6F4EF` (light default, D-047; `index.html` sets a dark `theme-color` for dark system schemes), original app icon (dark square with a small glowing dot grid; designed in-house, not Apple's icon templates' artwork).
+- `manifest.webmanifest`: name "SYNESTHESIA", short name "Synesthesia", `display: standalone`, `theme_color` and `background_color` `#000000` (graphite, D-053), original app icon (dark square with a small glowing dot grid; designed in-house, not Apple's icon templates' artwork).
 - `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`, `apple-mobile-web-app-capable`, status bar style black-translucent.
 - Service worker caches the app shell and analyzed songs' signature data (not audio).
 
