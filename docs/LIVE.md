@@ -145,3 +145,26 @@ thumbnails and exports always use the 2D render (D-050, D-055).
   chips at rest and mid-playback, and the 2D dot fill (D-059: the frozen 2D renderer with the glow off,
   dev-only `?glow=0`). The 2D view with its glow is reported, not gated.
 - **Versioning:** `web3d.live_view_version` (3, D-058) is bumped whenever a live-view or 3D parameter changes.
+
+## 11. The rotating disc (M7b phase 4, D-060)
+
+A thin smoked-glass disc in the player bar (`web/src/components/Disc.tsx`, `web/src/three/disc.ts`, config
+`web3d.disc`). Its label is the static signature card drawn by the frozen 2D renderer (Canvas2D path) into a
+512 px canvas, shown unlit (sRGB bytes straight through, no mipmaps), the card inscribed in the label circle
+(label radius 0.66 of the disc). Body: near-black grey (linear 0.012) with groove rings faded below pixel size,
+three smooth track gaps, a fixed anisotropic sheen (the "bow tie" that stays put while the disc turns), a
+polished rim and a spindle. Camera tilted 12 deg from straight above.
+
+- **Angle** (`web/src/engine/disc.ts`, pure, unit-tested): playing at speed, the angle advances by
+  omega x (audio time advanced), omega = 33 1/3 rpm = 3.4907 rad/s, so dtheta/ds = omega and frame rate
+  does not matter. Play and pause drive the spin (0..1 of omega) on a critically damped spring (0.6 s); the
+  coast after pause runs on wall time. An audio-time jump of more than 0.05 s that wall time does not
+  explain (seek, scrub) turns the disc by omega x jump, reduced to under one turn in the jump's direction,
+  on a 0.3 s spring. Reduced motion: no rotation; the angle is omega x s, set on pause and on seek.
+- **Loop:** requestAnimationFrame only while the disc moves (playing, coasting, a seek pending); the 3D
+  chunk loads in idle time after the screen opens.
+- **Measured** (drawn frames vs audio time, 1440 x 900): 33.3330 rpm; spin-up share of full speed over the
+  first 0.6 s 0.92 (part of the spin-up happens while the output latency holds audio
+  time at the start); coast 0.63 rad over 1446 ms; a +5 s seek turned 4.8868 rad
+  (expected 4.8867).
+

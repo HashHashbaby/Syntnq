@@ -16,3 +16,11 @@ export function prefetchChips(): void {
   if (idle) idle(go, { timeout: 3000 });
   else setTimeout(go, 1500);
 }
+
+let discModule: Promise<typeof import("./disc").createDiscRenderer> | null = null;
+
+/** The disc renderer (D-060), from the same lazily loaded three.js chunk. */
+export function loadDisc(): Promise<typeof import("./disc").createDiscRenderer> {
+  discModule ??= import("./disc").then((m) => m.createDiscRenderer);
+  return discModule;
+}

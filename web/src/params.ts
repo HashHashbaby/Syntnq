@@ -31,6 +31,28 @@ export interface LiveParams {
   reduced_motion: { ripples: boolean; diffusion: boolean; release_ms: number };
 }
 
+/** The rotating disc in the player bar (config web3d.disc, D-060). */
+export interface DiscParams {
+  rpm: number;
+  spin_response_s: number;
+  seek_response_s: number;
+  seek_threshold_s: number;
+  tilt_deg: number;
+  camera_fov_deg: number;
+  thickness: number;
+  label_ratio: number;
+  spindle_ratio: number;
+  rim_ratio: number;
+  body_level: number;
+  groove_cycles: number;
+  groove_depth: number;
+  track_gaps: number[];
+  sheen: number;
+  sheen_power: number;
+  light_angle_deg: number;
+  rim_level: number;
+}
+
 /** The 3D live view (config web3d, D-056). */
 export interface Web3DParams {
   live_view_version: number;
@@ -49,6 +71,7 @@ export interface Web3DParams {
   parallax_deg: number;
   parallax_response_s: number;
   max_dpr: number;
+  disc: DiscParams;
 }
 
 export interface Params {

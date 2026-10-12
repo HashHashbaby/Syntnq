@@ -1,6 +1,7 @@
 // Signature screen (docs/UI.md section 6.5-6.7): the stage, player bar, map switcher, inspector.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioPlayer } from "../audio/player";
+import { Disc } from "../components/Disc";
 import { reportStage } from "../components/Backdrop";
 import { GridCanvas, type ChipFactory } from "../components/GridCanvas";
 import { LoadingMural } from "../loading/Mural";
@@ -412,6 +413,7 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
           <p className="caption t-foot secondary">{caption}</p>
 
           <div className="player" role="group" aria-label="Playback">
+            <Disc open={open} player={player} reduced={reduced} />
             <button className="btn btn-icon btn-filled" onClick={toggle} disabled={!open.audio || player.state === "idle"} aria-label={player.state === "playing" ? "Pause" : "Play"}>
               <Icon name={player.state === "playing" ? "pause.fill" : "play.fill"} />
             </button>

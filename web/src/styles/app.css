@@ -280,7 +280,11 @@ p {
 .maps-card { background: var(--lightbox); border-radius: var(--radius-card); padding: var(--space-3); box-shadow: inset 0 0 0 0.5px var(--lightbox-edge), var(--lightbox-shadow); }
 .maps-card canvas { width: 100%; height: auto; display: block; max-height: calc(100vh - 300px); object-fit: contain; }
 .caption { text-align: center; max-width: 60ch; margin: 0 auto; }
-.player { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-3); align-items: center; min-height: 60px; padding: var(--space-2) var(--space-5) var(--space-2) var(--space-2); border-radius: var(--radius-pill); }
+.player { display: grid; grid-template-columns: auto auto 1fr auto; gap: var(--space-3); align-items: center; min-height: 60px; padding: var(--disc-inset) var(--space-5) var(--disc-inset) var(--disc-inset); border-radius: var(--radius-pill); }
+/* the rotating disc (D-060): concentric with the pill's left end; hidden when WebGL is missing */
+.disc { display: block; width: var(--disc-size); height: var(--disc-size); border-radius: 50%; }
+.disc:not([data-ready]) { background: radial-gradient(circle, rgba(255, 255, 255, 0.06) 0 32%, rgba(255, 255, 255, 0.03) 33% 100%); }
+.disc[hidden] { display: none; }
 .scrub { width: 100%; height: var(--hit); background: transparent; appearance: none; -webkit-appearance: none; cursor: pointer; }
 .scrub::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--fill-strong); }
 .scrub::-webkit-slider-thumb { -webkit-appearance: none; width: 0; height: 0; }
@@ -420,3 +424,4 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 /* the 3D chips arrive from black after the flat grid steps aside (a short dip, D-044 style) */
 .stage-card canvas[data-kind="three"] { opacity: 1; transition: opacity var(--dur-ui) var(--ease-out); }
 @starting-style { .stage-card canvas[data-kind="three"] { opacity: 0; } }
+@media (max-width: 734px) { :root { --disc-size: 46px; } }

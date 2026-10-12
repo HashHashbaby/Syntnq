@@ -300,6 +300,29 @@ class Live(_Section):
     reduced_motion: ReducedMotion
 
 
+class Disc(_Section):
+    """The rotating disc in the player bar (web only, D-060)."""
+
+    rpm: float
+    spin_response_s: float
+    seek_response_s: float
+    seek_threshold_s: float
+    tilt_deg: float
+    camera_fov_deg: float
+    thickness: float
+    label_ratio: float
+    spindle_ratio: float
+    rim_ratio: float
+    body_level: float
+    groove_cycles: float
+    groove_depth: float
+    track_gaps: tuple[float, ...]
+    sheen: float
+    sheen_power: float
+    light_angle_deg: float
+    rim_level: float
+
+
 class Web3D(_Section):
     """The 3D live view (web only; not part of the frozen 2D render, D-045, D-056)."""
 
@@ -319,6 +342,7 @@ class Web3D(_Section):
     parallax_deg: float
     parallax_response_s: float
     max_dpr: float
+    disc: Disc
 
 
 class Caption(_Section):

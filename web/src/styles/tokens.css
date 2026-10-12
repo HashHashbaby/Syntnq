@@ -20,6 +20,8 @@
 }
 
 :root {
+  --disc-size: 52px; /* the rotating disc in the player bar (D-060) */
+  --disc-inset: 6px;
   color-scheme: dark;
   /* graphite (D-053): the only theme. Text is white ink; surfaces are glass over the gradient. */
   --bg: #121214; /* solid fallback ground (sheets under reduced transparency) */
