@@ -2,7 +2,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioPlayer } from "../audio/player";
 import { reportStage } from "../components/Backdrop";
-import { GridCanvas } from "../components/GridCanvas";
+import { GridCanvas, type ChipFactory } from "../components/GridCanvas";
+import { LoadingMural } from "../loading/Mural";
+import { DUR_HANDOFF_MS } from "../motion/tokens";
+import { loadChips } from "../three/load";
 import { CAPTIONS, DynamicsView, FEATURES, FeatureGridView, RhythmView, StructureView, type FeatureName, type MapView } from "../components/MapViews";
 import { Icon, Segmented, formatTime, useMedia, usePhone } from "../components/parts";
 import { keyboardDriven, reduced as motionNow } from "../motion/tokens";
@@ -84,6 +87,46 @@ function InspectorBody({ info }: { info: NodeInfo | null }) {
 
 export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => void }) {
   const settings = useSettings();
+  const mountedAt = useRef(performance.now());
+  const trueColour = settings.trueColour;
+  const [chips, setChips] = useState<ChipFactory | null>(null);
+  const [chipsLoading, setChipsLoading] = useState(false);
+  useEffect(() => {
+    if (trueColour || chips) return;
+    let alive = true;
+    // start after any arrival transition (the landing handoff): parsing the chunk is a long task
+    const wait = Math.max(0, DUR_HANDOFF_MS + 150 - (performance.now() - mountedAt.current));
+    const t = window.setTimeout(() => {
+      setChipsLoading(true);
+      loadChips()
+        .then((f) => alive && setChips(() => f))
+        .catch(() => undefined)
+        .finally(() => alive && setChipsLoading(false));
+    }, wait);
+    return () => {
+      alive = false;
+      window.clearTimeout(t);
+    };
+  }, [trueColour, chips]);
+  // the chips take over only after any arrival transition (the landing handoff) and when the browser is
+  // idle: creating the WebGL renderer and compiling shaders is a long task that must not land mid-motion
+  const [chipsReady, setChipsReady] = useState(false);
+  useEffect(() => {
+    if (!chips || chipsReady) return;
+    const mountedFor = performance.now() - mountedAt.current;
+    let idleId = 0;
+    const t = window.setTimeout(() => {
+      const idle = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+      if (idle) idleId = idle(() => setChipsReady(true), { timeout: 500 });
+      else setChipsReady(true);
+    }, Math.max(0, DUR_HANDOFF_MS + 150 - mountedFor));
+    return () => {
+      window.clearTimeout(t);
+      (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(idleId);
+    };
+  }, [chips, chipsReady]);
+  const stageChips = trueColour || !chipsReady ? null : chips;
+  const stageKey = stageChips ? "chips" : "flat";
   const lib = useApp((s) => s.lib);
   const removeSong = useApp((s) => s.removeSong);
   const showToast = useApp((s) => s.showToast);
@@ -192,6 +235,7 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
       } else if (e.key === "ArrowRight" && t.tagName !== "INPUT") player.seek(player.position() + (e.shiftKey ? SEEK_LONG_S : SEEK_SHORT_S));
       else if (e.key === "ArrowLeft" && t.tagName !== "INPUT") player.seek(player.position() - (e.shiftKey ? SEEK_LONG_S : SEEK_SHORT_S));
       else if (/^[1-5]$/.test(e.key) && !e.metaKey && !e.ctrlKey) setView(VIEWS[Number(e.key) - 1].value);
+      else if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey && t.tagName !== "INPUT") useSettings.getState().set({ trueColour: !useSettings.getState().trueColour });
       else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "e") {
         e.preventDefault();
         setSheet(true);
@@ -275,6 +319,17 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
             onChange={setView}
           />
         )}
+        {view === "sound" && (
+          <button
+            className="btn btn-icon"
+            aria-pressed={trueColour}
+            aria-label="True colour"
+            title="True colour: flat dots instead of 3D glass (T)"
+            onClick={() => settings.set({ trueColour: !trueColour })}
+          >
+            <Icon name="cube" />
+          </button>
+        )}
         <button className="btn btn-icon" onClick={() => setSheet(true)} aria-label="Export">
           <Icon name="square.and.arrow.up" />
         </button>
@@ -321,7 +376,8 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
                         onPointerLeave={() => setHover(null)}
                         data-testid={view === "sound" ? "stage" : undefined}
                       >
-                        <GridCanvas open={open} player={player} reduced={reduced} reveal={fresh} onBmu={setBmu} ariaLabel={ariaLabel} />
+                        <GridCanvas key={stageKey} open={open} player={player} reduced={reduced} reveal={fresh} onBmu={setBmu} ariaLabel={ariaLabel} chips={stageChips} />
+                        <LoadingMural loading={chipsLoading} label="Loading the 3D view" />
                       </div>
                     ) : (
                       <div className="maps-card" data-testid={v.value === view ? "map-card" : undefined}>
@@ -345,7 +401,8 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
               onPointerLeave={() => setHover(null)}
               data-testid="stage"
             >
-              <GridCanvas open={open} player={player} reduced={reduced} reveal={fresh} onBmu={setBmu} ariaLabel={ariaLabel} />
+              <GridCanvas key={stageKey} open={open} player={player} reduced={reduced} reveal={fresh} onBmu={setBmu} ariaLabel={ariaLabel} chips={stageChips} />
+              <LoadingMural loading={chipsLoading} label="Loading the 3D view" />
             </div>
           ) : (
             <div className="maps-card" data-testid="map-card">

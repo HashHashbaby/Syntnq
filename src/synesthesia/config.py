@@ -277,6 +277,27 @@ class ReducedMotion(_Section):
     release_ms: float
 
 
+class Flow(_Section):
+    """River-ripple wave field: a visual-only height for the 3D chips (D-046, D-056)."""
+
+    substep_hz: float
+    wave_speed: float
+    damping: float
+    sponge_cells: float
+    sponge_damping: float
+    source_gain: float
+    source_sigma_cells: float
+    source_scale: float
+    beat_gain: float
+    beat_scale: float
+    current_dir: tuple[float, float]
+    current_speed: float
+    current_loud_gain: float
+    curl_amp: float
+    curl_scale: float
+    wave_limit: float
+
+
 class Live(_Section):
     fps: float
     tau_target_share: float
@@ -298,6 +319,28 @@ class Live(_Section):
     ripple: Ripple
     trail: Trail
     reduced_motion: ReducedMotion
+    flow: Flow
+
+
+class Web3D(_Section):
+    """The 3D live view (web only; not part of the frozen 2D render, D-045, D-056)."""
+
+    live_view_version: int
+    camera_fov_deg: float
+    chip_size: float
+    chip_thickness: float
+    chip_corner: float
+    z_amp: float
+    tilt_max_deg: float
+    tilt_gain: float
+    absorb_edge: float
+    absorb_edge_sat: float
+    grain: float
+    glint: float
+    side_shade: float
+    parallax_deg: float
+    parallax_response_s: float
+    max_dpr: float
 
 
 class Caption(_Section):
@@ -395,6 +438,7 @@ class Config(_Section):
     maps: Maps
     fingerprint: Fingerprint
     live: Live
+    web3d: Web3D
     render: Render
     preview: Preview
     api: Api

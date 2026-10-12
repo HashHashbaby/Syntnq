@@ -29,6 +29,47 @@ export interface LiveParams {
   ripple: RippleParams;
   trail: { length_s: number; width_cells: number; opacity: number };
   reduced_motion: { ripples: boolean; diffusion: boolean; release_ms: number };
+  flow: FlowParams;
+}
+
+/** River-ripple wave field for the 3D chips (config live.flow, D-056). */
+export interface FlowParams {
+  substep_hz: number;
+  wave_speed: number;
+  damping: number;
+  sponge_cells: number;
+  sponge_damping: number;
+  source_gain: number;
+  source_sigma_cells: number;
+  source_scale: number;
+  beat_gain: number;
+  beat_scale: number;
+  current_dir: [number, number];
+  current_speed: number;
+  current_loud_gain: number;
+  curl_amp: number;
+  curl_scale: number;
+  wave_limit: number;
+}
+
+/** The 3D live view (config web3d, D-056). */
+export interface Web3DParams {
+  live_view_version: number;
+  camera_fov_deg: number;
+  chip_size: number;
+  chip_thickness: number;
+  chip_corner: number;
+  z_amp: number;
+  tilt_max_deg: number;
+  tilt_gain: number;
+  absorb_edge: number;
+  absorb_edge_sat: number;
+  grain: number;
+  glint: number;
+  side_shade: number;
+  parallax_deg: number;
+  parallax_response_s: number;
+  max_dpr: number;
 }
 
 export interface Params {
@@ -54,6 +95,7 @@ export interface Params {
   };
   maps: { feature_grids: string[]; ramp_hues: Record<string, number>; ramp: { lightness: [number, number]; chroma: number } };
   preview: { fps: number };
+  web3d: Web3DParams;
   api: { page_size_default: number; page_size_max: number };
 }
 

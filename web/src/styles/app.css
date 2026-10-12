@@ -413,3 +413,10 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .backdrop-grain { position: absolute; inset: 0; opacity: 0.04; mix-blend-mode: screen; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='7'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
 :root[data-transparency="reduced"] .backdrop-ambient, :root[data-transparency="reduced"] .backdrop-grain { display: none; }
 @media (prefers-reduced-transparency: reduce) { .backdrop-ambient, .backdrop-grain { display: none; } }
+
+/* a pressed toggle button (True colour on) */
+.btn.btn-icon[aria-pressed="true"] { background-color: var(--label); color: var(--bg); }
+
+/* the 3D chips arrive from black after the flat grid steps aside (a short dip, D-044 style) */
+.stage-card canvas[data-kind="three"] { opacity: 1; transition: opacity var(--dur-ui) var(--ease-out); }
+@starting-style { .stage-card canvas[data-kind="three"] { opacity: 0; } }

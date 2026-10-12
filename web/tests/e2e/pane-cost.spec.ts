@@ -50,3 +50,41 @@ test("frame time while playing, per glass tier", async ({ page }) => {
   }
   console.log(`playing, uncapped, 1440 x 900:\n${rows.join("\n")}`);
 });
+
+test("frame time while playing: 3D chips vs the flat 2D view", async ({ page }) => {
+  test.setTimeout(120_000);
+  const rows: string[] = [];
+  for (const trueColour of [false, true]) {
+    await page.goto("/");
+    await page.evaluate((tc) => localStorage.setItem("synesthesia.settings", JSON.stringify({ landingDone: true, trueColour: tc })), trueColour);
+    await page.reload();
+    await page.waitForFunction(() => !document.getElementById("syn-mural"));
+    const sample = page.getByRole("button", { name: "Try a sample" });
+    if (await sample.count()) await sample.click();
+    else await page.getByRole("option").first().click();
+    await page.waitForFunction((k) => window.__synesthesia?.stats.kind === k, trueColour ? "webgl2" : "three", { timeout: 15000 });
+    await page.getByRole("button", { name: "Play" }).click();
+    await page.waitForTimeout(1500);
+    const r = await page.evaluate(async () => {
+      const gaps: number[] = [];
+      let last = performance.now();
+      const t0 = last;
+      const s0 = { ...window.__synesthesia!.stats };
+      await new Promise<void>((done) => {
+        const f = (now: number): void => {
+          gaps.push(now - last);
+          last = now;
+          if (now - t0 < 5000) requestAnimationFrame(f);
+          else done();
+        };
+        requestAnimationFrame(f);
+      });
+      gaps.sort((a, b) => a - b);
+      const s = window.__synesthesia!.stats;
+      return { n: gaps.length, p50: gaps[Math.floor(gaps.length / 2)], p95: gaps[Math.floor(gaps.length * 0.95)], cpu: (s.totalMs - s0.totalMs) / Math.max(1, s.frames - s0.frames), kind: s.kind };
+    });
+    rows.push(`${(trueColour ? "flat 2D (True colour)" : "3D chips").padEnd(22)} ${r.kind.padEnd(7)} frames ${r.n}  p50 ${r.p50.toFixed(2)} ms  p95 ${r.p95.toFixed(2)} ms  engine+draw mean ${r.cpu.toFixed(2)} ms`);
+    await page.getByRole("button", { name: "Pause" }).click();
+  }
+  console.log(`playing, uncapped, 1440 x 900:\n${rows.join("\n")}`);
+});

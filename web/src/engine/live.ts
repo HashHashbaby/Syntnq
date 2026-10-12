@@ -4,6 +4,7 @@
 import { oklchToSrgb8Fast } from "../color/oklab";
 import type { LiveStream, Prototypes } from "../data/formats";
 import type { LiveParams, Params } from "../params";
+import { WaveField, type WaveInputs } from "./wave";
 
 const BYTE_MAX = 255;
 const MIN_LIVE_LIGHTNESS = 0.05;
@@ -21,6 +22,8 @@ export interface EngineFrame {
   trailLength: number;
   bmu: number;
   beatFlash: boolean;
+  /** (K) wave height -1..1 for the 3D chips (D-056); zero under reduced motion. */
+  height: Float32Array;
 }
 
 interface Ripple {
@@ -57,6 +60,8 @@ export class LiveEngine {
   private readonly chromaMax: number;
   private readonly trailMax: number;
   private readonly frame: EngineFrame;
+  private readonly wave: WaveField;
+  private readonly waveInputs: WaveInputs;
   reducedMotion: boolean;
   nominalDt: number;
 
@@ -102,6 +107,19 @@ export class LiveEngine {
       trailLength: 0,
       bmu: 0,
       beatFlash: false,
+      height: new Float32Array(this.cells),
+    };
+    this.wave = new WaveField(this.size, p.live.flow);
+    const strong: number[] = [];
+    for (const b of stream.beatTimes) if (this.lerpScalar(stream.onset, b) / BYTE_MAX >= this.lv.ripple.onset_threshold) strong.push(b);
+    const at = (t: number): { cx: number; cy: number } => {
+      const cell = this.nearestBmu(t);
+      return { cx: cell % this.size, cy: Math.floor(cell / this.size) };
+    };
+    this.waveInputs = {
+      sourceAt: (t) => ({ ...at(t), amp: this.lerpScalar(stream.loud, t) / BYTE_MAX }),
+      beats: Float64Array.from(strong),
+      beatAt: (t) => ({ ...at(t), amp: this.lerpScalar(stream.onset, t) / BYTE_MAX }),
     };
   }
 
@@ -201,6 +219,8 @@ export class LiveEngine {
 
   // -- state updates -----------------------------------------------------------------------
   reset(s: number): void {
+    this.wave.reset(s);
+    this.frame.height.fill(0);
     this.a.set(this.blurredResponse(s));
     this.ripples = [];
     this.lastS = s;
@@ -236,6 +256,12 @@ export class LiveEngine {
       f.radiusScale[i] = 1 + SWELL_MAX * Math.min(Math.max(ai, 0), 1) * swell;
     }
     this.colors(s, f.activation, f.srgb);
+    if (this.reducedMotion) f.height.fill(0);
+    else {
+      this.wave.advance(s, this.waveInputs);
+      const h = this.wave.h;
+      for (let i = 0; i < this.cells; i++) f.height[i] = h[i];
+    }
     this.trail(s);
     f.bmu = this.nearestBmu(s);
     f.beatFlash = flash;

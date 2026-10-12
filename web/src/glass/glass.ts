@@ -98,6 +98,10 @@ class GlassLayer {
   private readonly filters = new Map<string, string>();
   private serial = 0;
   private readonly settle = new WeakMap<Element, ReturnType<typeof setTimeout>>();
+  // maps are built in idle time, a few milliseconds at a slice, so mounting a screen full of glass
+  // never adds a long task to a transition; until its map is ready a control is plain frosted glass
+  private readonly pending = new Set<HTMLElement>();
+  private idleId = 0;
   private sizes = new WeakMap<Element, string>();
   private resize: ResizeObserver | null = null;
   private mutations: MutationObserver | null = null;
@@ -134,10 +138,10 @@ class GlassLayer {
         const el = e.target as HTMLElement;
         const box = e.borderBoxSize?.[0];
         const area = (box?.inlineSize ?? el.offsetWidth) * (box?.blockSize ?? el.offsetHeight);
-        if (area < LARGE_AREA || !el.style.getPropertyValue("--glass-lens")) this.fit(el, box);
+        if (area < LARGE_AREA || !el.style.getPropertyValue("--glass-lens")) this.queue(el);
         else {
           clearTimeout(this.settle.get(el));
-          this.settle.set(el, setTimeout(() => this.fit(el), SETTLE_MS));
+          this.settle.set(el, setTimeout(() => this.queue(el), SETTLE_MS));
         }
       }
     });
@@ -152,9 +156,29 @@ class GlassLayer {
     this.mutations.observe(document.body, { childList: true, subtree: true });
   }
 
+  private queue(el: HTMLElement): void {
+    this.pending.add(el);
+    if (this.idleId) return;
+    type Idle = (cb: (d: { timeRemaining: () => number }) => void, o?: { timeout: number }) => number;
+    const idle = (window as Window & { requestIdleCallback?: Idle }).requestIdleCallback;
+    const run = (d?: { timeRemaining: () => number }): void => {
+      this.idleId = 0;
+      const t0 = performance.now();
+      for (const el of this.pending) {
+        this.pending.delete(el);
+        if (el.isConnected) this.fit(el);
+        const left = d ? d.timeRemaining() : 8 - (performance.now() - t0);
+        if (left < 2) break;
+      }
+      if (this.pending.size) this.idleId = idle ? idle(run, { timeout: 500 }) : window.setTimeout(() => run(), 16);
+    };
+    this.idleId = idle ? idle(run, { timeout: 500 }) : window.setTimeout(() => run(), 16);
+  }
+
   private stop(): void {
     this.resize?.disconnect();
     this.mutations?.disconnect();
+    this.pending.clear();
     this.resize = null;
     this.mutations = null;
     this.defs?.parentElement?.remove();

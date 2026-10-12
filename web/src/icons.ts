@@ -2,6 +2,7 @@
 // Lucide (ISC licence) supplies the glyphs; SF Symbols are never bundled.
 import {
   ArrowLeft,
+  Box,
   ChartNoAxesColumn,
   Download,
   Grid3x3,
@@ -35,6 +36,7 @@ export const icons = {
   trash: Trash2,
   xmark: X,
   "chevron.left": ArrowLeft,
+  cube: Box,
 } as const satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof icons;

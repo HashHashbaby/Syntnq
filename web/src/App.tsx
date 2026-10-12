@@ -6,6 +6,7 @@ import { Library } from "./screens/Library";
 import { Settings } from "./screens/Settings";
 import { SignatureView } from "./screens/SignatureView";
 import { applySettings, useSettings } from "./state/settings";
+import { prefetchChips } from "./three/load";
 import { useApp } from "./state/store";
 
 const AUDIO_TYPES = /\.(mp3|m4a|aac|wav|flac|ogg|opus)$/i;
@@ -86,6 +87,10 @@ export function App() {
     if (wantLanding) setLandingLive(true);
   }, [wantLanding]);
   const showLanding = wantLanding || landingLive;
+  // prefetch the 3D chunk when idle, but never while the first landing (and its handoff) is running
+  useEffect(() => {
+    if (!showLanding) prefetchChips();
+  }, [showLanding]);
   useEffect(() => {
     if (firstPane.current === null) firstPane.current = pane;
     else if (pane !== firstPane.current) setNavigated(true);

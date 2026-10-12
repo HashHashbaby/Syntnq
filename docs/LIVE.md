@@ -123,3 +123,27 @@ Hover (desktop) or long-press (touch) on a cell shows a popover: cell coordinate
 ## 9. Later: live microphone input
 
 Same shader; features computed on the fly in an `AudioWorklet` (mel, MFCC, centroid, flatness, RMS) and projected with a *reference* standardization and prototypes (no per-song SOM for live input). Out of scope until after M9.
+
+## 10. 3D live view: stained-glass chips (M7b phase 3, D-046, D-056)
+
+The default live view draws each of the 32 x 32 nodes as a shallow glass chip (three.js, lazily loaded
+`web/src/three/`); "True colour" (key T) switches to the flat 2D renderer of section 4. Static card,
+thumbnails and exports always use the 2D render (D-050, D-055).
+
+- **Inputs:** the same pooled frame as the 2D renderer (node sRGB, radius scale) plus the pooled wave
+  height (`EngineFrame.height`, mean over each 2 x 2 block).
+- **Wave field** (`web/src/engine/wave.ts`, config `live.flow`): damped 2D wave equation on the 64 x 64
+  grid, `wave_speed` 13 cells/s, `damping` 1.5/s, sponge border 7 cells (+3.5/s), carried by a current
+  (`current_speed` 2.6 cells/s x (1 + 1.2 (loud - 0.5)), curl noise 0.30 at 0.11/cell, deterministic integer
+  hash), sources: Gaussian (sigma 1.3 cells) at the best-matching cell x loudness (gain 0.85 x 10/s) and an
+  impulse at each beat whose onset passes the ripple threshold (gain 1.6 x 14). Integrated at `substep_hz`
+  120 up to the audio time with sources sampled per substep, so the surface is a function of audio time
+  (not of the display rate); reset to flat on seek; at most 0.5 s of catch-up; |h| <= 1.
+- **Chips** (config `web3d`): face colour = node colour (sRGB, no tone mapping, no conversion) with only
+  zero-mean, headroom-limited modulation; lighting only on the rounded rim and sides. z = 0.35 h pitch,
+  tilt = clamp(1.6 x slope) x 8 deg. Camera FOV 15 deg straight on; pointer parallax <= 3 deg (spring,
+  response 0.5 s, damping 1), only while the pointer moves.
+- **Pause:** the height eases to zero with the colours (400 ms smoothstep). **Reduced motion:** height 0,
+  no parallax.
+- **Fidelity:** measured on straight-on renders by `web/tests/e2e/fidelity3d.spec.ts` (D-046 gates).
+- **Versioning:** `web3d.live_view_version` (1) is bumped whenever a live-view or 3D parameter changes.

@@ -42,7 +42,7 @@ test("frame rate while playing the liquid grid", async ({ page }) => {
     };
   }, FPS_SECONDS);
   console.log(`fps ${res.fps.toFixed(1)}  p50 ${res.p50.toFixed(1)} ms  p95 ${res.p95.toFixed(1)} ms  cpu/frame ${res.cpuMs?.toFixed(2)} ms  ${res.kind}  ${res.renderer}`);
-  expect(res.kind).toBe("webgl2");
+  expect(["three", "webgl2"]).toContain(res.kind); // 3D chips by default (D-056), 2D with True colour
   expect(res.fps).toBeGreaterThan(24); // sanity floor for software GL; real devices are reported, not asserted
 });
 

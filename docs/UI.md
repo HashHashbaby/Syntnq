@@ -100,12 +100,13 @@ Breakpoints (D-033): phone <= 734 px, tablet 735-1068, desktop 1069-1440, wide >
 
 **Tablet and desktop (≥ 735 px)**
 - Graphite layout (D-054): panes float 12 px apart; the map switcher sits in the toolbar pill; the grid square is `min(100%, 100vh - 230px)`.
+- 3D live view (D-056): the Sound view draws glass chips; a "True colour" icon button in the toolbar (pressed = flat 2D dots, key T, remembered) switches views; the 3D chunk loads on first use under the loading mural.
 - Split view: sidebar 320 px (library list, search field, "+" button) and detail area.
 - Detail: toolbar at top (song title, segmented map switcher, Export button, more menu); canvas centered; inspector panel on the right (280 px) on ≥ 1069 px wide, otherwise a popover.
 - Player bar docked at the bottom of the detail area.
 
 **Keyboard (desktop)**
-Space play/pause · ←/→ seek 5 s · Shift+←/→ seek 30 s · 1-5 map views · Cmd/Ctrl+E export · Cmd/Ctrl+O add song · Esc close sheet/popover · Tab moves focus visibly.
+Space play/pause · T true colour (flat 2D) · ←/→ seek 5 s · Shift+←/→ seek 30 s · 1-5 map views · Cmd/Ctrl+E export · Cmd/Ctrl+O add song · Esc close sheet/popover · Tab moves focus visibly.
 
 ## 6. Screens and states
 

@@ -33,6 +33,8 @@ async function boot(): Promise<void> {
       const { GlassStress } = await import("./dev/GlassStress");
       view = <GlassStress />;
     }
+    // tests reach the store to open each bundled sample (dev builds only)
+    (window as unknown as { __synApp?: unknown }).__synApp = (await import("./state/store")).useApp;
     if (q.get("dev") === "mural") {
       const { MuralPreview } = await import("./dev/MuralPreview");
       view = <MuralPreview />;

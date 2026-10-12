@@ -9,6 +9,7 @@ import { Pooler, type PooledFrame } from "../engine/pool";
 import { createRenderer } from "../gl/create";
 import { DUR_REVEAL_MS } from "../motion/tokens";
 import type { GridRendererLike } from "../gl/renderer";
+import type { Params } from "../params";
 import { params } from "../params";
 import type { OpenSong } from "../state/store";
 
@@ -21,6 +22,8 @@ export interface GridStats {
   frames: number;
   lastMs: number;
   maxMs: number;
+  /** Sum of engine + draw time over all live frames (ms), for averages. */
+  totalMs: number;
 }
 
 declare global {
@@ -30,9 +33,17 @@ declare global {
       readPixels: () => Uint8ClampedArray;
       size: () => number;
       engineStep: (s: number) => void;
+      /** sRGB node colours (N x 3) of the frame drawn last, for the fidelity tests. */
+      nodes: () => number[];
+      /** Node grid geometry of the drawn canvas: nodes per side and margin in nodes. */
+      layout: () => { nodes: number; margin: number };
     };
   }
 }
+
+/** What the stage draws with: the 2D renderers or the 3D chips (D-056), which add kind "three". */
+type StageRenderer = Omit<GridRendererLike, "kind"> & { readonly kind: string };
+export type ChipFactory = (canvas: HTMLCanvasElement, p: Params, opts: { reducedMotion: boolean }) => StageRenderer;
 
 interface Props {
   open: OpenSong;
@@ -48,12 +59,14 @@ interface Props {
   /** Play the "analysis finished" reveal once on mount (cells grow in as a diagonal wave). */
   reveal?: boolean;
   ariaLabel: string;
+  /** Draw with the 3D chips (the factory comes from the lazily loaded three chunk). */
+  chips?: ChipFactory | null;
 }
 
 const REVEAL_WAVE = 0.35;
 const easeOutCubic = (x: number): number => 1 - Math.pow(1 - x, 3);
 
-export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, externalTime = null, externalTimeRef, reveal = false, ariaLabel }: Props) {
+export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, externalTime = null, externalTimeRef, reveal = false, ariaLabel, chips = null }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const extRef = useRef<number | null>(externalTime);
   extRef.current = externalTime;
@@ -64,7 +77,12 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
     const canvas = canvasRef.current;
     if (!canvas) return;
     const start = (): (() => void) => {
-    const renderer: GridRendererLike = createRenderer(canvas, params, forceCanvas);
+    let renderer: StageRenderer;
+    try {
+      renderer = chips && !forceCanvas ? chips(canvas, params, { reducedMotion: reduced }) : createRenderer(canvas, params, forceCanvas);
+    } catch {
+      renderer = createRenderer(canvas, params, forceCanvas); // no WebGL for three: the 2D view
+    }
     const engine = new LiveEngine(open.live, open.proto, open.stat.colorOklch, params, { reducedMotion: reduced });
     const trailMax = Math.max(2, Math.round(params.live.trail.length_s * open.live.fps));
     const pooler = new Pooler(params.grid.size, params.render.display_grid, trailMax);
@@ -73,15 +91,23 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
     const staticFrame = new Pooler(params.grid.size, n, 1).pool(open.stat.colorSrgb, ones, new Float32Array(0), 0);
     const staticSrgb = staticFrame.srgb.slice();
     const lastLive = new Uint8Array(n * n * 3);
-    const blend: PooledFrame = { nodes: n, srgb: new Uint8Array(n * n * 3), radiusScale: new Float32Array(n * n).fill(1), trail: new Float32Array(3), trailLength: 0 };
+    const blend: PooledFrame = { nodes: n, srgb: new Uint8Array(n * n * 3), radiusScale: new Float32Array(n * n).fill(1), trail: new Float32Array(3), trailLength: 0, height: new Float32Array(n * n) };
+    const lastHeight = new Float32Array(n * n);
     const revealFrame: PooledFrame = { nodes: n, srgb: new Uint8Array(n * n * 3), radiusScale: new Float32Array(n * n).fill(1), trail: new Float32Array(3), trailLength: 0 };
     let revealStart = reveal ? -1 : -2; // -1: waiting for the first frame, -2: no reveal
-    const stats: GridStats = { kind: renderer.kind, frames: 0, lastMs: 0, maxMs: 0 };
+    const stats: GridStats = { kind: renderer.kind, frames: 0, lastMs: 0, maxMs: 0, totalMs: 0 };
+    let drawn: Uint8Array = staticSrgb;
+    const draw = (f: PooledFrame): void => {
+      drawn = f.srgb;
+      renderer.draw(f);
+    };
     window.__synesthesia = {
       stats,
       readPixels: () => renderer.readPixels(),
       size: () => canvas.width,
       engineStep: () => undefined,
+      nodes: () => Array.from(drawn),
+      layout: () => ({ nodes: n, margin: params.render.margin_cells }),
     };
 
     let dirty = true;
@@ -103,9 +129,10 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
       if (lastS < 0 || s < lastS || s - lastS > JUMP_RESET_S) engine.reset(s);
       const f = engine.step(s);
       lastS = s;
-      const pf = pooler.pool(f.srgb, f.radiusScale, f.trail, f.trailLength);
-      renderer.draw(pf);
+      const pf = pooler.pool(f.srgb, f.radiusScale, f.trail, f.trailLength, f.height);
+      draw(pf);
       lastLive.set(pf.srgb);
+      if (pf.height) lastHeight.set(pf.height);
       revealStart = -2;
       wasLive = true;
       easeStart = -1;
@@ -113,6 +140,7 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
       stats.frames++;
       stats.lastMs = ms;
       stats.maxMs = Math.max(stats.maxMs, ms);
+      stats.totalMs += ms;
       if (now - lastReport > 1000 / REPORT_HZ) {
         lastReport = now;
         onBmuRef.current?.(f.bmu);
@@ -141,7 +169,7 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
             }
           }
         }
-        renderer.draw(revealFrame);
+        draw(revealFrame);
         if (t >= 1) {
           revealStart = -2;
           dirty = true;
@@ -162,11 +190,12 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
           } else {
             const k = t * t * (3 - 2 * t);
             for (let i = 0; i < blend.srgb.length; i++) blend.srgb[i] = lastLive[i] + (staticSrgb[i] - lastLive[i]) * k;
-            renderer.draw(blend);
+            for (let i = 0; i < lastHeight.length; i++) blend.height![i] = lastHeight[i] * (1 - k); // the surface settles
+            draw(blend);
           }
         }
         if (dirty && easeStart < 0) {
-          renderer.draw(staticFrame);
+          draw(staticFrame);
           dirty = false;
         }
       }
@@ -179,20 +208,26 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
       renderer.dispose();
     };
     };
-    // Create the GL context two frames after mount so the first paint never waits on it (D-044).
+    // Create the GL context two frames after mount so the first paint never waits on it (D-044), and
+    // not while the first landing is handing its stage over: the travelling landing canvas covers this
+    // card until it is removed, and creating a context (about 100 ms) mid-travel would stall the motion.
     let stop: (() => void) | undefined;
     let cancelled = false;
+    const handoffRunning = (): boolean => !!document.querySelector('.landing[data-exit="handoff"]') && !canvas.closest(".landing");
     let id = requestAnimationFrame(() => {
-      id = requestAnimationFrame(() => {
-        if (!cancelled) stop = start();
-      });
+      const wait = (): void => {
+        if (cancelled) return;
+        if (handoffRunning()) id = requestAnimationFrame(wait);
+        else stop = start();
+      };
+      id = requestAnimationFrame(wait);
     });
     return () => {
       cancelled = true;
       cancelAnimationFrame(id);
       stop?.();
     };
-  }, [open, player, reduced, forceCanvas]);
+  }, [open, player, reduced, forceCanvas, chips]);
 
-  return <canvas ref={canvasRef} role="img" aria-label={ariaLabel} />;
+  return <canvas ref={canvasRef} role="img" aria-label={ariaLabel} data-kind={chips ? "three" : undefined} />;
 }

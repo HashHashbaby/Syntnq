@@ -9,6 +9,8 @@ export interface PooledFrame {
   radiusScale: Float32Array; // (N)
   trail: Float32Array; // (M, 3) x_node, y_node, age
   trailLength: number;
+  /** (N) mean wave height per node for the 3D chips (D-056); absent for static frames. */
+  height?: Float32Array;
 }
 
 const tmp = new Float64Array(3);
@@ -28,15 +30,16 @@ export class Pooler {
       radiusScale: new Float32Array(displayGrid * displayGrid),
       trail: new Float32Array(trailMax * 3),
       trailLength: 0,
+      height: new Float32Array(displayGrid * displayGrid),
     };
   }
 
-  pool(srgb: Uint8Array, radius: Float32Array, trail: Float32Array, trailLength: number): PooledFrame {
+  pool(srgb: Uint8Array, radius: Float32Array, trail: Float32Array, trailLength: number, height?: Float32Array): PooledFrame {
     const { block, nodes, size, out } = this;
     const per = block * block;
     for (let ny = 0; ny < nodes; ny++) {
       for (let nx = 0; nx < nodes; nx++) {
-        let L = 0, A = 0, B = 0, r = 0;
+        let L = 0, A = 0, B = 0, r = 0, hh = 0;
         for (let dy = 0; dy < block; dy++) {
           for (let dx = 0; dx < block; dx++) {
             const c = (ny * block + dy) * size + nx * block + dx;
@@ -50,10 +53,12 @@ export class Pooler {
             A += tmp[1];
             B += tmp[2];
             r += radius[c];
+            if (height) hh += height[c];
           }
         }
         const n = ny * nodes + nx;
         out.radiusScale[n] = r / per;
+        if (out.height) out.height[n] = height ? hh / per : 0;
         if (block > 1) {
           oklabToLinear(L / per, A / per, B / per, tmp);
           out.srgb[n * 3] = linearToSrgb8(tmp[0]);

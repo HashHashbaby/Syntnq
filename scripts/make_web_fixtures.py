@@ -66,6 +66,7 @@ def export_params() -> None:
             "ramp": cfg.maps.ramp.model_dump(),
         },
         "preview": {"fps": cfg.preview.fps},
+        "web3d": cfg.web3d.model_dump(),
         "api": {
             "page_size_default": cfg.api.page_size_default,
             "page_size_max": cfg.api.page_size_max,
