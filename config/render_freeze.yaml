@@ -1,0 +1,8 @@
+# Frozen 2D static render (D-050, M7 sign-off 2026-10-12). Checked by tests/unit/test_render_freeze.py.
+# Computed by synesthesia.io.render_hash over the pipeline version, the grid/color/render config
+# sections and synesthesia.io.RENDER_SOURCES. M7b may change only the 3D/live view and app chrome;
+# changing the static render needs a DECISIONS entry, this value updated, and the fidelity gates and
+# WebGL-vs-Python comparison re-run.
+render_hash: dd7d73d89bb5a676401570cb51b3ccb29c1bd8857e6a9c833bd3c755a1581780
+frozen: "2026-10-12"
+decision: D-050

@@ -145,6 +145,32 @@ Work strictly in order. Each milestone lists tasks, deliverables and a **gate**.
 
 **Follow-up evidence (2026-10-12, D-044):** motion and interaction refinements from the recording review (`docs/UI_REFERENCES.md`, `docs/UI.md` section 8). Vitest 28 tests (adds spring, rubber-banding, release velocity and a CSS/TypeScript token sync check); Playwright 81 tests (adds `motion.spec.ts`, 8 tests: press feedback, keyboard-instant sheets, flick and slow-pull sheet drag, dip-through-dark beats, landing-to-signature handoff with frame-gap budget, phone carousel, reduced motion; and `break-ui.spec.ts`, 15 tests: worst-case, empty, one and 1,284-row libraries at 320, 390 and 1440 px and 200 % text). Still 60.0 fps (p95 16.8 ms, CPU 6.2 ms per frame, RTX 3050) and drift 0.32 analysis frames over 10 s. Defects found and fixed in this pass: the first landing's mapping key and actions were not reachable on screen at the end of the scroll (earlier check asserted DOM visibility only); during the handoff the landing chrome did not fade; segmented labels overlapped at 200 % text; truncated titles had no full-text title; durations over an hour and non-finite values were mis-formatted; the landing re-rendered per scroll event and the progress bar and map dots animated layout properties. Handoff cost: one GL context creation (about 100 ms) on the signature card; longest frame gap 50-67 ms warm, 350 ms on the very first cold run in the dev server. The stacked "Hover a dot" inspector on phones is unchanged.
 
+**Sign-off (2026-10-12, D-050):** every gate item re-run on the current code: UI checklist 48 contexts (81/81 Playwright, 264 screenshots in `out/ui_review/m7_signoff/`); 60.0 fps, p95 16.7 ms, CPU 5.1 ms/frame (RTX 3050); drift over 300 s 9.7 ms = 0.42 analysis frames; WebGL vs Python 1.86-3.26/255 (budget 6); real-track 4-minute upload to done 30.5 s and 21.8 s (`scripts/real_track_latency.py`, budget 40 s). Gate passed with the device caveats of D-042. The 2D static render is frozen (`render_hash`, `config/render_freeze.yaml`).
+
+---
+
+## M7b 3D redesign (inserted before M8, D-045..D-051)
+
+Plan: `docs/PLAN_3D_REDESIGN.md` (owner approved 2026-10-12). Six phases, each a mini-gate: screenshots
+at 390 x 844, 820 x 1180 and 1440 x 900 in light and dark, a short screen recording, and the
+`review-animations`, `animation-performance` and `break-ui` reviews, then a stop for the owner's approval.
+
+1. Type, colour and glass tokens (light default, lightbox card, TeX Gyre Heros, glass tiers, glass stress table).
+2. Loading mural.
+3. 3D grid chips, wave field, true-colour toggle, fidelity numbers.
+4. Rotating disc.
+5. Landing page.
+6. Polish pass across all screens.
+
+**Freeze rules (from the M7 sign-off, D-050):**
+- The 2D static render is frozen: `render_hash` (`synesthesia.io.render_hash`, value in
+  `config/render_freeze.yaml`, checked by `tests/unit/test_render_freeze.py`). M7b may change only the
+  3D/live view and app chrome. Changing the static render needs a DECISIONS entry, a new frozen hash and a
+  re-run of the fidelity gates and the WebGL-vs-Python comparison.
+- Live-view and 3D parameters live in `config/default.yaml` and are versioned (`live_view_version`,
+  introduced with the first 3D parameter in phase 3); each change is recorded in DECISIONS.
+- M8 rule: exports and the static card are always the 2D deterministic render, never the 3D view.
+
 ---
 
 ## M8 Export

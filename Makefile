@@ -1,11 +1,12 @@
 # SYNESTHESIA developer commands. Keep in sync with the "Commands" list in CLAUDE.md.
 # Requires uv (https://docs.astral.sh/uv/). Targets for later milestones fail with a clear message.
 
-.PHONY: setup lint test test-determinism analyze render preview sync-check blind-test blind-test-analyze calibrate fetch-corpus corpus-report compare-sizes api-dev web-dev web-fixtures web-samples web-test
+.PHONY: setup lint test test-determinism analyze render preview sync-check blind-test blind-test-analyze calibrate fetch-corpus corpus-report compare-sizes api-dev web-dev web-fixtures web-samples web-fonts web-test
 
 setup:
 	uv sync
 	uv run pre-commit install
+	uv run python scripts/fetch_fonts.py
 
 lint:
 	uv run ruff check
@@ -57,6 +58,9 @@ web-fixtures:
 
 web-samples:
 	uv run python scripts/make_web_samples.py
+
+web-fonts:
+	uv run python scripts/fetch_fonts.py
 
 web-dev:
 	cd web && npm install --no-audit --no-fund && npx vite

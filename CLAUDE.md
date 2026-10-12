@@ -8,10 +8,10 @@ This file is loaded every session. It holds the rules and the map of the project
 
 ## Current status
 
-- **Current milestone:** M7 (web app): evidence delivered 2026-10-11, awaiting owner sign-off (see `docs/MILESTONES.md` M7 evidence; D-042, D-043); motion refinements D-044 applied 2026-10-12 and awaiting the owner's look at the approval package (`out/ui_review/m7_approval/`); 3D visuals requested, specification pending. M6 passed 2026-10-11 (14 API tests; 4-minute upload to done about 25 s; formats round-trip; D-041 metadata + paged library backend). M5 blind test gate **not met** (28.3% vs 25% chance, D-034) and **waived by the owner with conditions** (D-038: no human-recognition claim, mapping explained in the app, re-test inside M7 descriptively). The DEAM-based emotion test (D-039) finished and was **not adopted** (D-040: Moodo validation r +0.04 valence / +0.44 arousal; held-out colour r +0.16 / +0.18 / -0.31); colour stays a feature-driven summary. Gates passed: M0, M1, M2 (exceptions D-022, D-023; calibration frozen through M5, D-020), M3 (2026-10-10: 32 x 32 flat dots, click-track sync 20/20), M4 (companion maps, D-031). Display is 32 x 32 flat glowing dots over the 64 x 64 analysis (D-030); node looks are swappable via `NodeStyle`. Update this line when a milestone's gate passes.
+- **Current milestone:** M7b (3D redesign, `docs/PLAN_3D_REDESIGN.md`, D-045..D-051), phase 1 (type, colour and glass tokens). **M7 passed 2026-10-12** (D-050: UI checklist 48 contexts, 60 fps on the RTX 3050, drift 0.42 analysis frames over 300 s, WebGL vs Python <= 3.26/255, real-track 4-minute upload 30.5 s); the 2D static render is frozen (`render_hash`, `config/render_freeze.yaml`) and M7b may change only the 3D/live view and app chrome. M6 passed 2026-10-11. M5 blind test gate **not met** (28.3% vs 25% chance, D-034) and **waived by the owner with conditions** (D-038: no human-recognition claim, mapping explained in the app). The DEAM-based emotion test (D-039) was **not adopted** (D-040); colour stays a feature-driven summary. Gates passed: M0, M1, M2 (exceptions D-022, D-023; calibration frozen, D-020), M3, M4 (D-031), M6, M7. Static display: 32 x 32 flat glowing dots over the 64 x 64 analysis (D-030); the 3D live view uses stained-glass chips (D-046). Update this line when a milestone's gate passes.
 - **M5 evidence:** `out/blind_test_results/` (10 CSVs), `scripts/blind_test/analyze.py` and `diagnose.py`, D-034. Glass look work is parked on branch `m3-glass-look`.
 - **M5c:** human-alignment check run (D-035): signature vs human mean colour r = -0.01 / +0.08 / +0.03 (lightness / chroma / hue) against ceilings 0.90 / 0.77 / 0.67. Pre-registered emotion term (D-036) evaluated on the held-out half and **not adopted** (D-037: held-out r +0.19 / +0.16 / -0.31, bar 0.40 / 0.40 / 0.30); code kept, disabled. Colour claims: feature-driven summary only.
-- **Next action:** owner confirms M7 (looks, behaviour, device caveats), then M8 export (`docs/MILESTONES.md`). At every gate: clean temporary files before reporting.
+- **Next action:** M7b phase 1 evidence to the owner; then phases 2-6, each stopped for approval; then M8 export (2D only). At every gate: clean temporary files before reporting.
 
 ## Doc map: read before you work
 
@@ -46,7 +46,7 @@ If a spec and the code disagree, the spec wins unless `docs/DECISIONS.md` record
 | Area | Decision |
 | --- | --- |
 | Grid | 64 × 64 (4,096 cells) analysed; drawn as 32 × 32 nodes (`render.display_grid`, mean of 2 × 2 cells, D-030). `grid.size` is a parameter for experiments only. |
-| Node look | Swappable `NodeStyle` in `src/synesthesia/nodes.py`, chosen by `render.node.style`; only the flat glowing `dot` exists until the project works end to end (D-030). |
+| Node look | Static view and exports: flat glowing `dot` (`NodeStyle`, D-030), frozen by `render_hash` (D-050). 3D live view: stained-glass chips (D-046). Same per-cell colours; both pass the fidelity gates. |
 | What a cell is | A cluster of similar-sounding moments (a SOM prototype), not a time slice. |
 | Moments | Analysis frames: 22,050 Hz, hop 512 (≈ 43.07 frames/s), features smoothed over 9 frames (≈ 0.2 s). The SOM trains on all frames (strided to ≤ 16,384). |
 | Layout | Per-song batch SOM, PCA initialization, planar topology, then canonical orientation (brightness up, loudness right). |
@@ -56,8 +56,8 @@ If a spec and the code disagree, the spec wins unless `docs/DECISIONS.md` record
 | Chroma | Harmonicity (harmonic vs percussive/noisy energy). |
 | Live layer | Response field + temporal smoothing + diffusion + beat ripples, on top of the fixed static signature. Synced to the audio clock. |
 | Comparison | Cross-song comparison uses the 133-value fingerprint, never pixel positions. |
-| Stack | Python 3.11 analysis (uv, numpy, scipy, librosa, soxr, pyloudnorm, Pillow, FastAPI); web app in TypeScript + React + Vite with a raw WebGL2 renderer. |
-| UI | Apple-style web app (PWA), dark by default; see `docs/UI.md`. Native SwiftUI port possible later. |
+| Stack | Python 3.11 analysis (uv, numpy, scipy, librosa, soxr, pyloudnorm, Pillow, FastAPI); web app in TypeScript + React + Vite; raw WebGL2 for the 2D reference renderer, plain three.js (pinned, lazy) for the 3D views (D-045). |
+| UI | Apple-style web app (PWA), light by default with a dark setting; signature on a dark lightbox card; TeX Gyre Heros; liquid-glass controls (D-047, D-048, D-051); see `docs/UI.md`. |
 | Deferred | Commercial-success research, live microphone input, harmony and emotion maps (emotion arrives in M10). |
 
 ## Architecture
@@ -166,6 +166,7 @@ make compare-sizes                      # M2: 32/40/64/100 contact sheets
 make api-dev                            # FastAPI on :8000
 make web-fixtures                       # M7: params.json + Python parity fixtures for the web tests
 make web-samples                        # M7: bundled sample excerpts (needs corpus audio) -> web/public/samples
+make web-fonts                          # M7b: TeX Gyre Heros WOFF2 subsets from CTAN -> web/public/fonts (D-048)
 make web-dev                            # Vite on :5173 (proxies /api to :8000)
 make web-test                           # tsc + vitest + playwright (parity, fallback, UI checklist, perf)
 ```
@@ -176,7 +177,7 @@ Create these targets in M0; keep this list in sync with the Makefile.
 
 **Python:** 3.11; type hints everywhere; `mypy --strict` on `src/`; `ruff` for lint and format; docstrings on public functions with units (Hz, dB, seconds, frames). Pure functions for analysis steps (input arrays + config → output arrays); I/O only in `io.py`, `cli.py`, `api/`. Arrays document shape in the docstring, e.g. `(T, D) float64`. No global state; no prints in library code (use `logging`).
 
-**TypeScript:** `strict: true`; React function components; Zustand for state; no CSS framework — plain CSS with the tokens in `tokens.css`; WebGL2 without three.js; every shader in its own `.glsl` file with a header comment naming its inputs.
+**TypeScript:** `strict: true`; React function components; Zustand for state; no CSS framework — plain CSS with the tokens in `tokens.css`; raw WebGL2 for the 2D renderer and plain three.js (no R3F) for 3D views (D-045); every shader in its own `.glsl` file with a header comment naming its inputs.
 
 **Naming:** `snake_case` Python, `camelCase` TS, files lowercase. Cell index `i = row * 64 + col`, row 0 at the top.
 

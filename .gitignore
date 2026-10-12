@@ -35,6 +35,7 @@ dataset_moodoo/
 # generated web test fixtures
 web/tests/fixtures/
 web/public/samples/
+web/public/fonts/
 web/test-results/
 web/playwright-report/
 

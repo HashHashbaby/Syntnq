@@ -6,6 +6,7 @@ identical bytes on one machine. ``live.bin`` / ``proto.bin`` arrive in M3/M6.
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import platform
@@ -341,3 +342,45 @@ def decode_proto_bin(buf: bytes) -> npt.NDArray[np.float16]:
     _, k = _check_header(buf, b"SYNP")
     d, _ = struct.unpack_from("<HH", buf, _HEADER.size)
     return np.frombuffer(buf, dtype="<f2", count=k * d, offset=_HEADER.size + 4).reshape(k, d)
+
+
+# -- render freeze (D-050) -------------------------------------------------------------------
+# Everything that decides how the 2D static signature looks: the analysis-to-colour code, the
+# Python renderer and the web 2D renderer. The 3D/live view (web/src/three/) is not part of it.
+RENDER_SOURCES = (
+    "src/synesthesia/color.py",
+    "src/synesthesia/display.py",
+    "src/synesthesia/nodes.py",
+    "src/synesthesia/render.py",
+    "web/src/color/oklab.ts",
+    "web/src/engine/pool.ts",
+    "web/src/gl/renderer.ts",
+    "web/src/gl/canvas2d.ts",
+    "web/src/gl/shaders/quad.vert.glsl",
+    "web/src/gl/shaders/scene.frag.glsl",
+    "web/src/gl/shaders/blur.frag.glsl",
+    "web/src/gl/shaders/composite.frag.glsl",
+)
+
+
+def render_hash(root: Path, config: Config) -> str:
+    """SHA-256 identifying the frozen 2D static render.
+
+    Covers the pipeline version, the ``grid``, ``color`` (with calibration ranges) and ``render``
+    config sections, and the source files in :data:`RENDER_SOURCES` (line endings normalised to
+    LF so the hash is the same on every OS). Any change to the static render changes it.
+    """
+    from synesthesia import PIPELINE_VERSION
+
+    h = hashlib.sha256()
+    sections = {
+        "pipeline_version": PIPELINE_VERSION,
+        "grid": config.grid.model_dump(mode="json"),
+        "color": config.color.model_dump(mode="json"),
+        "render": config.render.model_dump(mode="json"),
+    }
+    h.update(json.dumps(sections, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+    for rel in RENDER_SOURCES:
+        h.update(b"\0" + rel.encode("utf-8") + b"\0")
+        h.update((root / rel).read_bytes().replace(b"\r\n", b"\n"))
+    return h.hexdigest()
