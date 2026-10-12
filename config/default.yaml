@@ -200,12 +200,13 @@ live:
     wave_limit: 1.0             # |height| clamp
 
 web3d:                          # the 3D live view (D-045, D-046, D-056); not part of the frozen 2D render
-  live_view_version: 1          # bump whenever a live-view or 3D parameter changes (MILESTONES M7b freeze rules)
-  camera_fov_deg: 15.0          # narrow field of view so the straight-on view matches the 2D layout
+  live_view_version: 2          # bump whenever a live-view or 3D parameter changes (MILESTONES M7b freeze rules); 2 = D-057 depth + trail
+  camera_fov_deg: 20.0          # field of view; at rest the camera is straight on, so the layout matches the 2D view
   chip_size: 0.84               # chip side / node pitch (gap 0.16 pitch: the dark lead lines)
   chip_thickness: 0.18          # / pitch
   chip_corner: 0.12             # rounded edge radius / pitch: the bevelled rim, the only place lighting may act
-  z_amp: 0.35                   # wave height 1 -> z offset in pitch
+  z_amp: 1.0                    # wave height 1 -> z offset in pitch (D-057; 0.35 before)
+  z_activation: 2.4             # live activation 1 (the region that matches the moment, plus beat rings) -> z in pitch
   tilt_max_deg: 8.0             # chip tilt from the local wave slope, clamped
   tilt_gain: 1.6                # slope (height per node) -> tilt fraction before the clamp
   absorb_edge: 0.18             # face lightness falloff toward the edge (mean-preserving, D-029)
@@ -213,6 +214,13 @@ web3d:                          # the 3D live view (D-045, D-046, D-056); not pa
   grain: 0.012                  # deterministic face grain amplitude (zero-mean)
   glint: 0.06                   # rim highlight, added on the bevel only, capped
   side_shade: 0.55              # chip sides are this much darker than the face
+  play_tilt_deg: 26.0           # while playing the camera eases into a gentle three-quarter view: pitch ...
+  play_yaw_deg: 10.0            # ... and yaw; paused, it eases back to straight on (the true layout)
+  pose_response_s: 0.9          # critically damped spring for the pose
+  pose_fit: 1.22                # camera distance factor at full pose, so tilted, lifted chips stay in frame
+  trail_opacity: 0.45           # the BMU trail (D-057): a faint line of light floating over the chips, peak brightness ...
+  trail_width: 0.40             # ... width in pitch (soft falloff) ...
+  trail_lift: 0.60              # ... and height above the chip surface in pitch (it follows the surface)
   parallax_deg: 3.0             # pointer parallax, max
   parallax_response_s: 0.5      # critically damped spring response
   max_dpr: 2.0

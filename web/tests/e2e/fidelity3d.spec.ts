@@ -2,7 +2,11 @@
 // (3D) and each dot's centre (2D, true colour) averaged in linear light, compared in OKLab with the
 // node colours of the same drawn frame. Gates: OKLab ΔE p95 <= 0.02, lightness r >= 0.99, mean hue
 // error <= 3 deg (chroma >= 0.03), darkest decile mean |ΔL| <= 0.02. Three songs; chips at rest and
-// mid-playback; the 2D view at rest. Results: out/ui_review/m7b/phase3/fidelity.json.
+// mid-playback with the full depth lift and the camera held straight on (?pose=0; in the app it tilts
+// into a three-quarter view while playing, where raised chips occlude others), sampled at projected chip
+// centres; chips under the visible trail (a deliberate live overlay) and chips whose face is partly
+// covered by a higher neighbour (depth, not colour) are left out and counted.
+// Results: out/ui_review/m7b/phase3/fidelity.json.
 // The chips are asserted. The 2D dots are reported, not asserted: their screen-blended glow (D-017,
 // D-026, part of the frozen render) lifts the dot centre by about 0.03-0.04 L, which fails dE95 and
 // dim while L r and hue pass; the owner decides how the gate applies to the frozen 2D look.
@@ -24,11 +28,14 @@ test.use({ viewport: { width: 1440, height: 900 } });
 interface Sample {
   nodes: number[];
   means: number[]; // per node: mean linear R, G, B of the sampled face
+  trailed: boolean[]; // per node: under the visible trail (a deliberate live overlay, D-057)
+  covered: boolean[]; // per node: its sampled face is partly covered by a higher neighbour (depth)
 }
 
 /** Node colours and per-node face means from the same frame (one synchronous evaluate). */
 async function sample(page: Page, mode: "chips" | "dots"): Promise<Sample> {
   const w = params.web3d;
+  // chips: the whole flat face (the modulation is zero-mean over it); dots: the centre disc
   const half = mode === "chips" ? 0.45 * (w.chip_size - 2 * w.chip_corner) : 0.6 * params.render.node.dot.radius_ratio;
   return page.evaluate(
     ({ half, square }) => {
@@ -38,18 +45,63 @@ async function sample(page: Page, mode: "chips" | "dots"): Promise<Sample> {
       const pix = s.readPixels();
       const { nodes: n, margin } = s.layout();
       const pitch = px / (n + 2 * margin);
+      // the 3D view while playing is tilted: sample around each chip's projected centre, sized to the
+      // local spacing (the face is unlit, so its colour does not depend on the view)
+      const centers = s.centers();
+      const trail = s.trail();
+      const trailed: boolean[] = [];
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          // within a node of any visible trail segment (a far jump of the best-matching cell draws a long one)
+          let near = false;
+          const m = trail.length / 3;
+          for (let k = 0; k < m && !near; k++) {
+            if (trail[k * 3 + 2] > 0.9) continue; // faded out
+            const k1 = Math.min(k + 1, m - 1);
+            const ax = trail[k * 3], ay = trail[k * 3 + 1], bx = trail[k1 * 3], by = trail[k1 * 3 + 1];
+            const vx = bx - ax, vy = by - ay, len2 = vx * vx + vy * vy;
+            const t = len2 > 0 ? Math.max(0, Math.min(1, ((c - ax) * vx + (r - ay) * vy) / len2)) : 0;
+            if (Math.hypot(ax + t * vx - c, ay + t * vy - r) <= 1.0) near = true;
+          }
+          trailed.push(near);
+        }
+      }
       const lin = (c: number): number => {
         const x = c / 255;
         return x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
       };
       const means: number[] = [];
-      const hp = half * pitch;
+      const covered: boolean[] = [];
       for (let r = 0; r < n; r++) {
         for (let c = 0; c < n; c++) {
-          const cx = (margin + c + 0.5) * pitch, cy = (margin + r + 0.5) * pitch;
+          const i = r * n + c;
+          let cx = (margin + c + 0.5) * pitch, cy = (margin + r + 0.5) * pitch;
+          let lx = pitch, ly = pitch;
+          if (centers) {
+            cx = centers[i * 3];
+            cy = centers[i * 3 + 1];
+            const jx = c < n - 1 ? i + 1 : i - 1, jy = r < n - 1 ? i + n : i - n;
+            lx = Math.hypot(centers[jx * 3] - cx, centers[jx * 3 + 1] - cy);
+            ly = Math.hypot(centers[jy * 3] - cx, centers[jy * 3 + 1] - cy);
+          }
+          const hx = half * lx, hy = half * ly, hp = Math.min(hx, hy);
+          let cov = false;
+          if (centers) {
+            // a higher neighbour whose chip (0.42 of the spacing each way) overlaps this sample window
+            for (let dr = -1; dr <= 1 && !cov; dr++) {
+              for (let dc = -1; dc <= 1 && !cov; dc++) {
+                const rr = r + dr, cc = c + dc;
+                if ((!dr && !dc) || rr < 0 || cc < 0 || rr >= n || cc >= n) continue;
+                const j = rr * n + cc;
+                if (centers[j * 3 + 2] <= centers[i * 3 + 2] + 0.02) continue;
+                if (Math.abs(centers[j * 3] - cx) < 0.42 * lx + hx && Math.abs(centers[j * 3 + 1] - cy) < 0.42 * ly + hy) cov = true;
+              }
+            }
+          }
+          covered.push(cov);
           let R = 0, G = 0, B = 0, k = 0;
-          for (let y = Math.ceil(cy - hp); y <= Math.floor(cy + hp); y++) {
-            for (let x = Math.ceil(cx - hp); x <= Math.floor(cx + hp); x++) {
+          for (let y = Math.ceil(cy - (square ? hy : hp)); y <= Math.floor(cy + (square ? hy : hp)); y++) {
+            for (let x = Math.ceil(cx - (square ? hx : hp)); x <= Math.floor(cx + (square ? hx : hp)); x++) {
               if (!square && (x - cx) ** 2 + (y - cy) ** 2 > hp * hp) continue;
               const o = (y * px + x) * 4;
               R += lin(pix[o]);
@@ -61,16 +113,17 @@ async function sample(page: Page, mode: "chips" | "dots"): Promise<Sample> {
           means.push(R / k, G / k, B / k);
         }
       }
-      return { nodes, means };
+      return { nodes, means, trailed, covered };
     },
     { half, square: mode === "chips" },
   );
 }
 
-function metrics(s: Sample) {
+function metrics(s: Sample, skipLive = false) {
   const lab = new Float64Array(3);
   const ref: number[][] = [], got: number[][] = [];
   for (let i = 0; i < s.nodes.length / 3; i++) {
+    if (skipLive && (s.trailed[i] || s.covered[i])) continue;
     linearToOklab(srgb8ToLinear(s.nodes[i * 3]), srgb8ToLinear(s.nodes[i * 3 + 1]), srgb8ToLinear(s.nodes[i * 3 + 2]), lab);
     ref.push([lab[0], lab[1], lab[2]]);
     linearToOklab(s.means[i * 3], s.means[i * 3 + 1], s.means[i * 3 + 2], lab);
@@ -104,8 +157,11 @@ test("fidelity gates on the 3D chips and the 2D view", async ({ page }) => {
   test.setTimeout(240_000);
   const results: Record<string, ReturnType<typeof metrics>> = {};
   const sameNodes: Record<string, boolean> = {};
+  const trailNodes: Record<string, number> = {};
+  const coveredNodes: Record<string, number> = {};
   for (const slug of SONGS) {
-    await page.goto("/");
+    // straight-on camera while playing (?pose=0, dev only): the gates are defined on a straight-on render
+    await page.goto("/?pose=0");
     await page.evaluate(() => localStorage.setItem("synesthesia.settings", JSON.stringify({ landingDone: true, trueColour: false })));
     await page.reload();
     await page.waitForFunction(() => {
@@ -121,7 +177,23 @@ test("fidelity gates on the 3D chips and the 2D view", async ({ page }) => {
     results[`${slug} chips rest`] = metrics(chipsRest);
     await page.getByRole("button", { name: "Play" }).click();
     await page.waitForTimeout(3000);
-    results[`${slug} chips live`] = metrics(await sample(page, "chips"));
+    const live = await sample(page, "chips");
+    if (process.env.FIDELITY_DEBUG) {
+      const lab = new Float64Array(3);
+      const rows: string[] = [];
+      for (let i = 0; i < live.nodes.length / 3; i++) {
+        if (live.trailed[i]) continue;
+        linearToOklab(srgb8ToLinear(live.nodes[i * 3]), srgb8ToLinear(live.nodes[i * 3 + 1]), srgb8ToLinear(live.nodes[i * 3 + 2]), lab);
+        const a0 = [lab[0], lab[1], lab[2]];
+        linearToOklab(live.means[i * 3], live.means[i * 3 + 1], live.means[i * 3 + 2], lab);
+        const d = Math.hypot(a0[0] - lab[0], a0[1] - lab[1], a0[2] - lab[2]);
+        if (d > 0.03) rows.push(`node ${i} (r${Math.floor(i / 32)} c${i % 32}) dE ${d.toFixed(3)} ref L ${a0[0].toFixed(3)} got L ${lab[0].toFixed(3)} srgb ${live.nodes.slice(i * 3, i * 3 + 3).join(",")}`);
+      }
+      console.log(`${slug} live outliers (${rows.length}): ${rows.slice(0, 12).join(" | ")}`);
+    }
+    results[`${slug} chips live`] = metrics(live, true); // chips under the trail or covered by a higher chip left out
+    trailNodes[slug] = live.trailed.filter(Boolean).length;
+    coveredNodes[slug] = live.covered.filter(Boolean).length;
     await page.getByRole("button", { name: "Pause" }).click();
     await page.getByRole("button", { name: "True colour" }).click();
     await page.waitForFunction(() => window.__synesthesia?.stats.kind === "webgl2", null, { timeout: 15000 });
@@ -132,7 +204,8 @@ test("fidelity gates on the 3D chips and the 2D view", async ({ page }) => {
   }
   const rows = Object.entries(results).map(([k, m]) => `${k.padEnd(22)} dE95 ${m.dE95.toFixed(4)}  dEmax ${m.dEmax.toFixed(4)}  L r ${m.Lr.toFixed(4)}  hue ${m.hue.toFixed(2)} deg  dim dL ${m.dim.toFixed(4)}`);
   console.log(`fidelity (gates: dE95 <= ${GATES.dE95}, L r >= ${GATES.Lr}, hue <= ${GATES.hue}, dim <= ${GATES.dim})\n${rows.join("\n")}`);
-  writeFileSync(join(OUT, "fidelity.json"), JSON.stringify({ gates: GATES, results, sameNodes }, null, 2));
+  console.log(`left out of the live numbers (of 1,024): under the visible trail ${JSON.stringify(trailNodes)}; partly covered by a higher chip ${JSON.stringify(coveredNodes)}`);
+  writeFileSync(join(OUT, "fidelity.json"), JSON.stringify({ gates: GATES, results, sameNodes, trailNodes, coveredNodes }, null, 2));
   for (const [slug, same] of Object.entries(sameNodes)) expect(same, `${slug}: 2D and 3D draw identical node colours`).toBe(true);
   for (const [k, m] of Object.entries(results)) {
     if (k.includes("2D")) continue; // reported above (see the header comment)

@@ -60,6 +60,7 @@ export interface Web3DParams {
   chip_thickness: number;
   chip_corner: number;
   z_amp: number;
+  z_activation: number;
   tilt_max_deg: number;
   tilt_gain: number;
   absorb_edge: number;
@@ -67,6 +68,13 @@ export interface Web3DParams {
   grain: number;
   glint: number;
   side_shade: number;
+  play_tilt_deg: number;
+  play_yaw_deg: number;
+  pose_response_s: number;
+  pose_fit: number;
+  trail_opacity: number;
+  trail_width: number;
+  trail_lift: number;
   parallax_deg: number;
   parallax_response_s: number;
   max_dpr: number;

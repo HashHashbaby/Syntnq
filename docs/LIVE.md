@@ -140,10 +140,14 @@ thumbnails and exports always use the 2D render (D-050, D-055).
   120 up to the audio time with sources sampled per substep, so the surface is a function of audio time
   (not of the display rate); reset to flat on seek; at most 0.5 s of catch-up; |h| <= 1.
 - **Chips** (config `web3d`): face colour = node colour (sRGB, no tone mapping, no conversion) with only
-  zero-mean, headroom-limited modulation; lighting only on the rounded rim and sides. z = 0.35 h pitch,
-  tilt = clamp(1.6 x slope) x 8 deg. Camera FOV 15 deg straight on; pointer parallax <= 3 deg (spring,
-  response 0.5 s, damping 1), only while the pointer moves.
-- **Pause:** the height eases to zero with the colours (400 ms smoothstep). **Reduced motion:** height 0,
-  no parallax.
+  zero-mean, headroom-limited modulation; lighting only on the rounded rim and sides. Surface z = 2.4 A +
+  1.0 h pitch (A = pooled live activation, h = wave height, D-057); tilt = clamp(1.6 x slope of z) x 8 deg.
+  Camera FOV 20 deg; straight on at rest; while playing it eases (spring 0.9 s, damping 1) into a
+  three-quarter view (pitch 26 deg, yaw 10 deg, distance x 1.22). Pointer parallax <= 3 deg (spring 0.5 s),
+  only while the pointer moves.
+- **Trail** (D-057): the best-matching path of the last 2 s as a faint additive line (width 0.40 pitch,
+  peak 0.45, fading with age) floating 0.60 pitch over the chip surface. A live overlay; none at rest.
+- **Pause:** lift, wave and pose ease back (400 ms smoothstep for the surface, the pose spring for the
+  camera). **Reduced motion:** no lift, no pose, no trail, no parallax.
 - **Fidelity:** measured on straight-on renders by `web/tests/e2e/fidelity3d.spec.ts` (D-046 gates).
-- **Versioning:** `web3d.live_view_version` (1) is bumped whenever a live-view or 3D parameter changes.
+- **Versioning:** `web3d.live_view_version` (2, D-057) is bumped whenever a live-view or 3D parameter changes.

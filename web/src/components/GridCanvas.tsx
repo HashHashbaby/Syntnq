@@ -37,6 +37,10 @@ declare global {
       nodes: () => number[];
       /** Node grid geometry of the drawn canvas: nodes per side and margin in nodes. */
       layout: () => { nodes: number; margin: number };
+      /** Per chip x, y (canvas px) and lift (pitch) as drawn (3D view only; null for the 2D renderers). */
+      centers: () => number[] | null;
+      /** Trail of the frame drawn last: node x, y, age (0 newest .. 1 oldest) per point. */
+      trail: () => number[];
     };
   }
 }
@@ -91,14 +95,17 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
     const staticFrame = new Pooler(params.grid.size, n, 1).pool(open.stat.colorSrgb, ones, new Float32Array(0), 0);
     const staticSrgb = staticFrame.srgb.slice();
     const lastLive = new Uint8Array(n * n * 3);
-    const blend: PooledFrame = { nodes: n, srgb: new Uint8Array(n * n * 3), radiusScale: new Float32Array(n * n).fill(1), trail: new Float32Array(3), trailLength: 0, height: new Float32Array(n * n) };
+    const blend: PooledFrame = { nodes: n, srgb: new Uint8Array(n * n * 3), radiusScale: new Float32Array(n * n).fill(1), trail: new Float32Array(3), trailLength: 0, height: new Float32Array(n * n), activation: new Float32Array(n * n), live: false };
     const lastHeight = new Float32Array(n * n);
+    const lastAct = new Float32Array(n * n);
     const revealFrame: PooledFrame = { nodes: n, srgb: new Uint8Array(n * n * 3), radiusScale: new Float32Array(n * n).fill(1), trail: new Float32Array(3), trailLength: 0 };
     let revealStart = reveal ? -1 : -2; // -1: waiting for the first frame, -2: no reveal
     const stats: GridStats = { kind: renderer.kind, frames: 0, lastMs: 0, maxMs: 0, totalMs: 0 };
     let drawn: Uint8Array = staticSrgb;
+    let drawnTrail: number[] = [];
     const draw = (f: PooledFrame): void => {
       drawn = f.srgb;
+      drawnTrail = f.live ? Array.from(f.trail.subarray(0, f.trailLength * 3)) : [];
       renderer.draw(f);
     };
     window.__synesthesia = {
@@ -108,6 +115,8 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
       engineStep: () => undefined,
       nodes: () => Array.from(drawn),
       layout: () => ({ nodes: n, margin: params.render.margin_cells }),
+      centers: () => (renderer as StageRenderer & { centers?: () => number[] }).centers?.() ?? null,
+      trail: () => drawnTrail,
     };
 
     let dirty = true;
@@ -129,10 +138,11 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
       if (lastS < 0 || s < lastS || s - lastS > JUMP_RESET_S) engine.reset(s);
       const f = engine.step(s);
       lastS = s;
-      const pf = pooler.pool(f.srgb, f.radiusScale, f.trail, f.trailLength, f.height);
+      const pf = pooler.pool(f.srgb, f.radiusScale, f.trail, f.trailLength, f.height, f.activation);
       draw(pf);
       lastLive.set(pf.srgb);
       if (pf.height) lastHeight.set(pf.height);
+      if (pf.activation) lastAct.set(pf.activation);
       revealStart = -2;
       wasLive = true;
       easeStart = -1;
@@ -190,7 +200,10 @@ export function GridCanvas({ open, player, reduced, forceCanvas, onBmu, external
           } else {
             const k = t * t * (3 - 2 * t);
             for (let i = 0; i < blend.srgb.length; i++) blend.srgb[i] = lastLive[i] + (staticSrgb[i] - lastLive[i]) * k;
-            for (let i = 0; i < lastHeight.length; i++) blend.height![i] = lastHeight[i] * (1 - k); // the surface settles
+            for (let i = 0; i < lastHeight.length; i++) {
+              blend.height![i] = lastHeight[i] * (1 - k); // the surface settles
+              blend.activation![i] = lastAct[i] * (1 - k);
+            }
             draw(blend);
           }
         }

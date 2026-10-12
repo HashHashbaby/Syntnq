@@ -331,6 +331,7 @@ class Web3D(_Section):
     chip_thickness: float
     chip_corner: float
     z_amp: float
+    z_activation: float
     tilt_max_deg: float
     tilt_gain: float
     absorb_edge: float
@@ -338,6 +339,13 @@ class Web3D(_Section):
     grain: float
     glint: float
     side_shade: float
+    play_tilt_deg: float
+    play_yaw_deg: float
+    pose_response_s: float
+    pose_fit: float
+    trail_opacity: float
+    trail_width: float
+    trail_lift: float
     parallax_deg: float
     parallax_response_s: float
     max_dpr: float
