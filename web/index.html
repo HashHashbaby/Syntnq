@@ -13,8 +13,95 @@
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icons/icon-180.png" />
     <title>SYNESTHESIA</title>
+    <!-- Loading mural (D-052, docs/UI.md section 6): dark stained-glass tiles flip in a diagonal
+         sweep while white light behind them leaks through as each tile turns edge-on. Inline so it
+         paints before any bundle; only transform and opacity animate. Parameters live in the JSON
+         block below (hue range mirrors config/default.yaml color.hue; a unit test keeps them equal). -->
+    <style>
+      #syn-mural { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; align-content: center; gap: 28px; background: #f6f4ef; opacity: 0; visibility: hidden; transition: opacity 300ms cubic-bezier(0.23, 1, 0.32, 1), visibility 0s linear 300ms; }
+      #syn-mural.show { opacity: 1; visibility: visible; transition: opacity 300ms cubic-bezier(0.23, 1, 0.32, 1); }
+      #syn-mural.out { opacity: 0; visibility: visible; }
+      html[data-theme="dark"] #syn-mural { background: #000; }
+      @media (prefers-color-scheme: dark) { html[data-theme="auto"] #syn-mural { background: #000; } }
+      .mural { position: relative; width: min(84vw, 560px, (100vh - 7rem) * 1.5); aspect-ratio: 3 / 2; border-radius: 20px; overflow: hidden; background: #0b0b0c; box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.07), 0 22px 44px -18px rgba(20, 16, 8, 0.34); }
+      .mural-light { position: absolute; inset: 10px; background: radial-gradient(80% 92% at 50% 44%, #fff 0%, rgba(255, 249, 238, 0.95) 32%, rgba(255, 241, 222, 0.66) 68%, rgba(255, 236, 214, 0.42) 100%); }
+      .mural-bloom { position: absolute; inset: 22% 26%; border-radius: 50%; background: #fff; filter: blur(42px); opacity: 0.32; }
+      .mural-grid { position: absolute; inset: 10px; display: grid; gap: 3px; perspective: 900px; }
+      .mural-tile { position: relative; background: oklch(var(--l) var(--c) var(--h) / 0.86); box-shadow: 0 0 0 1.5px #08080a; animation: mural-flip var(--period) cubic-bezier(0.77, 0, 0.175, 1) var(--d) infinite; }
+      .mural-tile::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 62%); opacity: 0; animation: mural-sheen var(--period) ease-in-out var(--d) infinite; }
+      @keyframes mural-flip { 0%, 8% { transform: rotateY(0deg); } 36%, 100% { transform: rotateY(180deg); } }
+      @keyframes mural-sheen { 0%, 8% { opacity: 0; } 22% { opacity: 0.5; } 36%, 100% { opacity: 0; } }
+      .mural-dust { position: absolute; inset: 0; pointer-events: none; opacity: 0.14; mix-blend-mode: screen; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.6 -0.75'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+      .mural-word { margin: 0; font: 700 0.75rem/1.2 "Helvetica Neue", Helvetica, "TeX Gyre Heros", Arial, sans-serif; letter-spacing: 0.32em; text-transform: uppercase; color: rgba(20, 20, 20, 0.66); }
+      html[data-theme="dark"] .mural-word { color: rgba(235, 235, 245, 0.62); }
+      @media (prefers-color-scheme: dark) { html[data-theme="auto"] .mural-word { color: rgba(235, 235, 245, 0.62); } }
+      @media (prefers-reduced-motion: reduce) { .mural-tile, .mural-tile::after { animation: none; } }
+      html[data-motion="reduced"] .mural-tile, html[data-motion="reduced"] .mural-tile::after { animation: none; }
+      @media (prefers-reduced-transparency: reduce) { .mural-bloom, .mural-dust { display: none; } }
+      html[data-transparency="reduced"] .mural-bloom, html[data-transparency="reduced"] .mural-dust { display: none; }
+    </style>
+    <script type="application/json" id="syn-mural-params">
+      { "cols": 12, "rows": 8, "hue_from_deg": 265, "hue_to_deg": 30, "lightness": [0.2, 0.32], "chroma": [0.06, 0.11],
+        "stagger_ms": 55, "period_ms": 2600, "delay_ms": 400, "min_ms": 600, "fade_ms": 300 }
+    </script>
   </head>
   <body>
+    <div id="syn-mural" role="status" aria-label="Loading SYNESTHESIA">
+      <div class="mural" aria-hidden="true">
+        <div class="mural-light"></div>
+        <div class="mural-bloom"></div>
+        <div class="mural-grid"></div>
+        <div class="mural-dust"></div>
+      </div>
+      <p class="mural-word" aria-hidden="true">Synesthesia</p>
+    </div>
+    <script>
+      // Before any bundle: apply the saved appearance and motion settings (no theme flash), build
+      // the mural tiles, and show the mural only if loading takes longer than delay_ms.
+      (function () {
+        var P = JSON.parse(document.getElementById("syn-mural-params").textContent);
+        var root = document.documentElement;
+        try {
+          var s = JSON.parse(localStorage.getItem("synesthesia.settings") || "{}");
+          root.setAttribute("data-theme", s.appearance || "light");
+          if (s.reduceMotion === "on") root.setAttribute("data-motion", "reduced");
+          if (s.reduceTransparency === "on") root.setAttribute("data-transparency", "reduced");
+        } catch (e) {
+          root.setAttribute("data-theme", "light");
+        }
+        /** Fills `grid` with cols x rows tiles; hue sweeps the signature palette along the diagonal. */
+        function build(grid) {
+          grid.style.gridTemplateColumns = "repeat(" + P.cols + ", 1fr)";
+          grid.style.gridTemplateRows = "repeat(" + P.rows + ", 1fr)";
+          for (var y = 0; y < P.rows; y++) {
+            for (var x = 0; x < P.cols; x++) {
+              var i = y * P.cols + x;
+              var t = (x / (P.cols - 1) + y / (P.rows - 1)) / 2;
+              var r1 = ((i * 2654435761) >>> 0) / 4294967296; // deterministic per-tile variation
+              var r2 = ((i * 40503 + 12345) % 1000) / 1000;
+              var el = document.createElement("span");
+              el.className = "mural-tile";
+              el.style.setProperty("--h", (P.hue_from_deg + (P.hue_to_deg - P.hue_from_deg) * t).toFixed(1));
+              el.style.setProperty("--l", (P.lightness[0] + (P.lightness[1] - P.lightness[0]) * r1).toFixed(3));
+              el.style.setProperty("--c", (P.chroma[0] + (P.chroma[1] - P.chroma[0]) * r2).toFixed(3));
+              el.style.setProperty("--d", (x + y) * P.stagger_ms + "ms");
+              el.style.setProperty("--period", P.period_ms + "ms");
+              grid.appendChild(el);
+            }
+          }
+        }
+        window.__synMuralBuild = build;
+        var boot = document.getElementById("syn-mural");
+        build(boot.querySelector(".mural-grid"));
+        var state = { shownAt: null, timer: 0 };
+        state.timer = setTimeout(function () {
+          state.timer = 0;
+          state.shownAt = performance.now();
+          boot.classList.add("show");
+        }, P.delay_ms);
+        window.__synBoot = state;
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

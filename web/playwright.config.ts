@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
 const WEB_PORT = 5174;
+export const PREVIEW_PORT = 5175;
 // Real GPU in headless Chromium on Windows (software SwiftShader otherwise; frame-rate numbers
 // from SwiftShader are not meaningful).
 const GPU_ARGS = process.platform === "win32" ? ["--use-gl=angle", "--use-angle=d3d11", "--enable-gpu", "--disable-gpu-sandbox"] : [];
@@ -23,6 +24,13 @@ export default defineConfig({
       url: `http://127.0.0.1:${WEB_PORT}`,
       reuseExistingServer: true,
       timeout: 60_000,
+    },
+    {
+      // production build, for checks that only make sense on the real bundle (loader.spec.ts)
+      command: `npx vite build --logLevel warn && npx vite preview --host 127.0.0.1 --port ${PREVIEW_PORT} --strictPort`,
+      url: `http://127.0.0.1:${PREVIEW_PORT}`,
+      reuseExistingServer: false,
+      timeout: 120_000,
     },
     {
       command: "py -3.12 -m uv run uvicorn synesthesia.api.app:create_app --factory --host 127.0.0.1 --port 8000",

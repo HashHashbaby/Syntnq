@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { glass } from "./glass/glass";
+import { finishBoot } from "./loading/gate";
 import "./styles/tokens.css";
 import "./styles/app.css";
 
@@ -16,6 +17,8 @@ glass.start();
 //   ?dev=glass&n=12[&glass=frost|solid]  glass stress test over the live canvas (D-051)
 //   ?font=heros  the stack without Helvetica (what a Windows machine without Helvetica sees)
 //   ?font=inter  Inter, which the owner allowed as an alternative face (D-048)
+//   ?dev=mural&ms=1500  the in-app loading mural over a simulated load (D-052)
+//   ?mural=hold  keep the boot mural on screen (for screenshots)
 const q = new URLSearchParams(location.search);
 async function boot(): Promise<void> {
   let view = <App />;
@@ -30,8 +33,15 @@ async function boot(): Promise<void> {
       const { GlassStress } = await import("./dev/GlassStress");
       view = <GlassStress />;
     }
+    if (q.get("dev") === "mural") {
+      const { MuralPreview } = await import("./dev/MuralPreview");
+      view = <MuralPreview />;
+    }
   }
   createRoot(document.getElementById("root") as HTMLElement).render(<StrictMode>{view}</StrictMode>);
+  // the boot mural leaves once the app has painted its first frame (D-052)
+  const hold = import.meta.env.DEV && q.get("mural") === "hold";
+  if (!hold) requestAnimationFrame(() => requestAnimationFrame(() => finishBoot()));
 }
 void boot();
 

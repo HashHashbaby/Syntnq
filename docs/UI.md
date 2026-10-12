@@ -106,6 +106,7 @@ Space play/pause · ←/→ seek 5 s · Shift+←/→ seek 30 s · 1-5 map views
    - **Beats** dip through dark (D-044): the old line fades and lifts out (250 ms), the stage rests (100 ms), the new line arrives (350 ms); the two are never on screen together and the signature stays put.
    - **End state:** the pinned track ends and the mapping key and the actions ("Add a song", "Try a sample") scroll into view below the stage; both are on screen at the end of the scroll.
    - **Leaving:** "Try a sample" hands the live canvas over to the signature card (it travels and scales to the card's rectangle in 450 ms with `--ease-stage` while the chrome fades; from the map beat the map fades to the signature on the way). Skip and "Add a song" fade the whole landing out in 250 ms. Reduced motion: a 200 ms fade, no travel.
+0b. **Loading mural (D-052):** while the app or a 3D chunk loads, a mural of dark stained-glass tiles flips in a diagonal sweep and white light floods through each turning tile. It appears only if loading takes longer than 400 ms, then stays at least 600 ms and fades out in 300 ms; fast loads never see it. The boot mural is inline in `index.html`; the in-app one (`LoadingMural`) covers the surface that is loading. Reduced motion: still tiles with a fade; reduced transparency: no bloom or grain.
 1. **First launch / empty library:** centered short text "Add a song to see its signature." plus the filled "Add Song" button and "Try a sample" link (bundled Creative Commons samples, M7).
 2. **Add song:** file picker or drag-and-drop anywhere on the window (drop overlay with dashed rounded rectangle, label "Drop to analyze").
 3. **Analyzing:** a progress view on the canvas area with stage labels from the API (`Reading audio`, `Listening`, `Mapping sounds`, `Coloring`, `Drawing maps`) and a determinate bar; cancel button. The grid fades in cell by cell (≤ 600 ms) when done; reduced motion → simple fade.
@@ -158,6 +159,7 @@ Rules (D-044): animate `transform` and `opacity` (plus small colour/filter chang
 | Pause | Ease back to the static signature | live layer blend | 400 ms smoothstep | smoothstep | instant | n/a |
 | Theme change (Appearance setting) | Cross-fade (View Transitions API where supported) | whole page snapshot `opacity` | 200 ms | `--ease-out` | instant | instant |
 | Glass hover | Hover effect | tint (`background-color`) only, no animated shadow | 240 ms | `--ease-standard` | none | none |
+| Loading mural | Staggered flip (sweep) + fade | `transform: rotateY`, `opacity` | flip within a 2.6 s cycle, 55 ms stagger; show after 400 ms, min 600 ms, fade 300 ms | `--ease-in-out` (flip), `--ease-out` (fade) | still tiles, fade only | n/a |
 | Toast | Fade in with a small lift | `opacity`, `transform` 8 px | 240 ms | `--ease-out` | fade only | n/a |
 | Map pagination dots | State indication | `width`, `background` | 200 ms | `--ease-out` | none | none |
 | Inspector popover | follows the pointer, no animation (high frequency) | none | 0 | none | none | none |

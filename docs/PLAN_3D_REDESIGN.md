@@ -260,7 +260,7 @@ Three tiers, chosen once at start-up:
 
 ## 8. Feature: loading mural (phase 2)
 
-- **When:** only while the 3D chunk loads and its first frame compiles. Show after a **150 ms delay**
+- **When:** only while the 3D chunk loads and its first frame compiles. Show after a **150 ms delay** (built with **400 ms**, D-052: measured first paint is 176-247 ms)
   (fast loads never see it); once shown, keep it **≥ 600 ms** so it does not flash; cross-fade out in 300 ms
   into the first rendered frame. On repeat visits the chunk is cached and the mural normally never appears.
 - **Where:** inline in `index.html` (HTML + ≤ 6 kB CSS, no JS dependency) so it renders before any bundle;
