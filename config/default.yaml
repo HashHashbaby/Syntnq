@@ -304,6 +304,12 @@ ui:                             # app chrome that is not part of any analysis or
     hue_strip_px: 4.0           # the hue strip on the y axis (same mapping as the grid colours)
     alt_text_hz: 2.0            # the text alternative updates this often while playing
     pause_fade_ms: 400          # on pause the trail fades with the grid's ease-out
+  maps_live:                    # the companion maps (phase 6, D-064): fixed per song, with a live "now" marker and reading pointers
+    now_trail_s: 2.0            # features map: the current sound's ring leaves this much trail (= live.trail.length_s)
+    playhead_px: 2.0            # playhead / crosshair width at 1x
+    ring_px: 2.5                # features map: ring stroke at 1x
+    time_ticks: 4               # time axis: this many intervals (start, quarters, end)
+    bpm_ticks: [60, 90, 120, 180]
   landing:                      # the first landing (phase 5, D-063); scroll stays native (D-049)
     scroll_follow_s: 0.12       # the visuals follow a critically damped copy of scroll progress
     hero_to: 0.16               # beats, as fractions of the pinned track: hero (cursor reveal) ...

@@ -479,3 +479,39 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .landing-head { font-size: min(clamp(2.5rem, 5vw, 4rem), 10vw); overflow-wrap: anywhere; }
 .landing-actions-wrap { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 480px) { .key-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); } }
+
+/* companion maps (D-064): axes in real units, reading pointers, and a live now layer over each plot */
+.mapfig { position: relative; margin: 0 auto; width: min(100%, calc((100vh - var(--reserve, 360px)) * var(--aspect, 1) + 3.5em)); display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-2); row-gap: var(--space-1); }
+/* the figure is as wide as its plot allows (height-limited on wide screens), so the axes line up with the plot */
+.mapfig-ytitle { grid-column: 1 / -1; }
+.mapfig-yticks { grid-column: 1; position: relative; min-width: 2.4em; }
+.mapfig-yticks span { position: absolute; right: 0; transform: translateY(50%); white-space: nowrap; }
+.mapfig-plot { grid-column: 2; position: relative; width: 100%; border-radius: var(--radius-small); overflow: hidden; background: #000; }
+.maps-card .mapfig-plot canvas { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; display: block; }
+.mapfig-now { pointer-events: none; }
+.mapfig-xticks { grid-column: 2; position: relative; height: 1.4em; }
+.mapfig-xticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.mapfig-xticks span[data-edge="start"] { transform: none; }
+.mapfig-xticks span[data-edge="end"] { transform: translateX(-100%); }
+.mapfig-xtitle { grid-column: 2; text-align: center; }
+.mapfig-legend { grid-column: 2; }
+.map-pointers { grid-column: 1 / -1; margin: var(--space-2) 0 0; padding-left: 1.1em; display: grid; gap: var(--space-1); }
+.map-pointers b { color: var(--label); font-weight: var(--weight-bold); }
+.mapfig-stack { display: grid; gap: var(--space-5); }
+.map-ramp { display: grid; gap: var(--space-1); margin-top: var(--space-1); }
+.map-ramp-bar { height: 10px; border-radius: 5px; }
+.map-ramp-ends { display: flex; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.view-body > .map-pointers { max-width: 44rem; margin: 0 auto; }
+
+/* reading pointers float over a chart from a corner chip (D-064): they never push the player out of view */
+.info-float { position: absolute; top: 0; right: 0; z-index: 4; display: grid; justify-items: end; gap: var(--space-1); max-width: min(26rem, 100%); }
+.stage-card > .info-float { top: var(--space-2); right: var(--space-2); max-width: calc(100% - 2 * var(--space-2)); }
+.info-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-pill); color: var(--label-2); background: rgba(28, 28, 32, 0.62); -webkit-backdrop-filter: blur(12px) saturate(160%); backdrop-filter: blur(12px) saturate(160%); box-shadow: inset 0 0 0 0.5px var(--glass-edge); cursor: pointer; }
+@media (pointer: coarse) { .info-chip { min-height: var(--hit); } }
+.info-chip[aria-expanded="true"] { color: var(--label); }
+.info-panel { margin: 0; padding: var(--space-3) var(--space-4) var(--space-3) calc(var(--space-4) + 0.9em); display: grid; gap: var(--space-2); border-radius: 14px; color: var(--label-2); background: rgba(22, 22, 26, 0.78); -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%); box-shadow: inset 0 0 0 0.5px var(--glass-edge), 0 12px 32px rgba(0, 0, 0, 0.45); opacity: 0; visibility: hidden; transform: translateY(-6px); transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out), visibility 0s linear var(--dur-fast); }
+.info-float[data-open="true"] .info-panel { opacity: 1; visibility: visible; transform: none; transition: opacity var(--dur-ui) var(--ease-out), transform var(--dur-ui) var(--ease-out), visibility 0s; }
+.info-panel b { color: var(--label); font-weight: var(--weight-bold); }
+:root[data-motion="reduced"] .info-panel { transform: none; }
+@media (prefers-reduced-motion: reduce) { .info-panel { transform: none; } }
+:root[data-transparency="reduced"] .info-chip, :root[data-transparency="reduced"] .info-panel { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg-2); }

@@ -147,6 +147,18 @@
       "reveal_speed_gain": 0.035,
       "scroll_follow_s": 0.12
     },
+    "maps_live": {
+      "bpm_ticks": [
+        60.0,
+        90.0,
+        120.0,
+        180.0
+      ],
+      "now_trail_s": 2.0,
+      "playhead_px": 2.0,
+      "ring_px": 2.5,
+      "time_ticks": 4
+    },
     "mural": {
       "boot_delay_ms": 0.0,
       "boot_fade_ms": 450.0,

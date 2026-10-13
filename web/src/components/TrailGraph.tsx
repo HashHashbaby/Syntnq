@@ -199,7 +199,10 @@ export function TrailGraph({ open, clock, reduced }: Props) {
         </div>
         <div className="graph-xtitle t-cap secondary" aria-hidden="true">Loudness (dBFS)</div>
       </div>
-      <p className="t-foot secondary">The same scale for every song. The grid groups sounds by similarity, so its trail traces a different shape.</p>
+      <ul className="map-pointers t-foot secondary">
+        <li>The dot is now, the line the last 2 seconds, the cloud the whole song. Up is brighter, right is louder.</li>
+        <li>The same scale for every song. The grid groups sounds by similarity, so its trail traces a different shape.</li>
+      </ul>
     </section>
   );
 }

@@ -63,6 +63,7 @@ export interface UiParams {
     alt_text_hz: number;
     pause_fade_ms: number;
   };
+  maps_live: { now_trail_s: number; playhead_px: number; ring_px: number; time_ticks: number; bpm_ticks: number[] };
   landing: {
     scroll_follow_s: number;
     hero_to: number;

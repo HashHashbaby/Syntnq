@@ -459,6 +459,16 @@ class TrailGraph(_Section):
     pause_fade_ms: float
 
 
+class MapsLive(_Section):
+    """Companion maps: live now-marker and pointers (web only, D-064)."""
+
+    now_trail_s: float
+    playhead_px: float
+    ring_px: float
+    time_ticks: int
+    bpm_ticks: tuple[float, ...]
+
+
 class Landing(_Section):
     """The first landing (web only, D-063)."""
 
@@ -487,6 +497,7 @@ class Ui(_Section):
 
     mural: Mural
     trail_graph: TrailGraph
+    maps_live: MapsLive
     landing: Landing
 
 

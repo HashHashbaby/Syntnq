@@ -9,7 +9,7 @@ import { GridCanvas, type ChipFactory } from "../components/GridCanvas";
 import { LoadingMural } from "../loading/Mural";
 import { DUR_HANDOFF_MS } from "../motion/tokens";
 import { loadChips } from "../three/load";
-import { CAPTIONS, DynamicsView, FEATURES, FeatureGridView, RhythmView, StructureView, type FeatureName, type MapView } from "../components/MapViews";
+import { CAPTIONS, DynamicsView, FEATURES, FeatureGridView, RhythmView, SoundPointers, StructureView, type FeatureName, type MapView } from "../components/MapViews";
 import { Icon, Segmented, formatTime, useMedia, usePhone } from "../components/parts";
 import { keyboardDriven, reduced as motionNow } from "../motion/tokens";
 import { params } from "../params";
@@ -284,11 +284,15 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
     showToast("Audio added on this device.");
   };
 
+  // every map gets a live "now" layer from the same clock as the grid; only the map on screen draws it (D-064)
+  const dyn = (open.signature as { dynamics?: { lra_db?: number; mean_loudness_db?: number; peak_loudness_db?: number } }).dynamics;
+  const dynSummary = { lra: dyn?.lra_db ?? null, mean: dyn?.mean_loudness_db ?? null, peak: dyn?.peak_loudness_db ?? null };
   const renderMap = (v: MapView): JSX.Element | null => {
-    if (v === "features") return <FeatureGridView stat={open.stat} feature={feature} />;
-    if (v === "structure") return <StructureView maps={open.maps} />;
-    if (v === "rhythm") return <RhythmView maps={open.maps} />;
-    if (v === "dynamics") return <DynamicsView maps={open.maps} />;
+    const ml = { clock, live: open.live, active: v === view };
+    if (v === "features") return <FeatureGridView stat={open.stat} feature={feature} live={ml} />;
+    if (v === "structure") return <StructureView maps={open.maps} live={ml} />;
+    if (v === "rhythm") return <RhythmView maps={open.maps} live={ml} />;
+    if (v === "dynamics") return <DynamicsView maps={open.maps} live={ml} summary={dynSummary} />;
     return null;
   };
 
@@ -407,6 +411,7 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
                       >
                         <GridCanvas key={stageKey} open={open} player={player} reduced={reduced} reveal={fresh} onBmu={setBmu} ariaLabel={ariaLabel} chips={stageChips} clock={clock} />
                         <LoadingMural loading={chipsLoading} label="Loading the 3D view" />
+                        <SoundPointers />
                       </div>
                     ) : (
                       <div className="maps-card" data-testid={v.value === view ? "map-card" : undefined}>
@@ -432,6 +437,7 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
             >
               <GridCanvas key={stageKey} open={open} player={player} reduced={reduced} reveal={fresh} onBmu={setBmu} ariaLabel={ariaLabel} chips={stageChips} clock={clock} />
               <LoadingMural loading={chipsLoading} label="Loading the 3D view" />
+                        <SoundPointers />
             </div>
           ) : (
             <div className="maps-card" data-testid="map-card">
