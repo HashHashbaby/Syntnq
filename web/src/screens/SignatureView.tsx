@@ -411,7 +411,6 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
                       >
                         <GridCanvas key={stageKey} open={open} player={player} reduced={reduced} reveal={fresh} onBmu={setBmu} ariaLabel={ariaLabel} chips={stageChips} clock={clock} />
                         <LoadingMural loading={chipsLoading} label="Loading the 3D view" />
-                        <SoundPointers />
                       </div>
                     ) : (
                       <div className="maps-card" data-testid={v.value === view ? "map-card" : undefined}>
@@ -437,14 +436,16 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
             >
               <GridCanvas key={stageKey} open={open} player={player} reduced={reduced} reveal={fresh} onBmu={setBmu} ariaLabel={ariaLabel} chips={stageChips} clock={clock} />
               <LoadingMural loading={chipsLoading} label="Loading the 3D view" />
-                        <SoundPointers />
             </div>
           ) : (
             <div className="maps-card" data-testid="map-card">
               {renderMap(view)}
             </div>
           )}
-          <p className="caption t-foot secondary">{caption}</p>
+          <div className="caption-row">
+            <p className="caption t-foot secondary">{caption}</p>
+            {view === "sound" && <SoundPointers />}
+          </div>
 
           <div className="player" role="group" aria-label="Playback">
             <Disc open={open} player={player} reduced={reduced} />

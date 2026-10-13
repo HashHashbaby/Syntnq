@@ -120,7 +120,10 @@ function Figure(props: { label: string; yTitle?: string; yTicks?: Tick[]; xTitle
   const { label, yTitle, yTicks = [], xTitle, xTicks = [], aspect, plot, legend, pointers, reserve = FIG_RESERVE_PX } = props;
   return (
     <figure className="mapfig" aria-label={label} style={{ ["--aspect" as string]: String(aspect), ["--reserve" as string]: `${reserve}px` }}>
-      {yTitle && <div className="mapfig-ytitle t-cap secondary">{yTitle}</div>}
+      <div className="mapfig-head">
+        <span className="mapfig-ytitle t-cap secondary">{yTitle}</span>
+        <InfoFloat items={pointers} hoverHost />
+      </div>
       <div className="mapfig-yticks" aria-hidden="true">
         {yTicks.map((t) => (
           <span key={t.label} className="t-cap tabular secondary" style={{ bottom: `${(t.at * 100).toFixed(2)}%` }}>
@@ -140,7 +143,6 @@ function Figure(props: { label: string; yTitle?: string; yTicks?: Tick[]; xTitle
       </div>
       {xTitle && <div className="mapfig-xtitle t-cap secondary">{xTitle}</div>}
       {legend && <div className="mapfig-legend">{legend}</div>}
-      <InfoFloat items={pointers} hoverHost />
     </figure>
   );
 }
@@ -155,6 +157,7 @@ function songTicks(live: LiveStream): Tick[] {
 export function SoundPointers() {
   return (
     <InfoFloat
+      up
       items={[
         <>
           <b>Position:</b> brighter sounds sit higher, louder ones further right (within this song).

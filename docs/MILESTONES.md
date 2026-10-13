@@ -161,7 +161,7 @@ at 390 x 844, 820 x 1180 and 1440 x 900 in light and dark, a short screen record
 4. Rotating disc. **Accepted 2026-10-13** (D-060).
 4b. Start mural as the opening (D-061) and the live trail chart (D-062). **Accepted 2026-10-13.**
 5. Landing page. **Accepted 2026-10-13** (D-063).
-6. Polish pass across all screens. Built (D-064: maps with axes, live now markers and floating pointers; final performance table), awaiting owner review. M7b is complete once approved.
+6. Polish pass across all screens. Built (D-064: maps with axes, live now markers and floating pointers; final performance table), **Accepted 2026-10-13. M7b complete.**
 
 **Freeze rules (from the M7 sign-off, D-050):**
 - The 2D static render is frozen: `render_hash` (`synesthesia.io.render_hash`, value in
