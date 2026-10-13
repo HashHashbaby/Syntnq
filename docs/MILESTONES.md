@@ -183,6 +183,8 @@ at 390 x 844, 820 x 1180 and 1440 x 900 in light and dark, a short screen record
 
 **Gate:** user prints or views a 4096 px export and approves the quality.
 
+**Status (2026-10-13):** built (D-065): caption band, share/save, deterministic bytes (tested), exports vs Python <= 3/255 (in-browser 1.67-1.89/255); in-app WebGL view vs export 2.88-3.22/255, within the M7 bound for that renderer (the owner kept it, option (a), D-065). **Gate passed 2026-10-13:** the owner viewed the 4096 px exports and approved the quality.
+
 ---
 
 ## M9 Collection and comparison

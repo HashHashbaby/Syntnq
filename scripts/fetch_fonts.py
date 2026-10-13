@@ -2,8 +2,10 @@
 
 Downloads the official OpenType files from CTAN, checks their SHA-256, subsets them to Latin and
 writes ``web/public/fonts/`` (git-ignored, like the bundled samples: no third-party binaries are
-committed). The GUST Font License (LPPL 1.3c + a non-binding renaming request) and the family
-README are copied next to the fonts, with a MANIFEST that lists the derived files.
+committed). The verified official OpenType files are also copied unchanged to ``data/fonts/``
+(git-ignored) for the Python export caption (D-065). The GUST Font License (LPPL 1.3c + a
+non-binding renaming request) and the family README are copied next to the fonts, with a MANIFEST
+that lists the derived files.
 
 Usage: ``uv run python scripts/fetch_fonts.py`` (``make web-fonts``).
 """
@@ -21,6 +23,7 @@ from fontTools.ttLib import TTFont
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "web" / "public" / "fonts"
+OTF_OUT = ROOT / "data" / "fonts"
 CTAN = "https://mirrors.ctan.org/fonts/tex-gyre"
 
 # source file -> (sha256 of the official file, output name)
@@ -91,13 +94,18 @@ def build_woff2(otf: bytes) -> bytes:
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     lines = []
+    OTF_OUT.mkdir(parents=True, exist_ok=True)
     for rel, (sha, name) in FONTS.items():
-        data = build_woff2(fetch(rel, sha))
+        otf = fetch(rel, sha)
+        (OTF_OUT / Path(rel).name).write_bytes(otf)  # unchanged official file, for the caption
+        data = build_woff2(otf)
         (OUT / name).write_bytes(data)
         lines.append(f"  {name}  <-  {Path(rel).name}  ({len(data) / 1024:.1f} KiB)")
         print(lines[-1].strip())
     for rel, sha in DOCS.items():
-        (OUT / Path(rel).name).write_bytes(fetch(rel, sha))
+        doc = fetch(rel, sha)
+        (OUT / Path(rel).name).write_bytes(doc)
+        (OTF_OUT / Path(rel).name).write_bytes(doc)
     (OUT / "MANIFEST-syn-heros.txt").write_text(
         MANIFEST.format(ctan=CTAN, files="\n".join(lines)), encoding="utf-8"
     )

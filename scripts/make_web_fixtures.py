@@ -28,10 +28,11 @@ from fixtures import make_signals as ms  # noqa: E402
 from synesthesia.color import gamut_map, linear_to_srgb8, oklab_to_linear_srgb, oklch_to_oklab  # noqa: E402
 from synesthesia.config import load_config  # noqa: E402
 from synesthesia.display import make_raster, pool_colors, pool_values  # noqa: E402
-from synesthesia.io import write_result  # noqa: E402
+from synesthesia.io import decode_static_bin, write_result  # noqa: E402
 from synesthesia.live import LiveEngine, build_live_stream  # noqa: E402
 from synesthesia.pipeline import analyze  # noqa: E402
 from synesthesia.preview import rasterize  # noqa: E402
+from synesthesia.render import render_sound_map  # noqa: E402
 
 WEB = ROOT / "web"
 FIX = WEB / "tests" / "fixtures"
@@ -68,6 +69,12 @@ def export_params() -> None:
         "preview": {"fps": cfg.preview.fps},
         "web3d": cfg.web3d.model_dump(),
         "ui": cfg.ui.model_dump(),
+        "export": {
+            "caption": cfg.export.caption.model_dump(
+                exclude={"font_regular", "font_bold", "fallback_fonts"}
+            ),
+            "sizes": list(cfg.render.export_px),
+        },
         "api": {
             "page_size_default": cfg.api.page_size_default,
             "page_size_max": cfg.api.page_size_max,
@@ -142,6 +149,17 @@ def generate(prefix: str, signal: str, cfg, wavs) -> None:  # type: ignore[no-un
     (FIX / f"{prefix}_graph.json").write_text(json.dumps(graph, indent=2) + "\n", encoding="utf-8")
 
 
+def export_references(cfg) -> None:  # type: ignore[no-untyped-def]
+    """M8: the Python export (frozen 2D render, no caption) of each bundled sample at 1024 and 2048 px,
+    for the web tests that compare the in-app view and the in-browser export with it (D-065)."""
+    samples = WEB / "public" / "samples"
+    for st_path in sorted(samples.glob("*/static.bin")):
+        colors = decode_static_bin(st_path.read_bytes())["color_srgb"]
+        for px in (1024, 2048):
+            image = render_sound_map(colors, cfg, px)
+            image.save(FIX / f"sample_{st_path.parent.name}_{px}.png", compress_level=6)
+
+
 def main() -> int:
     cfg = load_config()
     export_params()
@@ -150,6 +168,7 @@ def main() -> int:
         wavs = ms.write_all(Path(tmp) / "wavs")
         generate("aba", "aba_song", cfg, wavs)
         generate("click", "click_120bpm", cfg, wavs)
+    export_references(cfg)
     rng = np.random.default_rng(7)
     lch = np.column_stack(
         [rng.uniform(0.05, 0.95, N_COLOR_CASES), rng.uniform(0.0, 0.40, N_COLOR_CASES),

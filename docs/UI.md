@@ -126,7 +126,7 @@ Space play/pause · T true colour (flat 2D) · ←/→ seek 5 s · Shift+←/→
 5. **Signature view:** static signature at rest; pressing play starts the liquid grid. Paused → liquid layer eases out (400 ms) to the static signature.
 6. **Map views:** each map has a one-line caption under it explaining what it shows (e.g. "Structure: the song compared with itself. Bright squares are repeated sections."), plus axis labels where relevant (time, BPM).
 7. **Inspector:** cell values (see `docs/LIVE.md §8`).
-8. **Export sheet:** size (2048 / 4096 / 8192 px), format (PNG / SVG), caption toggle (title, artist, wordmark), "Save" and "Share" (Web Share API with file when supported, else download).
+8. **Export sheet:** size (2048 / 4096 / 8192 px), format (PNG / SVG), caption toggle (on by default: title, artist, the SYNESTHESIA wordmark and the licence line of Creative Commons songs, in a band under the signature, D-065), "Save" and "Share" (Web Share API with file when supported, else download).
 9. **Compare (M9):** two signatures side by side (stacked on phone), similarity score with a plain-language label ("Very similar", "Somewhat similar", "Different") and the top 3 differing features.
 10. **Settings:** Reduce motion (Auto / On), Reduce transparency (Auto / On), Keep audio on this device (on), About and licenses.
 

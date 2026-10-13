@@ -22,6 +22,31 @@
       "occupancy_weight": 0.6
     }
   },
+  "export": {
+    "caption": {
+      "artist_ratio": 0.024,
+      "artist_y": 0.62,
+      "attribution_ratio": 0.0155,
+      "attribution_y": 0.85,
+      "band_ratio": 0.17,
+      "colors": {
+        "artist": "#98989d",
+        "attribution": "#6e6e73",
+        "title": "#f5f5f7",
+        "wordmark": "#8e8e93"
+      },
+      "title_ratio": 0.036,
+      "title_y": 0.36,
+      "web_font": "\"TeX Gyre Heros\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+      "wordmark_ratio": 0.0145,
+      "wordmark_tracking_em": 0.32
+    },
+    "sizes": [
+      2048,
+      4096,
+      8192
+    ]
+  },
   "grid": {
     "size": 64
   },

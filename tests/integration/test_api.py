@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -12,6 +13,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from synesthesia.api.app import TokenBucket, create_app
 from synesthesia.api.storage import Storage
@@ -25,6 +27,8 @@ from synesthesia.io import (
 )
 from synesthesia.metadata import SongMetadata
 from synesthesia.pipeline import SongResult
+
+ROOT = Path(__file__).resolve().parents[2]
 
 POLL_TIMEOUT_S = 180.0
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
@@ -106,6 +110,21 @@ def test_full_flow_endpoints_formats_dedup_and_audio_deletion(
         png_b = c.get(f"/api/songs/{sid}/export", params={"format": "png", "px": 2048})
         assert png_a.content[:8] == PNG_MAGIC and png_a.content == png_b.content
         assert c.get(f"/api/songs/{sid}/export", params={"px": 1000}).status_code == 400
+        assert c.get(f"/api/songs/{sid}/export", params={"caption": 2}).status_code == 400
+        # M8 caption (D-065): band under the same square, deterministic, SVG text; 503 without fonts
+        cap = {"format": "png", "px": 2048, "caption": 1}
+        if (ROOT / load_config().export.caption.font_regular).is_file():
+            cap_a = c.get(f"/api/songs/{sid}/export", params=cap)
+            cap_b = c.get(f"/api/songs/{sid}/export", params=cap)
+            assert cap_a.status_code == 200 and cap_a.content == cap_b.content
+            img = Image.open(io.BytesIO(cap_a.content))
+            plain = Image.open(io.BytesIO(png_a.content))
+            assert img.size == (2048, 2048 + round(0.17 * 2048))
+            assert img.crop((0, 0, 2048, 2048)).tobytes() == plain.convert(img.mode).tobytes()
+            svg_cap = c.get(f"/api/songs/{sid}/export", params={**cap, "format": "svg"})
+            assert svg_cap.status_code == 200 and "SYNESTHESIA</text>" in svg_cap.text
+        else:
+            assert c.get(f"/api/songs/{sid}/export", params=cap).status_code == 503
 
         # dedup: same audio and config -> the existing result, no new job
         again = _upload(c, wavs["aba_song"])

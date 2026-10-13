@@ -29,6 +29,8 @@ _BYTES_PER_MB = 1024 * 1024
 _SECONDS_PER_HOUR = 3600.0
 _MIN_RENDER_PX = 128
 _MAX_RENDER_PX = 4096
+# config-relative font paths (export caption, D-065) resolve against the project root
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _HASH_CHARS = 12
 _HTTP_FOR_CODE = {
     ErrorCode.E_FORMAT: 400,
@@ -269,26 +271,49 @@ def create_app(config: Config | None = None, storage_root: Path | None = None) -
 
     @api.get("/songs/{song}/export", response_model=None)
     async def export(song: str, px: int = 4096, format: str = "png", caption: int = 0) -> Response:  # noqa: A002
+        from synesthesia.caption import (
+            CaptionFontMissingError,
+            add_caption,
+            caption_text,
+            svg_with_caption,
+        )
         from synesthesia.io import read_arrays, read_signature
         from synesthesia.render import png_bytes, render_sound_map, render_svg
 
         if not valid_song_id(song) or not storage.has_song(song):
             return _error(404, "E_NOT_FOUND", "Unknown song.")
-        if px not in cfg.render.export_px or format not in ("png", "svg") or caption != 0:
+        if px not in cfg.render.export_px or format not in ("png", "svg") or caption not in (0, 1):
             return _error(400, "E_BAD_REQUEST", "Unsupported export options.")
         sig = read_signature(storage.song_dir(song) / "signature.json")
         arrays = read_arrays(storage.song_dir(song) / "arrays.npz")
-        if format == "svg":
-            text = render_svg(arrays["color_srgb"], cfg, px)
-            return Response(text, media_type="image/svg+xml")
-        meta = {
-            "song_id": sig["song"]["id"],
-            "pipeline_version": sig["pipeline_version"],
-            "config_hash": sig["config_hash"].removeprefix("sha256:"),
-        }
-        data = await run_in_threadpool(
-            lambda: png_bytes(render_sound_map(arrays["color_srgb"], cfg, px), meta)
-        )
+        text = caption_text(sig)
+        try:
+            if format == "svg":
+                svg = render_svg(arrays["color_srgb"], cfg, px)
+                if caption:
+                    svg = svg_with_caption(svg, text, cfg, px, _PROJECT_ROOT)
+                return Response(svg, media_type="image/svg+xml")
+            meta = {
+                "song_id": sig["song"]["id"],
+                "pipeline_version": sig["pipeline_version"],
+                "config_hash": sig["config_hash"].removeprefix("sha256:"),
+            }
+
+            def build() -> bytes:
+                image = render_sound_map(arrays["color_srgb"], cfg, px)
+                if caption:
+                    image, dropped = add_caption(image, text, cfg, _PROJECT_ROOT)
+                    if dropped:
+                        meta["caption_missing_glyphs"] = dropped
+                return png_bytes(image, meta)
+
+            data = await run_in_threadpool(build)
+        except CaptionFontMissingError:
+            return _error(
+                503,
+                "E_FONT_MISSING",
+                "Caption fonts are not installed on the server (make web-fonts).",
+            )
         return Response(data, media_type="image/png")
 
     @api.get("/songs/{a}/compare/{b}", response_model=None)

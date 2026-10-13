@@ -501,6 +501,38 @@ class Ui(_Section):
     landing: Landing
 
 
+class CaptionColors(_Section):
+    title: str
+    artist: str
+    attribution: str
+    wordmark: str
+
+
+class ExportCaption(_Section):
+    """Export caption band (D-065)."""
+
+    band_ratio: float
+    title_ratio: float
+    artist_ratio: float
+    attribution_ratio: float
+    wordmark_ratio: float
+    wordmark_tracking_em: float
+    title_y: float
+    artist_y: float
+    attribution_y: float
+    colors: CaptionColors
+    font_regular: str
+    font_bold: str
+    fallback_fonts: list[str]
+    web_font: str
+
+
+class Export(_Section):
+    """M8 exports (D-065)."""
+
+    caption: ExportCaption
+
+
 class Config(_Section):
     """Full resolved configuration (schema v1)."""
 
@@ -520,6 +552,7 @@ class Config(_Section):
     live: Live
     web3d: Web3D
     ui: Ui
+    export: Export
     render: Render
     preview: Preview
     api: Api

@@ -233,6 +233,23 @@ render:
   background: "#000000"
   caption: {enabled: false, font: system}
 
+export:                         # M8 exports (D-065); the square is the frozen 2D render, the caption band sits under it
+  caption:                      # title, artist, the SYNESTHESIA wordmark, the licence line for Creative Commons tracks
+    band_ratio: 0.17            # band height / image side
+    title_ratio: 0.036          # type sizes / image side (TeX Gyre Heros bold for the title and wordmark, regular otherwise)
+    artist_ratio: 0.024
+    attribution_ratio: 0.0155
+    wordmark_ratio: 0.0145
+    wordmark_tracking_em: 0.32  # letter spacing of the wordmark
+    title_y: 0.36               # baselines, as fractions of the band height
+    artist_y: 0.62
+    attribution_y: 0.85
+    colors: {title: "#f5f5f7", artist: "#98989d", attribution: "#6e6e73", wordmark: "#8e8e93"}
+    font_regular: data/fonts/texgyreheros-regular.otf   # copies of the official CTAN files (make web-fonts), git-ignored
+    font_bold: data/fonts/texgyreheros-bold.otf
+    fallback_fonts: []          # fonts tried for characters TeX Gyre Heros lacks (e.g. CJK); none: they are left out and noted
+    web_font: '"TeX Gyre Heros", "Helvetica Neue", Helvetica, Arial, sans-serif'   # SVG text and the in-browser export
+
 preview:
   fps: 30
   px: 1080                      # output side in pixels (docs/LIVE.md section 6)

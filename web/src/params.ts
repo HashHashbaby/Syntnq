@@ -154,6 +154,23 @@ export interface Params {
   preview: { fps: number };
   web3d: Web3DParams;
   ui: UiParams;
+  /** M8 exports (config export.caption, D-065); the font paths stay server-side. */
+  export: {
+    caption: {
+      band_ratio: number;
+      title_ratio: number;
+      artist_ratio: number;
+      attribution_ratio: number;
+      wordmark_ratio: number;
+      wordmark_tracking_em: number;
+      title_y: number;
+      artist_y: number;
+      attribution_y: number;
+      colors: { title: string; artist: string; attribution: string; wordmark: string };
+      web_font: string;
+    };
+    sizes: number[];
+  };
   api: { page_size_default: number; page_size_max: number };
 }
 

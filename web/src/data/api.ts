@@ -89,8 +89,8 @@ export async function fetchSongData(songId: string, base = `${BASE}/songs/${song
   return { signature, static: st, maps: mp, live: lv, proto: pr };
 }
 
-export function exportUrl(songId: string, px: number, format: "png" | "svg"): string {
-  return `${BASE}/songs/${songId}/export?px=${px}&format=${format}&caption=0`;
+export function exportUrl(songId: string, px: number, format: "png" | "svg", caption = false): string {
+  return `${BASE}/songs/${songId}/export?px=${px}&format=${format}&caption=${caption ? 1 : 0}`;
 }
 
 export async function deleteSong(songId: string): Promise<void> {
