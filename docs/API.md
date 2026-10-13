@@ -19,8 +19,9 @@ MVP: a single FastAPI process with an in-process job worker, local filesystem st
 | `GET` | `/songs/{id}/fingerprint` | 133 floats | JSON array |
 | `GET` | `/songs/{id}/render.png?view=sound&px=1024` | server render | PNG |
 | `GET` | `/songs/{id}/export?px=4096&format=png&caption=0` | export | PNG or SVG (deterministic bytes) |
-| `GET` | `/songs/{a}/compare/{b}` | similarity (M9) | `{"distance","label","top_differences":[...]}` |
+| `GET` | `/songs/{a}/compare/{b}` | similarity (M9, D-066) | `{"distance","score","label","top_differences":[{"key","weight","text"}]}` |
 | `POST` | `/songs/{id}/rating` | liking rating (M9) | body `{"rating":1-7,"listener_id":"anon uuid"}` → `204` |
+| `GET` | `/ratings.csv` | ratings export (M9) | `song_id,title,artist,listener_id,rating,rated_at` (latest per song and listener) |
 | `DELETE` | `/songs/{id}` | delete all outputs | `204` |
 
 Errors return `{"error": {"code": "E_...", "message": "..."}}` with HTTP 400 (client file problems), 404, 409, 413 (size) or 500.
@@ -86,7 +87,7 @@ Optional, nullable, never affects any array: `title`, `artist`, `genre`, `releas
 - Run: `make api-dev` (uvicorn factory `synesthesia.api.app:create_app`, 127.0.0.1:8000). `create_app(config, storage_root)` is also what the tests use.
 - `POST /analyze` decodes and normalizes the upload in the request to get the song ID, so decode errors return 400/413 immediately and an already-analyzed song returns `200` without a job. The worker decodes again (cheap) and runs the pipeline with stage callbacks (`reading`, `listening`, `mapping`, `coloring`, `maps`, `writing`).
 - Progress is stage index / 6 (SOM epochs do not report sub-progress yet). Cancellation and the 300 s timeout are checked at stage boundaries, not mid-stage.
-- Extra error codes outside `docs/ANALYSIS.md` section 13: `E_NOT_FOUND` (404), `E_BAD_REQUEST` (400), `E_RATE_LIMIT` (429), `E_NOT_IMPLEMENTED` (501, compare and rating until M9).
+- Extra error codes outside `docs/ANALYSIS.md` section 13: `E_NOT_FOUND` (404), `E_BAD_REQUEST` (400), `E_RATE_LIMIT` (429), `E_NOT_IMPLEMENTED` (501; none left after M9).
 - `export` takes `caption=0|1` (D-065): 1 adds the caption band under the square (PNG height side x 1.17; SVG with live text). Without the caption fonts on the server it answers 503 `E_FONT_MISSING`. Rate limit is per client IP, in memory.
 - ffmpeg and ffprobe run with `-protocol_whitelist file,pipe` and a timeout (`ingest.decode_timeout_s`).
 - Fixtures for the web loaders: `scripts/make_format_fixtures.py`.

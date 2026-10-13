@@ -22,6 +22,62 @@
       "occupancy_weight": 0.6
     }
   },
+  "compare": {
+    "block_medians": {
+      "brightness": 0.361046,
+      "change": 0.075198,
+      "duration": 0.470743,
+      "harmonicity": 0.147427,
+      "loudness": 0.139884,
+      "loudness_range": 0.155497,
+      "mean_loudness": 0.014947,
+      "noisiness": 0.374064,
+      "palette": 0.459124,
+      "pulse_clarity": 0.123787,
+      "tempo": 0.339688
+    },
+    "calibration": {
+      "corpus": "prototype_30",
+      "date": "2026-10-13",
+      "pairs": 435,
+      "tracks": 30
+    },
+    "different_above": 0.460715,
+    "labels": [
+      "Very similar",
+      "Somewhat similar",
+      "Different"
+    ],
+    "min_weight": 0.5,
+    "percentiles": [
+      0.037731,
+      0.127111,
+      0.149426,
+      0.17238,
+      0.187662,
+      0.208224,
+      0.229998,
+      0.251656,
+      0.265891,
+      0.286192,
+      0.310344,
+      0.329614,
+      0.355795,
+      0.386374,
+      0.42242,
+      0.460715,
+      0.494505,
+      0.531144,
+      0.558256,
+      0.60591,
+      0.714944
+    ],
+    "scalar_norm": 2.120969,
+    "similar_n": 3,
+    "tempo_min_bpm": 30.0,
+    "top_n": 3,
+    "very_similar_below": 0.208224
+  },
   "export": {
     "caption": {
       "artist_ratio": 0.024,
@@ -46,6 +102,13 @@
       4096,
       8192
     ]
+  },
+  "fingerprint": {
+    "hist_bins": 16,
+    "hue_bins": 12,
+    "lightness_bins": 4,
+    "n_scalars": 5,
+    "version": 1
   },
   "grid": {
     "size": 64

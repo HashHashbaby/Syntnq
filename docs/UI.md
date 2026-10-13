@@ -127,7 +127,7 @@ Space play/pause · T true colour (flat 2D) · ←/→ seek 5 s · Shift+←/→
 6. **Map views:** each map has a one-line caption under it explaining what it shows (e.g. "Structure: the song compared with itself. Bright squares are repeated sections."), plus axis labels where relevant (time, BPM).
 7. **Inspector:** cell values (see `docs/LIVE.md §8`).
 8. **Export sheet:** size (2048 / 4096 / 8192 px), format (PNG / SVG), caption toggle (on by default: title, artist, the SYNESTHESIA wordmark and the licence line of Creative Commons songs, in a band under the signature, D-065), "Save" and "Share" (Web Share API with file when supported, else download).
-9. **Compare (M9):** two signatures side by side (stacked on phone), similarity score with a plain-language label ("Very similar", "Somewhat similar", "Different") and the top 3 differing features.
+9. **Compare (M9, D-066):** two signatures side by side (also on phones, smaller, so the answer stays on screen), the plain-language label ("Very similar", "Somewhat similar", "Different", from the corpus quartiles), "more alike than N % of song pairs in the reference set", and up to 3 differences that stand out, in words. Opened from the toolbar (not on phones), from "Compare with..." in the song pane, or from a similar song. The song pane also lists the 3 nearest songs in the library and a 1-7 liking rating ("How much do you like it?"); Settings exports the ratings as CSV.
 10. **Settings:** Reduce motion (Auto / On), Reduce transparency (Auto / On), Keep audio on this device (on), About and licenses.
 
 ## 7. Components

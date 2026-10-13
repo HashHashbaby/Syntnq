@@ -250,6 +250,20 @@ export:                         # M8 exports (D-065); the square is the frozen 2
     fallback_fonts: []          # fonts tried for characters TeX Gyre Heros lacks (e.g. CJK); none: they are left out and noted
     web_font: '"TeX Gyre Heros", "Helvetica Neue", Helvetica, Arial, sans-serif'   # SVG text and the in-browser export
 
+compare:                        # M9 song comparison (D-066); corpus numbers written by scripts/calibrate_compare.py
+  labels: ["Very similar", "Somewhat similar", "Different"]
+  top_n: 3                      # differences listed in the compare view
+  similar_n: 3                  # "Similar in your library"
+  min_weight: 0.5               # a difference is listed only if at least this many corpus-median differences
+  tempo_min_bpm: 30.0           # below this the beat tracker found no tempo: phrased as "no clear tempo"
+  # --- calibrated (do not edit by hand) ---
+  scalar_norm: 2.120969
+  very_similar_below: 0.208224   # corpus first quartile of pairwise distance
+  different_above: 0.460715      # third quartile
+  percentiles: [0.037731, 0.127111, 0.149426, 0.172380, 0.187662, 0.208224, 0.229998, 0.251656, 0.265891, 0.286192, 0.310344, 0.329614, 0.355795, 0.386374, 0.422420, 0.460715, 0.494505, 0.531144, 0.558256, 0.605910, 0.714944]   # 0, 5, ..., 100
+  block_medians: {brightness: 0.361046, loudness: 0.139884, noisiness: 0.374064, harmonicity: 0.147427, change: 0.075198, palette: 0.459124, tempo: 0.339688, pulse_clarity: 0.123787, loudness_range: 0.155497, mean_loudness: 0.014947, duration: 0.470743}
+  calibration: {corpus: prototype_30, tracks: 30, pairs: 435, date: "2026-10-13"}
+
 preview:
   fps: 30
   px: 1080                      # output side in pixels (docs/LIVE.md section 6)

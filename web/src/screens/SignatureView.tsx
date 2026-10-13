@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioPlayer } from "../audio/player";
 import { Disc } from "../components/Disc";
 import { TrailGraph } from "../components/TrailGraph";
+import { SongPanel } from "../components/SongPanel";
+import { CompareSheet } from "./CompareSheet";
 import { FrameClock } from "../audio/frameClock";
 import { reportStage } from "../components/Backdrop";
 import { GridCanvas, type ChipFactory } from "../components/GridCanvas";
@@ -137,6 +139,7 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
   const [view, setView] = useState<MapView>("sound");
   const [feature, setFeature] = useState<FeatureName>("brightness");
   const [sheet, setSheet] = useState(false);
+  const [comparing, setComparing] = useState<{ other: string | null } | null>(null);
   const [hover, setHover] = useState<{ info: NodeInfo; x: number; y: number } | null>(null);
   const [bmu, setBmu] = useState<number | null>(null);
   const [pos, setPos] = useState(0);
@@ -363,6 +366,9 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
         >
           <Icon name="chart.xyaxis.line" />
         </button>
+        <button className="btn btn-icon not-phone" onClick={() => setComparing({ other: null })} aria-label="Compare" title="Compare with another song">
+          <Icon name="square.on.square" />
+        </button>
         <button className="btn btn-icon" onClick={() => setSheet(true)} aria-label="Export">
           <Icon name="square.and.arrow.up" />
         </button>
@@ -479,10 +485,12 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
           )}
           {open.attribution && <p className="t-foot secondary caption">{open.attribution}</p>}
           {showGraph && !sideColumn && <TrailGraph open={open} clock={clock} reduced={reduced} />}
+          {!sideColumn && <SongPanel open={open} onCompare={(id) => setComparing({ other: id })} />}
         </div>
 
         <div className="side">
           {showGraph && sideColumn && <TrailGraph open={open} clock={clock} reduced={reduced} />}
+          {sideColumn && <SongPanel open={open} onCompare={(id) => setComparing({ other: id })} />}
           <aside className="inspector pane" aria-label="Inspector">
             <h2 className="t-headline">Inspector</h2>
             <InspectorBody info={hover?.info ?? null} />
@@ -496,6 +504,7 @@ export function SignatureView({ open, onBack }: { open: OpenSong; onBack: () => 
         </div>
       )}
       {sheet && <ExportSheet open={open} onClose={() => setSheet(false)} />}
+      {comparing && <CompareSheet open={open} initialOther={comparing.other} onClose={() => setComparing(null)} />}
     </>
   );
 }

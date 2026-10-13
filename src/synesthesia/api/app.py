@@ -32,6 +32,7 @@ _MAX_RENDER_PX = 4096
 # config-relative font paths (export caption, D-065) resolve against the project root
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _HASH_CHARS = 12
+_LISTENER_RE = re.compile(r"[0-9a-fA-F-]{32,36}")  # an anonymous uuid (M9 ratings)
 _HTTP_FOR_CODE = {
     ErrorCode.E_FORMAT: 400,
     ErrorCode.E_DECODE: 400,
@@ -318,11 +319,49 @@ def create_app(config: Config | None = None, storage_root: Path | None = None) -
 
     @api.get("/songs/{a}/compare/{b}", response_model=None)
     def compare(a: str, b: str) -> Response:
-        return _error(501, "E_NOT_IMPLEMENTED", "Compare arrives in M9.")
+        from synesthesia.compare import compare as compare_fps
+
+        metas = [
+            storage.read_meta(s) if valid_song_id(s) and storage.has_song(s) else None
+            for s in (a, b)
+        ]
+        fps = [m.fingerprint for m in metas if m is not None and m.fingerprint is not None]
+        if len(fps) != 2:
+            return _error(404, "E_NOT_FOUND", "Unknown song.")
+        return JSONResponse(compare_fps(fps[0], fps[1], cfg).to_json())
 
     @api.post("/songs/{song}/rating", response_model=None)
-    def rating(song: str) -> Response:
-        return _error(501, "E_NOT_IMPLEMENTED", "Ratings arrive in M9.")
+    async def rating(song: str, request: Request) -> Response:
+        if not valid_song_id(song) or not storage.has_song(song):
+            return _error(404, "E_NOT_FOUND", "Unknown song.")
+        try:
+            body = await request.json()
+            value, listener = body["rating"], str(body["listener_id"])
+        except (ValueError, KeyError, TypeError):
+            return _error(400, "E_BAD_REQUEST", "Body must be {rating: 1-7, listener_id}.")
+        if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 7:
+            return _error(400, "E_BAD_REQUEST", "rating must be an integer 1-7.")
+        if not _LISTENER_RE.fullmatch(listener):
+            return _error(400, "E_BAD_REQUEST", "listener_id must be an anonymous uuid.")
+        storage.add_rating(song, listener, value)
+        return Response(status_code=204)
+
+    @api.get("/ratings.csv", response_model=None)
+    def ratings_csv() -> Response:
+        import csv
+        import io
+
+        buf = io.StringIO()
+        w = csv.writer(buf, lineterminator="\n")
+        w.writerow(["song_id", "title", "artist", "listener_id", "rating", "rated_at"])
+        for r in storage.latest_ratings():
+            meta = storage.read_meta(r["song_id"]) if storage.has_song(r["song_id"]) else None
+            title = meta.metadata.title if meta else None
+            artist = meta.metadata.artist if meta else None
+            stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(float(r["rated_at"])))
+            row = [r["song_id"], title or "", artist or "", r["listener_id"], r["rating"], stamp]
+            w.writerow(row)
+        return Response(buf.getvalue(), media_type="text/csv")
 
     @api.delete("/songs/{song}", response_model=None)
     def delete_song(song: str) -> Response:

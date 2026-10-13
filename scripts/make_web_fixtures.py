@@ -26,6 +26,7 @@ from PIL import Image  # noqa: E402
 
 from fixtures import make_signals as ms  # noqa: E402
 from synesthesia.color import gamut_map, linear_to_srgb8, oklab_to_linear_srgb, oklch_to_oklab  # noqa: E402
+from synesthesia.compare import compare  # noqa: E402
 from synesthesia.config import load_config  # noqa: E402
 from synesthesia.display import make_raster, pool_colors, pool_values  # noqa: E402
 from synesthesia.io import decode_static_bin, write_result  # noqa: E402
@@ -69,6 +70,8 @@ def export_params() -> None:
         "preview": {"fps": cfg.preview.fps},
         "web3d": cfg.web3d.model_dump(),
         "ui": cfg.ui.model_dump(),
+        "fingerprint": {**cfg.fingerprint.model_dump(), "n_scalars": cfg.fingerprint.n_scalars},
+        "compare": cfg.compare.model_dump(),
         "export": {
             "caption": cfg.export.caption.model_dump(
                 exclude={"font_regular", "font_bold", "fallback_fonts"}
@@ -149,6 +152,23 @@ def generate(prefix: str, signal: str, cfg, wavs) -> None:  # type: ignore[no-un
     (FIX / f"{prefix}_graph.json").write_text(json.dumps(graph, indent=2) + "\n", encoding="utf-8")
 
 
+def compare_cases(cfg) -> None:  # type: ignore[no-untyped-def]
+    """M9: Python comparisons of every pair of bundled-sample fingerprints, for the TS port (D-066)."""
+    index = WEB / "public" / "samples" / "index.json"
+    if not index.is_file():
+        return
+    samples = json.loads(index.read_text(encoding="utf-8"))
+    cases = []
+    for a in samples:
+        for b in samples:
+            r = compare(a["fingerprint"], b["fingerprint"], cfg)
+            cases.append({"a": a["slug"], "b": b["slug"], **r.to_json()})
+    fps = {s["slug"]: s["fingerprint"] for s in samples}
+    (FIX / "compare_cases.json").write_text(
+        json.dumps({"fingerprints": fps, "cases": cases}, indent=1), encoding="utf-8"
+    )
+
+
 def export_references(cfg) -> None:  # type: ignore[no-untyped-def]
     """M8: the Python export (frozen 2D render, no caption) of each bundled sample at 1024 and 2048 px,
     for the web tests that compare the in-app view and the in-browser export with it (D-065)."""
@@ -169,6 +189,7 @@ def main() -> int:
         generate("aba", "aba_song", cfg, wavs)
         generate("click", "click_120bpm", cfg, wavs)
     export_references(cfg)
+    compare_cases(cfg)
     rng = np.random.default_rng(7)
     lch = np.column_stack(
         [rng.uniform(0.05, 0.95, N_COLOR_CASES), rng.uniform(0.0, 0.40, N_COLOR_CASES),

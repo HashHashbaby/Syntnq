@@ -76,3 +76,48 @@ describe("library data layer", () => {
     expect(await lib.count()).toBe(N - 1);
   });
 });
+
+describe("ratings (M9)", () => {
+  it("upgrades a version-1 library in place and keeps its songs", async () => {
+    const name = `v1-${Math.random()}`;
+    await new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open(name, 1);
+      req.onupgradeneeded = () => {
+        // the version-1 schema, with one song in it
+        const db = req.result;
+        const songs = db.createObjectStore("songs", { keyPath: "songId" });
+        songs.createIndex("createdAt", "createdAt");
+        songs.createIndex("titleKey", "titleKey");
+        db.createObjectStore("data", { keyPath: "songId" });
+        db.createObjectStore("audio", { keyPath: "songId" });
+        songs.put(recordFromApi(fake(1)));
+      };
+      req.onsuccess = () => {
+        req.result.close();
+        resolve();
+      };
+      req.onerror = () => reject(req.error);
+    });
+    const lib = await Library.open(name);
+    expect(await lib.count()).toBe(1);
+    await lib.putRating({ songId: fake(1).song_id, rating: 6, listenerId: "x", ratedAt: 1 });
+    expect((await lib.getRating(fake(1).song_id))?.rating).toBe(6);
+  });
+
+  it("keeps the latest rating per song, exports CSV, and forgets it with the song", async () => {
+    const { rate, ratingsCsv } = await import("../../src/data/ratings");
+    const lib = await Library.open(`r-${Math.random()}`);
+    const song = recordFromApi({ ...fake(2), title: 'Say "Hi", Jo' });
+    await lib.put(song);
+    await rate(lib, song.songId, 3);
+    await rate(lib, song.songId, 7);
+    await expect(rate(lib, song.songId, 8)).rejects.toThrow();
+    const csv = (await ratingsCsv(lib)).trim().split("\n");
+    expect(csv[0]).toBe("song_id,title,artist,listener_id,rating,rated_at");
+    expect(csv).toHaveLength(2);
+    expect(csv[1]).toContain(`${song.songId},"Say ""Hi"", Jo",`);
+    expect(csv[1]).toMatch(/,7,\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+    await lib.delete(song.songId);
+    expect(await lib.ratings()).toEqual([]);
+  });
+});

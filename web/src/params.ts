@@ -154,6 +154,22 @@ export interface Params {
   preview: { fps: number };
   web3d: Web3DParams;
   ui: UiParams;
+  /** Fingerprint layout (docs/ANALYSIS.md section 9). */
+  fingerprint: { version: number; hist_bins: number; hue_bins: number; lightness_bins: number; n_scalars: number };
+  /** Song comparison (config compare, D-066), calibrated on the corpus by scripts/calibrate_compare.py. */
+  compare: {
+    labels: [string, string, string];
+    top_n: number;
+    similar_n: number;
+    min_weight: number;
+    tempo_min_bpm: number;
+    scalar_norm: number;
+    very_similar_below: number;
+    different_above: number;
+    percentiles: number[];
+    block_medians: Record<string, number>;
+    calibration: { corpus: string; tracks: number; pairs: number; date: string };
+  };
   /** M8 exports (config export.caption, D-065); the font paths stay server-side. */
   export: {
     caption: {

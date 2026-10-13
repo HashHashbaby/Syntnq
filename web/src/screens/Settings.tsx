@@ -2,10 +2,24 @@
 import { Sheet } from "../components/parts";
 import { useSettings, type Toggle } from "../state/settings";
 import { useApp } from "../state/store";
+import { ratingsCsv } from "../data/ratings";
 
 export function Settings({ onClose }: { onClose: () => void }) {
   const s = useSettings();
   const samples = useApp((st) => st.samples);
+  const lib = useApp((st) => st.lib);
+  const showToast = useApp((st) => st.showToast);
+  // liking ratings given on this device, as CSV (M9, D-066)
+  const exportRatings = async (): Promise<void> => {
+    if (!lib) return;
+    if (!(await lib.ratings()).length) return showToast("No ratings yet.");
+    const csv = await ratingsCsv(lib);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = "synesthesia-ratings.csv";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
   return (
     <Sheet title="Settings" onClose={onClose}>
       <div className="group" style={{ margin: "var(--space-4) 0" }}>
@@ -38,6 +52,12 @@ export function Settings({ onClose }: { onClose: () => void }) {
           }}
         >
           Replay intro
+        </button>
+      </div>
+      <div className="group" style={{ margin: "0 0 var(--space-4)" }}>
+        <span>Ratings</span>
+        <button className="btn btn-plain" onClick={() => void exportRatings()}>
+          Export ratings (CSV)
         </button>
       </div>
       <h3 className="t-headline">About and licences</h3>

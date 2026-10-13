@@ -533,6 +533,29 @@ class Export(_Section):
     caption: ExportCaption
 
 
+class CompareCalibration(_Section):
+    corpus: str
+    tracks: int
+    pairs: int
+    date: str
+
+
+class Compare(_Section):
+    """Song comparison (D-066); the corpus numbers come from ``scripts/calibrate_compare.py``."""
+
+    labels: tuple[str, str, str]
+    top_n: int
+    similar_n: int
+    min_weight: float
+    tempo_min_bpm: float
+    scalar_norm: float
+    very_similar_below: float
+    different_above: float
+    percentiles: list[float]
+    block_medians: dict[str, float]
+    calibration: CompareCalibration
+
+
 class Config(_Section):
     """Full resolved configuration (schema v1)."""
 
@@ -553,6 +576,7 @@ class Config(_Section):
     web3d: Web3D
     ui: Ui
     export: Export
+    compare: Compare
     render: Render
     preview: Preview
     api: Api

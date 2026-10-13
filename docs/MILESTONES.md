@@ -197,6 +197,8 @@ at 390 x 844, 820 x 1180 and 1440 x 900 in light and dark, a short screen record
 
 **Gate:** user tests comparison on 10 songs of their own and finds the similar-song suggestions sensible in at least 7 of 10 cases.
 
+**Status (2026-10-13):** built (D-066): calibrated compare (Python and TS, parity tested), similar songs, ratings with CSV export. Awaiting the owner's test on 10 of their own songs.
+
 ---
 
 ## B. Music Atlas (placeholder, after M9)

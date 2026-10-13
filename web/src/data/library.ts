@@ -1,12 +1,22 @@
 // Library data layer on IndexedDB (docs/UI.md section 6, D-041): song records with fingerprints,
-// paged queries for lists of hundreds of songs, cached analysis files and optional local audio.
+// paged queries for lists of hundreds of songs, cached analysis files, optional local audio, and the
+// listener's liking ratings (M9, D-066; database version 2 adds that store to existing libraries).
 import type { SongData, SongRecord } from "./types";
 
 const DB_NAME = "synesthesia";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const S_SONGS = "songs";
 const S_DATA = "data";
 const S_AUDIO = "audio";
+const S_RATINGS = "ratings";
+
+/** A liking rating (1-7) given to a song on this device, by an anonymous listener id. */
+export interface Rating {
+  songId: string;
+  rating: number;
+  listenerId: string;
+  ratedAt: number; // ms since epoch
+}
 
 export type SortKey = "recent" | "title";
 
@@ -42,13 +52,16 @@ export class Library {
 
   static async open(name = DB_NAME): Promise<Library> {
     const req = indexedDB.open(name, DB_VERSION);
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = (e) => {
       const db = req.result;
-      const songs = db.createObjectStore(S_SONGS, { keyPath: "songId" });
-      songs.createIndex("createdAt", "createdAt");
-      songs.createIndex("titleKey", "titleKey");
-      db.createObjectStore(S_DATA, { keyPath: "songId" });
-      db.createObjectStore(S_AUDIO, { keyPath: "songId" });
+      if (e.oldVersion < 1) {
+        const songs = db.createObjectStore(S_SONGS, { keyPath: "songId" });
+        songs.createIndex("createdAt", "createdAt");
+        songs.createIndex("titleKey", "titleKey");
+        db.createObjectStore(S_DATA, { keyPath: "songId" });
+        db.createObjectStore(S_AUDIO, { keyPath: "songId" });
+      }
+      if (e.oldVersion < 2) db.createObjectStore(S_RATINGS, { keyPath: "songId" });
     };
     return new Library(await wrap(req));
   }
@@ -157,16 +170,31 @@ export class Library {
   }
 
   async delete(songId: string): Promise<void> {
-    const tx = this.db.transaction([S_SONGS, S_DATA, S_AUDIO], "readwrite");
+    const tx = this.db.transaction([S_SONGS, S_DATA, S_AUDIO, S_RATINGS], "readwrite");
     tx.objectStore(S_SONGS).delete(songId);
     tx.objectStore(S_DATA).delete(songId);
     tx.objectStore(S_AUDIO).delete(songId);
+    tx.objectStore(S_RATINGS).delete(songId);
     await done(tx);
   }
 
+  async putRating(r: Rating): Promise<void> {
+    const tx = this.db.transaction(S_RATINGS, "readwrite");
+    tx.objectStore(S_RATINGS).put(r);
+    await done(tx);
+  }
+
+  async getRating(songId: string): Promise<Rating | undefined> {
+    return (await wrap(this.db.transaction(S_RATINGS).objectStore(S_RATINGS).get(songId))) as Rating | undefined;
+  }
+
+  async ratings(): Promise<Rating[]> {
+    return (await wrap(this.db.transaction(S_RATINGS).objectStore(S_RATINGS).getAll())) as Rating[];
+  }
+
   async clear(): Promise<void> {
-    const tx = this.db.transaction([S_SONGS, S_DATA, S_AUDIO], "readwrite");
-    [S_SONGS, S_DATA, S_AUDIO].forEach((n) => tx.objectStore(n).clear());
+    const tx = this.db.transaction([S_SONGS, S_DATA, S_AUDIO, S_RATINGS], "readwrite");
+    [S_SONGS, S_DATA, S_AUDIO, S_RATINGS].forEach((n) => tx.objectStore(n).clear());
     await done(tx);
   }
 }

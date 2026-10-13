@@ -126,6 +126,24 @@ def test_full_flow_endpoints_formats_dedup_and_audio_deletion(
         else:
             assert c.get(f"/api/songs/{sid}/export", params=cap).status_code == 503
 
+        # M9 (D-066): compare, ratings and their CSV export
+        same = c.get(f"/api/songs/{sid}/compare/{sid}")
+        assert same.status_code == 200
+        assert same.json()["distance"] == 0.0 and same.json()["label"] == "Very similar"
+        assert same.json()["score"] == 100.0 and same.json()["top_differences"] == []
+        assert c.get(f"/api/songs/{sid}/compare/0123456789abcdef").status_code == 404
+        listener = "6f1c2e0a-4b7d-4c1e-9a2b-3d4e5f6a7b8c"
+        rate = f"/api/songs/{sid}/rating"
+        assert c.post(rate, json={"rating": 8, "listener_id": listener}).status_code == 400
+        assert c.post(rate, json={"rating": True, "listener_id": listener}).status_code == 400
+        assert c.post(rate, json={"rating": 5, "listener_id": "me"}).status_code == 400
+        assert c.post(rate, json={"rating": 5}).status_code == 400
+        assert c.post(rate, json={"rating": 4, "listener_id": listener}).status_code == 204
+        assert c.post(rate, json={"rating": 6, "listener_id": listener}).status_code == 204
+        rows = c.get("/api/ratings.csv").text.strip().splitlines()
+        assert rows[0] == "song_id,title,artist,listener_id,rating,rated_at"
+        assert len(rows) == 2 and rows[1].startswith(f"{sid},Test,Synth,{listener},6,")
+
         # dedup: same audio and config -> the existing result, no new job
         again = _upload(c, wavs["aba_song"])
         assert again.status_code == 200

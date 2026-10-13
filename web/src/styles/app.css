@@ -519,3 +519,32 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .info-float[data-up][data-open="true"] .info-panel { transform: none; }
 .caption-row { display: flex; align-items: center; justify-content: center; gap: var(--space-3); flex-wrap: wrap; }
 .caption-row .caption { margin: 0; }
+
+/* M9 (D-066): similar songs, the liking rating, the compare sheet */
+.song-pane { padding: var(--space-5); display: grid; gap: var(--space-3); align-content: start; }
+.song-pane-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
+.song-pane-head .btn { flex: none; }
+.view-body > .song-pane { width: 100%; max-width: 440px; margin: 0 auto; }
+.similar-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1); }
+.similar-row { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); min-height: var(--hit); padding: var(--space-1) var(--space-2); border: 0; border-radius: var(--radius-small); background: transparent; color: inherit; text-align: left; cursor: pointer; }
+@media (hover: hover) and (pointer: fine) { .similar-row:hover { background: var(--fill); } }
+.similar-text { display: grid; min-width: 0; }
+.similar-label { white-space: nowrap; color: var(--label-2); }
+.similar-label[data-label="Very similar"] { color: var(--label); font-weight: var(--weight-bold); }
+.rating { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.rating-dot { min-height: var(--hit); border: 0; border-radius: var(--radius-pill); background: var(--fill); color: var(--label-2); font-weight: var(--weight-bold); cursor: pointer; transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.rating-dot[aria-checked="true"] { background: var(--label); color: var(--bg); }
+.rating-ends { display: flex; justify-content: space-between; margin-top: calc(-1 * var(--space-2)); }
+.compare { display: grid; gap: var(--space-4); margin-top: var(--space-3); }
+.compare-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+/* phones keep the pair side by side (smaller) so the answer stays on screen under them */
+.compare-card { margin: 0; display: grid; gap: var(--space-2); min-width: 0; }
+.compare-canvas { aspect-ratio: 1; border-radius: var(--radius-small); overflow: hidden; background: #000; }
+.compare-canvas canvas { width: 100%; height: 100%; display: block; }
+.compare-card figcaption { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-2); align-items: baseline; }
+.compare-card figcaption > :not(.compare-tag) { grid-column: 2; }
+.compare-tag { grid-row: 1 / span 2; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--label); color: var(--bg); font-weight: var(--weight-bold); }
+.compare-result { display: grid; gap: var(--space-2); }
+.compare-label { margin: 0; }
+.compare-diffs { margin: 0; padding-left: 1.2em; display: grid; gap: var(--space-1); }
+.compare-choices { max-height: min(60vh, 520px); overflow: auto; }

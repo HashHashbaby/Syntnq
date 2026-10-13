@@ -68,6 +68,29 @@ class Storage:
         self.uploads.mkdir(parents=True, exist_ok=True)
         self.songs.mkdir(parents=True, exist_ok=True)
 
+    # -- ratings (M9, D-066) ---------------------------------------------------------------------
+    @property
+    def ratings_path(self) -> Path:
+        return self.root / "ratings.jsonl"
+
+    def add_rating(self, song_id: str, listener_id: str, rating: int) -> None:
+        """Append one liking rating (1-7) by an anonymous listener id."""
+        row = {"song_id": song_id, "listener_id": listener_id, "rating": rating}
+        row["rated_at"] = time.time()
+        with self.ratings_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(row) + "\n")
+
+    def latest_ratings(self) -> list[dict[str, Any]]:
+        """The latest rating per (song, listener), oldest first."""
+        if not self.ratings_path.is_file():
+            return []
+        latest: dict[tuple[str, str], dict[str, Any]] = {}
+        for line in self.ratings_path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                r = json.loads(line)
+                latest[(r["song_id"], r["listener_id"])] = r
+        return sorted(latest.values(), key=lambda r: float(r["rated_at"]))
+
     # -- songs ---------------------------------------------------------------------------------
     def song_dir(self, song_id: str) -> Path:
         """Directory of a song's outputs for the current config."""
