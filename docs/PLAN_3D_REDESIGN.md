@@ -175,7 +175,7 @@ Architecture:
 
 ---
 
-## 6. Feature: landing page (phase 5)
+## 6. Feature: landing page (phase 5; built as D-063 with two changes: the disc leans 12 deg instead of a 3/4 view, and the depth beat was dropped after D-058)
 
 Our own content and layout; the *feel* of section 1.1, not its design.
 

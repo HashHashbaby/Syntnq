@@ -63,6 +63,26 @@ export interface UiParams {
     alt_text_hz: number;
     pause_fade_ms: number;
   };
+  landing: {
+    scroll_follow_s: number;
+    hero_to: number;
+    disc_from: number;
+    disc_full: number;
+    disc_to: number;
+    live_from: number;
+    map_from: number;
+    disc_card_scale: number;
+    disc_turns: number;
+    disc_tilt_deg: number;
+    headline_scale: number;
+    reveal_grid: number;
+    reveal_half_life_s: number;
+    reveal_radius: number;
+    reveal_speed_gain: number;
+    reveal_radius_max: number;
+    live_start_s: number;
+    live_span_s: number;
+  };
 }
 
 /** The rotating disc in the player bar (config web3d.disc, D-060). */

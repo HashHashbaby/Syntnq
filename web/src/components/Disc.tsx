@@ -4,8 +4,7 @@
 import { useEffect, useRef } from "react";
 import type { AudioPlayer } from "../audio/player";
 import { DiscMotion } from "../engine/disc";
-import { Pooler } from "../engine/pool";
-import { Canvas2DRenderer } from "../gl/canvas2d";
+import { drawCard } from "../gl/card";
 import { params } from "../params";
 import type { OpenSong } from "../state/store";
 import type { DiscRendererLike } from "../three/disc";
@@ -21,18 +20,6 @@ declare global {
     /** The disc as drawn: [wall s, audio s, angle rad (clockwise)] per drawn frame, for tests. */
     __synesthesiaDisc?: { log: Array<[number, number, number]>; omega: number; drawn: () => number };
   }
-}
-
-/** The static signature card, drawn by the 2D renderer at LABEL_PX. */
-function drawCard(open: OpenSong): HTMLCanvasElement {
-  const n = params.render.display_grid;
-  const ones = new Float32Array(params.grid.size * params.grid.size).fill(1);
-  const frame = new Pooler(params.grid.size, n, 1).pool(open.stat.colorSrgb, ones, new Float32Array(0), 0);
-  const card = document.createElement("canvas");
-  const r = new Canvas2DRenderer(card, params);
-  r.resize(LABEL_PX, 1);
-  r.draw(frame);
-  return card;
 }
 
 interface Props {
@@ -95,7 +82,7 @@ export function Disc({ open, player, reduced }: Props) {
         .then((create) => {
           if (dead) return;
           renderer = create(canvas, params);
-          renderer.setLabel(drawCard(open));
+          renderer.setLabel(drawCard(open.stat, LABEL_PX));
           renderer.resize(canvas.clientWidth, window.devicePixelRatio || 1);
           canvas.dataset.ready = "true";
           ro.observe(canvas);

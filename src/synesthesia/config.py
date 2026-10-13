@@ -459,11 +459,35 @@ class TrailGraph(_Section):
     pause_fade_ms: float
 
 
+class Landing(_Section):
+    """The first landing (web only, D-063)."""
+
+    scroll_follow_s: float
+    hero_to: float
+    disc_from: float
+    disc_full: float
+    disc_to: float
+    live_from: float
+    map_from: float
+    disc_card_scale: float
+    disc_turns: float
+    disc_tilt_deg: float
+    headline_scale: float
+    reveal_grid: int
+    reveal_half_life_s: float
+    reveal_radius: float
+    reveal_speed_gain: float
+    reveal_radius_max: float
+    live_start_s: float
+    live_span_s: float
+
+
 class Ui(_Section):
     """App chrome outside every analysis and render output."""
 
     mural: Mural
     trail_graph: TrailGraph
+    landing: Landing
 
 
 class Config(_Section):

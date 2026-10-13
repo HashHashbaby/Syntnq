@@ -5,18 +5,21 @@
 // All numbers: config web3d.disc (params.json).
 import { CanvasTexture, CylinderGeometry, LinearFilter, Mesh, NoColorSpace, NoToneMapping, PerspectiveCamera, Scene, ShaderMaterial, Vector2, WebGLRenderer } from "three";
 import type { Params } from "../params";
+import { FIT } from "./discFit";
 import edgeFragment from "./shaders/disc-edge.frag.glsl?raw";
 import fragmentShader from "./shaders/disc.frag.glsl?raw";
 import vertexShader from "./shaders/disc.vert.glsl?raw";
 
 const DEG = Math.PI / 180;
 const SEGMENTS = 160;
-const FIT = 1.08; // visible half-height / disc radius, so the tilted rim stays inside the canvas
+
 
 export interface DiscRendererLike {
   setLabel(card: HTMLCanvasElement): void;
   resize(cssSize: number, dpr: number): void;
   draw(angle: number): void;
+  /** Camera tilt from straight above, degrees (the landing starts flat so the label matches the card). */
+  setTilt(deg: number): void;
   /** The angle last drawn (radians, clockwise), for the rpm test. */
   readonly drawnAngle: number;
   dispose(): void;
@@ -31,6 +34,7 @@ export class DiscRenderer implements DiscRendererLike {
   private readonly edge: ShaderMaterial;
   private texture: CanvasTexture | null = null;
   private px = 0;
+  private readonly dist: number;
   drawnAngle = 0;
 
   constructor(
@@ -42,12 +46,10 @@ export class DiscRenderer implements DiscRendererLike {
     this.renderer.toneMapping = NoToneMapping;
     this.renderer.setClearColor(0x000000, 0);
     const dist = FIT / Math.tan((d.camera_fov_deg * DEG) / 2);
+    this.dist = dist;
     this.camera = new PerspectiveCamera(d.camera_fov_deg, 1, dist * 0.5, dist * 2);
-    const tilt = d.tilt_deg * DEG;
-    // from above, leaning toward the viewer by the tilt; screen up is the disc's -z (the card's top row)
-    this.camera.position.set(0, Math.cos(tilt) * dist, Math.sin(tilt) * dist);
     this.camera.up.set(0, 0, -1);
-    this.camera.lookAt(0, 0, 0);
+    this.setTilt(d.tilt_deg);
 
     const light = new Vector2(Math.cos(d.light_angle_deg * DEG), Math.sin(d.light_angle_deg * DEG));
     this.top = new ShaderMaterial({
@@ -79,6 +81,13 @@ export class DiscRenderer implements DiscRendererLike {
     // CylinderGeometry groups: 0 side, 1 top, 2 bottom
     this.mesh = new Mesh(geo, [this.edge, this.top, this.edge]);
     this.scene.add(this.mesh);
+  }
+
+  setTilt(deg: number): void {
+    const tilt = deg * DEG;
+    // from above, leaning toward the viewer by the tilt; screen up is the disc's -z (the card's top row)
+    this.camera.position.set(0, Math.cos(tilt) * this.dist, Math.sin(tilt) * this.dist);
+    this.camera.lookAt(0, 0, 0);
   }
 
   setLabel(card: HTMLCanvasElement): void {

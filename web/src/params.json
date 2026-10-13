@@ -127,6 +127,26 @@
     }
   },
   "ui": {
+    "landing": {
+      "disc_card_scale": 0.42,
+      "disc_from": 0.16,
+      "disc_full": 0.26,
+      "disc_tilt_deg": 12.0,
+      "disc_to": 0.44,
+      "disc_turns": 1.25,
+      "headline_scale": 0.5,
+      "hero_to": 0.16,
+      "live_from": 0.5,
+      "live_span_s": 14.0,
+      "live_start_s": 8.0,
+      "map_from": 0.76,
+      "reveal_grid": 64,
+      "reveal_half_life_s": 1.5,
+      "reveal_radius": 0.07,
+      "reveal_radius_max": 0.17,
+      "reveal_speed_gain": 0.035,
+      "scroll_follow_s": 0.12
+    },
     "mural": {
       "boot_delay_ms": 0.0,
       "boot_fade_ms": 450.0,

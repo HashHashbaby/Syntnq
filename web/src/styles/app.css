@@ -352,8 +352,8 @@ p {
 .landing[data-exit] .landing-sticky > :not(.landing-stage),
 .landing[data-exit] .landing-after { opacity: 0; transition: opacity var(--dip-out) var(--ease-out); }
 .landing[data-exit="handoff"] .maps-card { opacity: 0; transition: opacity var(--dip-out) var(--ease-out); }
-.key { display: grid; gap: var(--space-2); max-width: 30rem; margin: 0 auto; text-align: left; }
-.key-row { display: grid; grid-template-columns: 56px 1fr; gap: var(--space-3); align-items: center; }
+.key { display: grid; gap: var(--space-4); max-width: 38rem; margin: 0 auto; text-align: left; }
+.key-row { display: grid; grid-template-columns: minmax(6.5rem, auto) 1fr; gap: var(--space-4); align-items: baseline; padding-top: var(--space-3); border-top: 1px solid rgba(255, 255, 255, 0.1); }
 .swatches { display: flex; height: 16px; border-radius: 8px; overflow: hidden; }
 .swatches > span { flex: 1; }
 .landing-actions { display: flex; gap: var(--space-3); justify-content: center; flex-wrap: wrap; align-items: center; }
@@ -454,3 +454,28 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
   .player > .scrub { grid-column: 3; grid-row: 1; align-self: end; }
   .player > .tabular { grid-column: 3; grid-row: 2; align-self: start; justify-self: end; margin-top: -8px; padding-right: var(--space-1); }
 }
+
+/* landing beats (D-063): giant hero type framing the card, the card that becomes the disc's label */
+.landing-sticky { isolation: isolate; }
+.landing-hero { position: absolute; inset: var(--space-4) var(--space-4) var(--space-6); display: flex; flex-direction: column; justify-content: space-between; align-items: center; text-align: center; pointer-events: none; z-index: 0; transform-origin: 50% 50%; will-change: transform, opacity; }
+.landing-hero .t-hero { color: #f5f5f7; padding: 0 48px; font-size: min(clamp(3.5rem, 9vw, 9rem), 13vw); } /* capped by the viewport so large text settings cannot push it off screen (it is decorative; the heading scales) */
+.landing-hero .landing-hero-2 { color: rgba(235, 235, 245, 0.6); }
+.landing-head { position: relative; z-index: 1; }
+.landing-stage { z-index: 1; }
+.landing-card { position: absolute; inset: 0; transform-origin: 50% 50%; }
+.landing-disc { position: absolute; opacity: 0; pointer-events: none; }
+.landing-disc canvas { border-radius: 50%; }
+.landing-layers.stage-card { position: absolute; inset: 0; width: 100%; margin: 0; touch-action: pan-y; }
+.landing-cover { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; transition: opacity var(--dur-fast) var(--ease-out); }
+.landing-hero-foot { display: grid; justify-items: center; gap: var(--space-2); }
+.landing-hint { pointer-events: auto; }
+.landing-hint .btn-plain { min-height: var(--hit); padding: 0 var(--space-3); }
+.key-ramp { display: grid; gap: var(--space-2); }
+.key-bar { height: 20px; border-radius: 10px; }
+.key-ends { display: flex; justify-content: space-between; }
+/* the disc layer is wider than the stage (it is invisible outside its beat): never let it scroll the page sideways */
+.landing-sticky { overflow-x: clip; }
+@media (max-width: 734px) { .landing-hero { top: calc(12px + var(--hit) + var(--space-2)); } } /* phones: the hero type starts below Skip */
+.landing-head { font-size: min(clamp(2.5rem, 5vw, 4rem), 10vw); overflow-wrap: anywhere; }
+.landing-actions-wrap { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 480px) { .key-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); } }

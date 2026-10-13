@@ -8,7 +8,7 @@ test.describe("app flow", () => {
     await page.goto("/");
     // the scroll-driven stage is shown once, with a visible Skip and the mapping key
     await expect(page.getByRole("dialog", { name: "Welcome" })).toBeVisible();
-    await expect(page.getByText("Hear the music.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Hear the music./ })).toBeVisible();
     await page.getByRole("dialog", { name: "Welcome" }).evaluate((el) => el.scrollTo(0, el.scrollHeight));
     await expect(page.getByLabel("How to read the colours")).toBeVisible();
     await page.getByRole("button", { name: "Skip" }).click();
